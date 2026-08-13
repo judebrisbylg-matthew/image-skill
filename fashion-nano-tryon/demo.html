@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fashion Nano Tryon 使用说明</title>
+  <style>
+    :root {
+      --ink: #161616;
+      --muted: #626262;
+      --line: #d9d9d6;
+      --paper: #ffffff;
+      --soft: #f7f7f4;
+      --soft-green: #eef7f2;
+      --green: #1f604c;
+      --red: #a2352a;
+      --amber: #9b6a20;
+      --black: #101010;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.5;
+    }
+
+    .page {
+      width: min(1200px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 36px 0 56px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 28px;
+      align-items: stretch;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 850;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 760px;
+      font-size: 42px;
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 760px;
+      margin: 16px 0 0;
+      color: #333;
+      font-size: 18px;
+    }
+
+    .summary {
+      display: grid;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+      padding: 18px;
+    }
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: 128px 1fr;
+      gap: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .summary-row:last-child {
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .label {
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .value {
+      margin: 0;
+      color: #333;
+      font-size: 14px;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .tag {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      padding: 6px 10px;
+      color: #303030;
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .section {
+      margin-top: 34px;
+    }
+
+    .section h2 {
+      margin: 0 0 14px;
+      font-size: 22px;
+      line-height: 1.2;
+    }
+
+    .section-note {
+      margin: -4px 0 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .role-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .role-card,
+    .gate,
+    .step,
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 16px;
+    }
+
+    .role-card h3,
+    .gate h3,
+    .step h3,
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      line-height: 1.25;
+    }
+
+    .role-card p,
+    .gate p,
+    .step p,
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .role-card strong {
+      color: var(--green);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 12px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 44px 1fr 170px;
+      gap: 14px;
+      align-items: start;
+      background: var(--soft);
+    }
+
+    .num {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--black);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 850;
+    }
+
+    .status {
+      align-self: start;
+      justify-self: end;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 5px 9px;
+      color: #444;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .gates {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .gate {
+      background: var(--soft-green);
+      border-color: #c9ded4;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 16px;
+    }
+
+    .callout {
+      border-left: 4px solid var(--green);
+      border-radius: 6px;
+      background: var(--soft-green);
+      padding: 14px 16px;
+      color: #15382e;
+      font-size: 14px;
+    }
+
+    .warning {
+      border-left: 4px solid var(--red);
+      border-radius: 6px;
+      background: #fbefed;
+      padding: 14px 16px;
+      color: #3e1b16;
+      font-size: 14px;
+    }
+
+    .amber {
+      border-left-color: var(--amber);
+      background: #fff5e8;
+      color: #3f2a0c;
+    }
+
+    pre {
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--black);
+      color: #f7f7f7;
+      padding: 16px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .matrix {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 14px;
+    }
+
+    .matrix th,
+    .matrix td {
+      border-bottom: 1px solid var(--line);
+      padding: 11px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .matrix th {
+      background: var(--soft);
+      color: #333;
+      font-weight: 850;
+    }
+
+    .matrix tr:last-child td { border-bottom: 0; }
+
+    code {
+      border-radius: 4px;
+      background: #ececea;
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    .footer {
+      margin-top: 34px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 940px) {
+      .hero,
+      .role-grid,
+      .gates,
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+
+      .step {
+        grid-template-columns: 36px 1fr;
+      }
+
+      .status {
+        grid-column: 2;
+        justify-self: start;
+      }
+
+      h1 { font-size: 34px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero" aria-labelledby="title">
+      <div>
+        <p class="eyebrow">Fashion Nano Tryon</p>
+        <h1 id="title">线稿辅助试衣流程不变，最终 Prompt 专门适配 Nano Banana Pro</h1>
+        <p class="lead">
+          这个 skill 用于服装电商白底穿搭图。前面仍按“对标图转黑白线稿、提取人物外观锁、产品拆解、策略确认”执行；只有最后一步输出 Nano Banana Pro 更容易控制的结构化英文 Prompt。
+        </p>
+        <div class="tags" aria-label="关键词">
+          <span class="tag">黑白线稿</span>
+          <span class="tag">人物外观锁</span>
+          <span class="tag">产品不混图</span>
+          <span class="tag">最终 3:4</span>
+          <span class="tag">4K output</span>
+          <span class="tag">纯白 #FFFFFF</span>
+        </div>
+      </div>
+
+      <aside class="summary" aria-label="快速结论">
+        <div class="summary-row">
+          <div class="label">适用场景</div>
+          <p class="value">多参考图服装试穿，最终在 Nano Banana Pro 生成白底电商图。</p>
+        </div>
+        <div class="summary-row">
+          <div class="label">核心变化</div>
+          <p class="value">不改前置流程，只改最终白底穿搭展示图 Prompt 的写法。</p>
+        </div>
+        <div class="summary-row">
+          <div class="label">默认规格</div>
+          <p class="value">3:4 ratio，4K output，pure white #FFFFFF background。</p>
+        </div>
+        <div class="summary-row">
+          <div class="label">调用方式</div>
+          <p class="value"><code>$fashion-nano-tryon</code> + 图号角色说明 + <code>执行流程</code></p>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section" aria-labelledby="roles">
+      <h2 id="roles">一、输入图片怎么分类</h2>
+      <p class="section-note">每类图只负责自己的部分，避免 Nano Banana Pro 把多张图混成 moodboard。</p>
+      <div class="role-grid">
+        <article class="role-card">
+          <strong>PRODUCT SOURCE</strong>
+          <h3>产品图</h3>
+          <p>只控制最终服装：品类、颜色、版型、领口、袖型、面料、印花、缝线、下摆和真实体量。</p>
+        </article>
+        <article class="role-card">
+          <strong>BENCHMARK SOURCE</strong>
+          <h3>对标图</h3>
+          <p>先用于生成黑白线稿，同时提取人物外观锁。它不直接控制最终服装设计。</p>
+        </article>
+        <article class="role-card">
+          <strong>LINE_ART SOURCE</strong>
+          <h3>确认后的黑白线稿</h3>
+          <p>只控制姿势、构图、裁切、身体比例、手脚位置、拍摄距离和兼容穿着行为。</p>
+        </article>
+        <article class="role-card">
+          <strong>MODEL APPEARANCE LOCK</strong>
+          <h3>人物外观锁</h3>
+          <p>从对标图提取，用来锁肤色一致性、发色、发型和基础可见人物外观。</p>
+        </article>
+        <article class="role-card">
+          <strong>ACCESSORY SOURCES</strong>
+          <h3>配饰图</h3>
+          <p>只控制明确提供的项链、耳环、手链、包、鞋等配饰。没有提供就不生成。</p>
+        </article>
+        <article class="role-card">
+          <strong>BOTTOMS SOURCE</strong>
+          <h3>下装图</h3>
+          <p>当产品是上衣时，下装图只控制牛仔裤、长裤、半裙等下装，不参与上衣设计。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="workflow">
+      <h2 id="workflow">二、完整执行流程</h2>
+      <div class="timeline">
+        <div class="step">
+          <div class="num">0</div>
+          <div>
+            <h3>参考图角色映射</h3>
+            <p>确认哪些图是产品图、对标图、配饰图、下装图。用户图号明确时可直接进入下一步。</p>
+          </div>
+          <div class="status">输入整理</div>
+        </div>
+        <div class="step">
+          <div class="num">1</div>
+          <div>
+            <h3>确认黑白线稿生成策略</h3>
+            <p>分析对标图要保留的姿势、比例、裁切、手位、腿位、穿着空间关系，并提取人物外观锁。</p>
+          </div>
+          <div class="status">需要确认</div>
+        </div>
+        <div class="step">
+          <div class="num">2</div>
+          <div>
+            <h3>生成黑白线稿 Prompt</h3>
+            <p>输出中英文线稿 Prompt，用 image generation 把对标图转为黑白线稿参考。</p>
+          </div>
+          <div class="status">生成线稿</div>
+        </div>
+        <div class="step">
+          <div class="num">3</div>
+          <div>
+            <h3>确认线稿可用</h3>
+            <p>用户确认或上传线稿后，才能继续产品特征拆解。线稿只用于最终图的姿势和空间关系。</p>
+          </div>
+          <div class="status">需要确认</div>
+        </div>
+        <div class="step">
+          <div class="num">4</div>
+          <div>
+            <h3>产品特征拆解</h3>
+            <p>只看产品图，拆解品类、颜色、版型、领口、袖型、下摆、面料和必须保留细节。</p>
+          </div>
+          <div class="status">需要确认</div>
+        </div>
+        <div class="step">
+          <div class="num">5</div>
+          <div>
+            <h3>最终白底展示图策略</h3>
+            <p>确认每个来源的控制范围、防混图规则、动作硬锁、肤色来源、配饰可见性和输出规格。</p>
+          </div>
+          <div class="status">需要确认</div>
+        </div>
+        <div class="step">
+          <div class="num">6</div>
+          <div>
+            <h3>输出 Nano Banana Pro Prompt</h3>
+            <p>最终 Prompt 用短块结构，先写角色合同和优先级，再写服装、姿势、外观、配饰和禁止项。</p>
+          </div>
+          <div class="status">最终产物</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="gates">
+      <h2 id="gates">三、三个必须停下来确认的节点</h2>
+      <div class="gates">
+        <article class="gate">
+          <h3>Gate 1：线稿策略确认</h3>
+          <p>没确认黑白线稿策略和人物外观锁之前，不生成线稿 Prompt。</p>
+        </article>
+        <article class="gate">
+          <h3>Gate 2：线稿可用确认</h3>
+          <p>没确认或上传可用线稿之前，不进入产品拆解。</p>
+        </article>
+        <article class="gate">
+          <h3>Gate 3：最终策略确认</h3>
+          <p>没确认产品拆解和最终展示图策略之前，不输出最终 Nano Banana Pro Prompt。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section two-col" aria-labelledby="call">
+      <div>
+        <h2 id="call">四、推荐调用方式</h2>
+        <div class="callout">
+          <p><strong>直接这样说：</strong></p>
+          <p><code>[$fashion-nano-tryon] 图1-图4是产品图；图5-图8是配饰图；图9是对标图。执行流程</code></p>
+        </div>
+        <p style="margin:14px 0 0;color:var(--muted);font-size:14px;">
+          如果某张“配饰图”其实是牛仔裤、裙子或裤子，执行中会把它归入 <code>BOTTOMS SOURCE</code>，避免下装被当作配饰处理。
+        </p>
+      </div>
+      <div>
+        <h2>五、常见错误说法</h2>
+        <div class="warning">
+          “参考这些图帮我生成一张好看的穿搭图。” 这个说法太宽，会让模型混合产品、对标图、肤色、配饰和背景。
+        </div>
+        <div class="warning amber" style="margin-top:10px;">
+          “直接出最终 Prompt。” 这会跳过黑白线稿和人物外观锁，不符合这个 skill 的流程。
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="final-structure">
+      <h2 id="final-structure">六、最终 Prompt 的分类结构</h2>
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>区块</th>
+            <th>作用</th>
+            <th>重点</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>FINAL OUTPUT</code></td>
+            <td>定义最终图规格</td>
+            <td>3:4 ratio，4K output，pure white #FFFFFF background，一张单图。</td>
+          </tr>
+          <tr>
+            <td><code>REFERENCE ROLE CONTRACT</code></td>
+            <td>明确每类参考图职责</td>
+            <td>产品只控服装，线稿只控姿势，外观锁只控肤色发型，配饰/下装只控各自物件。</td>
+          </tr>
+          <tr>
+            <td><code>REFERENCE PRIORITY</code></td>
+            <td>解决冲突时的优先级</td>
+            <td>产品细节优先产品图；动作构图优先线稿；肤色发型优先外观锁。</td>
+          </tr>
+          <tr>
+            <td><code>GARMENT HARD LOCK</code></td>
+            <td>锁定产品身份</td>
+            <td>写清品类、颜色、领口、袖型、面料、长度、下摆、缝线和禁止改款。</td>
+          </tr>
+          <tr>
+            <td><code>POSE AND BODY HARD LOCK</code></td>
+            <td>锁定动作构图</td>
+            <td>写清裁切、身体比例、手位、腿位、包位、身体角度和画面尺度。</td>
+          </tr>
+          <tr>
+            <td><code>MODEL APPEARANCE HARD LOCK</code></td>
+            <td>锁定人物外观</td>
+            <td>肤色一致性、发色、发型、基础模特外观；不从黑白线稿推断肤色。</td>
+          </tr>
+          <tr>
+            <td><code>ACCESSORIES AND BOTTOMS</code></td>
+            <td>迁移搭配物件</td>
+            <td>逐一写明配饰/下装的类别、数量、材质、位置和可见性。</td>
+          </tr>
+          <tr>
+            <td><code>DO NOT INCLUDE</code></td>
+            <td>防止混图和乱生成</td>
+            <td>禁止文字、水印、原对标服装、线稿残留服装设计、人台、额外造型、改姿势和改裁切。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section two-col" aria-labelledby="sample">
+      <div>
+        <h2 id="sample">七、最终 Prompt 示例骨架</h2>
+        <p class="section-note">实际执行时会把方括号内容替换成当前图片的具体产品和搭配细节。</p>
+        <pre>FINAL OUTPUT
+Create one high-end fashion ecommerce studio photo, 3:4 ratio, 4K output, pure white #FFFFFF background.
+
+REFERENCE ROLE CONTRACT
+PRODUCT SOURCE: Images 1-4. Use only these sources for the final garment.
+LINE_ART SOURCE: approved black-and-white line-art. Use only for pose, crop, body scale, hands, legs, and composition.
+MODEL APPEARANCE LOCK: [skin tone, hair color, hairstyle]. Use only this for model appearance.
+ACCESSORY SOURCES: [image numbers]. Use only these listed accessories.
+BOTTOMS SOURCE: [image number or omit]. Use only this listed bottom.
+
+REFERENCE PRIORITY
+Garment identity must match PRODUCT SOURCE first.
+Pose and crop must match LINE_ART SOURCE first.
+Skin tone and hair must match MODEL APPEARANCE LOCK first.
+
+GARMENT HARD LOCK
+[exact product details]
+
+POSE AND BODY HARD LOCK
+[exact pose, crop, hand, leg, body scale locks]
+
+DO NOT INCLUDE
+No text, watermarks, random styling, unlisted accessories, changed pose, changed crop, changed skin tone, changed garment design, borrowed benchmark outfit details, or borrowed line-art outfit details.</pre>
+      </div>
+      <div>
+        <h2>八、验收检查</h2>
+        <div class="card">
+          <h3>输出前检查</h3>
+          <p>是否完成线稿策略、线稿 Prompt、可用线稿确认、产品拆解、最终策略确认。</p>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3>最终图检查</h3>
+          <p>是否为 3:4、4K、纯白背景；是否只有一个模特；是否产品不改款、动作不漂移、肤色不随机。</p>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3>防混图检查</h3>
+          <p>是否明确禁止对标图原服装、线稿残留服装设计、人台、文字水印、额外配饰、额外鞋包。</p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      Skill path:
+      <code>/Users/chenyiming/.codex/skills/fashion-nano-tryon</code>
+    </footer>
+  </main>
+</body>
+</html>

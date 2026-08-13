@@ -1,0 +1,7 @@
+interface:
+  display_name: "Fashion Nano Tryon"
+  short_description: "保留黑白线稿辅助试衣流程，最终输出 Nano Banana Pro 白底电商穿搭图 Prompt"
+  default_prompt: "Use $fashion-nano-tryon to run the fashion line-art-assisted try-on workflow: map product, benchmark, accessory, and bottoms references; confirm the black-and-white line-art strategy; generate the line-art prompt and model appearance lock; then after the approved line-art, create a structured Nano Banana Pro final prompt for a 3:4 4K pure-white ecommerce fashion try-on image."
+
+policy:
+  allow_implicit_invocation: true
