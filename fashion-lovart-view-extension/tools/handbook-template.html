@@ -515,7 +515,7 @@
               <div class="metric accent"><b>4</b><span>正面 / 侧面 / 背面 / 全身</span></div>
               <div class="metric"><b>5</b><span>每个视角的独立动作</span></div>
               <div class="metric"><b>10</b><span>Lovart 未完成任务上限</span></div>
-              <div class="metric"><b>3</b><span>每个动作最大尝试次数</span></div>
+              <div class="metric"><b>10</b><span>每个视角最多生成图片</span></div>
             </div>
           </div>
         </section>
@@ -609,7 +609,7 @@
         <section id="quality">
           <span class="section-kicker">07 / QUALITY GATE</span>
           <h2>生成只是候选，核验通过才算完成</h2>
-          <p class="section-intro">20 张基础图生成完后进行统一质检。轻微自然变化可接受，但产品设计、动作核心、视角目的与全身边界不可改变。</p>
+          <p class="section-intro">20 张基础图生成完后进行统一质检。每个视角最多生成10张：5张基础图加最多5张补图；达到5张合格图或10张总量时立即停止该视角。</p>
           <div class="quality-grid">
             <details open><summary>产品一致性</summary><ul><li>颜色、版型、领口、袖型、长度和面料正确</li><li>视角与动作合同一致</li><li>包袋、鞋子和手部正确</li></ul></details>
             <details open><summary>图像真实性</summary><ul><li>单图、单个成年模特、无拼图</li><li>光向、投影、反射与色温统一</li><li>无抠图白边、严重肢体错误、文字或水印</li></ul></details>
@@ -617,9 +617,9 @@
             <details><summary>全身图专属边界</summary><p>从头发最高点到两只脚底连续完整入镜，完整脸部、两只鞋、脚趾与鞋底可见，头顶和脚下均留安全边距。</p></details>
           </div>
           <div class="attempts">
-            <div class="attempt"><b>ATTEMPT 1</b><span>基础候选</span></div>
-            <div class="attempt"><b>ATTEMPT 2</b><span>原提示词 + 精准纠错</span></div>
-            <div class="attempt"><b>ATTEMPT 3</b><span>最后一次；仍失败则 blocked:quality</span></div>
+            <div class="attempt"><b>BASE · 5</b><span>每个动作先生成1张基础候选</span></div>
+            <div class="attempt"><b>CORRECTION · ≤5</b><span>优先让每个失败动作获得一次补图</span></div>
+            <div class="attempt"><b>VIEW CAP · 10</b><span>不足5张合格则 blocked:quality-cap</span></div>
           </div>
         </section>
 
@@ -630,7 +630,7 @@
           <div class="role-table">
             <div class="role-row"><code>qualified</code><p>直接跳过，不重新生成</p></div>
             <div class="role-row"><code>submitted / queued</code><p>先在月度项目中查找可见任务标签</p></div>
-            <div class="role-row"><code>rejected</code><p>未到 3 次上限时，继续带证据纠错</p></div>
+            <div class="role-row"><code>rejected</code><p>当前视角累计未满 10 张时，按补图顺序继续带证据纠错</p></div>
             <div class="role-row"><code>blocked</code><p>只隔离当前动作、视角或 SKC；批次继续</p></div>
             <div class="role-row"><code>canvas_placement</code><p>记录行号、主槽/补图位和视觉确认结果</p></div>
           </div>
@@ -654,6 +654,7 @@
             <div class="done-item"><i class="check">✓</i><span>四行主图区顺序正确，补图留在所属视角右侧</span><code>4 LANES</code></div>
             <div class="done-item"><i class="check">✓</i><span>没有使用积分、付费加速或自动下载</span><code>FREE QUEUE</code></div>
             <div class="done-item"><i class="check">✓</i><span>全身图均从头顶到脚底完整入镜</span><code>HEAD-TO-TOE</code></div>
+            <div class="done-item"><i class="check">✓</i><span>每个视角累计不超过10张候选图</span><code>≤10 / VIEW</code></div>
           </div>
         </section>
 
@@ -706,7 +707,7 @@
       {n:'04', name:'初始化状态', tag:'resume', title:'创建或读取 run-state.json', text:'合格项跳过、排队项先查找、失败项按尝试次数继续；完成的视角不会重启。'},
       {n:'05', name:'准备参考图', tag:'ASCII', title:'建立去重的临时上传包', text:'按人物 → 产品 → 场景 → 构图 → 配饰排序，使用 ASCII 路径，原始素材不移动。'},
       {n:'06', name:'Lovart 执行', tag:'10 slots', title:'在一个标签页内持续填充免费队列', text:'每个动作独立对话；任何结果完成后先即时排版并确认，再填充释放的并发位。'},
-      {n:'07', name:'统一质检', tag:'max 3', title:'20 张基础图完成后逐张核验', text:'对照当前视角参考图与动作合同；失败时只追加具体纠错，第三次仍失败则 blocked:quality。'}
+      {n:'07', name:'统一质检', tag:'10 / view', title:'20 张基础图完成后逐张核验', text:'每个视角最多生成10张：5张基础图加最多5张补图；达到5张合格图或10张总量即停止。'}
     ];
 
     const pipeline = document.getElementById('pipeline');
@@ -726,10 +727,10 @@
     renderStage(0);
 
     const viewData = [
-      {key:'FR', name:'正面', retries:2},
-      {key:'SI', name:'侧面', retries:1},
-      {key:'BA', name:'背面', retries:2},
-      {key:'FU', name:'全身', retries:3}
+      {key:'FR', name:'正面', retries:5},
+      {key:'SI', name:'侧面', retries:5},
+      {key:'BA', name:'背面', retries:5},
+      {key:'FU', name:'全身', retries:5}
     ];
     const tabs = document.getElementById('viewTabs');
     const lanes = document.getElementById('lanes');

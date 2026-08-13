@@ -18,6 +18,15 @@
 - If a button offers `立即生成` or points acceleration, do not click it. Record queue state and mark the accepted task `queued`.
 - Record every visible free-queue estimate but continue submitting until 10 unfinished tasks are accepted. Fill a released slot immediately with the next pending back/full action. For each SKC, finish all 20 base generations before visual review or retry submissions. Finalize Chrome as a handoff only when the 10-task window is full or Lovart explicitly refuses an additional free submission. Do not block one tool call indefinitely.
 
+## Per-view generation cap
+
+- Treat 10 generated candidates as the absolute lifetime cap for each view: five base candidates plus no more than five correction candidates.
+- Count an image when Lovart visibly returns it. Rejected and replaced images count. Pending, submitted, queued, cancelled, or failed requests that return no image do not count.
+- Before submitting, add the view's generated count to its currently submitted/queued/generating reservations. Do not submit when that projected total is already 10.
+- After all five base candidates in the view have been reviewed, give each rejected action one correction opportunity before giving any action an additional correction.
+- Stop immediately when the view reaches five qualified actions. Never generate unused correction capacity.
+- If the view reaches 10 generated candidates with fewer than five qualified actions, mark unresolved actions `blocked:quality-cap`, preserve every result and placement, and continue other views or SKCs.
+
 ## Immediate canvas placement
 
 Create the four row lanes before the first submission and keep them stable for the entire SKC:
@@ -30,13 +39,13 @@ Create the four row lanes before the first submission and keep them stable for t
 Each row has two horizontal zones:
 
 - **Primary strip:** five equal cells for action `01`–`05`.
-- **Supplemental strip:** starts after one clearly visible gap to the right of the primary strip; contains replaced, rejected, and retry candidates for that same view only.
+- **Supplemental strip:** five fixed cells after one clearly visible gap to the right of the primary strip; contains replaced, rejected, and retry candidates for that same view only. A row therefore contains at most 10 generated images.
 
 For every newly completed task, perform this sequence before submitting another task:
 
 1. Identify the result from its exact `SKC | VIEW | ACTION | ATTEMPT` conversation label.
 2. For attempt 1, move the result directly into the action's primary cell.
-3. For attempt 2 or 3, move the candidate currently occupying that primary cell into the same row's supplemental strip, ordered by action then attempt; then move the new result into the vacated primary cell.
+3. For every correction attempt, move the candidate currently occupying that primary cell into the next available cell of the same row's five-cell supplemental strip, ordered by action then attempt; then move the new result into the vacated primary cell.
 4. Match the existing row image size and snap to the shared row baseline and column spacing.
 5. Deselect the object, navigate away and back or refocus the canvas, and visually confirm the position persisted and no neighboring object moved.
 6. Record the verified placement:
@@ -58,7 +67,7 @@ Use the prompt prefix as the search label. Record the visible task label when Lo
 - `queued`: accepted but waiting in the free queue.
 - `qualified`: Codex individually inspected and accepted the image.
 - `rejected`: Codex inspected and recorded a concrete defect.
-- `blocked`: third quality failure or an unrecoverable execution blocker.
+- `blocked`: the view reached its 10-image quality cap or encountered an unrecoverable execution blocker.
 
 ## Correction format
 
@@ -72,7 +81,7 @@ Append the exact submitted correction and Lovart task label to `run-log.md`. Do 
 
 ## Canvas organization
 
-Within the monthly project, group by SKC and preserve the four continuously maintained row lanes. The five current candidates remain in the aligned primary strip; all replaced or rejected candidates remain in the supplemental strip of their own row. Normalize image size and spacing at placement time, not at the end. Do not download any result.
+Within the monthly project, group by SKC and preserve the four continuously maintained row lanes. The five current candidates remain in the aligned primary strip; up to five replaced or rejected candidates remain in the fixed supplemental strip of their own row. Normalize image size and spacing at placement time, not at the end. Do not download any result.
 
 ## Acceptable micro-variation
 

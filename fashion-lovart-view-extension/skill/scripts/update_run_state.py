@@ -10,6 +10,8 @@ from pathlib import Path
 
 
 PREFIXES = {"front": "FR", "side": "SI", "back": "BA", "full": "FU"}
+VIEW_GENERATION_LIMIT = 10
+VIEW_SUPPLEMENTAL_LIMIT = 5
 TRANSITIONS = {
     "pending": {"submitted", "blocked"},
     "submitted": {"queued", "qualified", "rejected", "blocked"},
@@ -50,8 +52,14 @@ def initialize_state(manifest: dict) -> dict:
             }
             for index in range(1, 6)
         }
-        views[view_key] = {"status": "pending", "actions": actions}
-    return {"schema_version": 2, "skc_id": manifest["skc_id"], "status": "pending", "views": views}
+        views[view_key] = {
+            "status": "pending",
+            "generation_limit": VIEW_GENERATION_LIMIT,
+            "generated_count": 0,
+            "supplemental_limit": VIEW_SUPPLEMENTAL_LIMIT,
+            "actions": actions,
+        }
+    return {"schema_version": 3, "skc_id": manifest["skc_id"], "status": "pending", "views": views}
 
 
 def place_attempt(
@@ -65,7 +73,9 @@ def place_attempt(
     verified: bool,
 ) -> dict:
     try:
-        action = state["views"][view_key]["actions"][action_id]
+        view = state["views"][view_key]
+        _upgrade_view_state(view)
+        action = view["actions"][action_id]
     except KeyError as exc:
         raise ValueError(f"unknown action {view_key}/{action_id}") from exc
     if attempt < 1 or attempt > action.get("attempts", 0):
@@ -76,6 +86,10 @@ def place_attempt(
         raise ValueError("slot must be positive")
     if area == "primary" and slot != int(action_id[-2:]):
         raise ValueError("primary slot must match the action number")
+    if area == "supplemental" and slot > int(
+        view.get("supplemental_limit", VIEW_SUPPLEMENTAL_LIMIT)
+    ):
+        raise ValueError("supplemental slot exceeds the per-view limit")
 
     canvas = action.setdefault(
         "canvas",
@@ -99,13 +113,69 @@ def place_attempt(
     elif canvas.get("current_attempt") == attempt:
         canvas["current_attempt"] = None
     action["updated_at"] = now_iso()
-    state["schema_version"] = max(2, state.get("schema_version", 1))
+    state["schema_version"] = max(3, state.get("schema_version", 1))
     return state
+
+
+def _record_generated_candidate(view: dict, action: dict, result_status: str) -> None:
+    if not action.get("attempt_history"):
+        raise ValueError("cannot record a generated candidate before submission")
+    attempt = action["attempt_history"][-1]
+    if attempt.get("result_recorded_at"):
+        raise ValueError("generated candidate already recorded for this attempt")
+    attempt["result_recorded_at"] = now_iso()
+    attempt["result_status"] = result_status
+    view["generated_count"] = int(view.get("generated_count", 0)) + 1
+
+
+def _reserved_candidate_count(view: dict) -> int:
+    return sum(
+        1
+        for action in view.get("actions", {}).values()
+        if action.get("status") in {"submitted", "queued"}
+    )
+
+
+def _upgrade_view_state(view: dict) -> None:
+    view.setdefault("generation_limit", VIEW_GENERATION_LIMIT)
+    view.setdefault("supplemental_limit", VIEW_SUPPLEMENTAL_LIMIT)
+    if "generated_count" in view:
+        return
+    generated = 0
+    for action in view.get("actions", {}).values():
+        history = action.get("attempt_history", [])
+        for index, attempt in enumerate(history):
+            rejected = attempt.get("rejection_reason") is not None
+            qualified = action.get("status") == "qualified" and index == len(history) - 1
+            if rejected or qualified:
+                attempt.setdefault("result_recorded_at", action.get("updated_at") or now_iso())
+                attempt.setdefault("result_status", "rejected" if rejected else "qualified")
+                generated += 1
+            else:
+                attempt.setdefault("result_recorded_at", None)
+                attempt.setdefault("result_status", None)
+    view["generated_count"] = generated
+
+
+def _block_view_at_generation_cap(view: dict) -> None:
+    if int(view.get("generated_count", 0)) < int(
+        view.get("generation_limit", VIEW_GENERATION_LIMIT)
+    ):
+        return
+    if all(action.get("status") == "qualified" for action in view.get("actions", {}).values()):
+        return
+    for action in view.get("actions", {}).values():
+        if action.get("status") != "qualified":
+            action["status"] = "blocked"
+            action["blocker"] = "blocked:quality-cap"
+            action["updated_at"] = now_iso()
 
 
 def transition_action(state: dict, view_key: str, action_id: str, new_status: str, *, reason: str | None = None, task_label: str | None = None) -> dict:
     try:
-        action = state["views"][view_key]["actions"][action_id]
+        view = state["views"][view_key]
+        _upgrade_view_state(view)
+        action = view["actions"][action_id]
     except KeyError as exc:
         raise ValueError(f"unknown action {view_key}/{action_id}") from exc
     old_status = action["status"]
@@ -113,8 +183,11 @@ def transition_action(state: dict, view_key: str, action_id: str, new_status: st
         raise ValueError(f"invalid transition: {old_status} -> {new_status}")
 
     if new_status == "submitted":
-        if action["attempts"] >= 3:
-            raise ValueError("maximum attempts reached")
+        generated = int(view.get("generated_count", 0))
+        reserved = _reserved_candidate_count(view)
+        generation_limit = int(view.get("generation_limit", VIEW_GENERATION_LIMIT))
+        if generated + reserved >= generation_limit:
+            raise ValueError("per-view generation limit reached")
         action["attempts"] += 1
         action["submitted_at"] = now_iso()
         if task_label:
@@ -125,22 +198,25 @@ def transition_action(state: dict, view_key: str, action_id: str, new_status: st
                 "submitted_at": action["submitted_at"],
                 "task_label": task_label,
                 "rejection_reason": None,
+                "result_recorded_at": None,
+                "result_status": None,
             }
         )
+    if new_status in {"qualified", "rejected"}:
+        _record_generated_candidate(view, action, new_status)
     if new_status == "rejected":
         if not reason:
             raise ValueError("rejected transition requires a reason")
         action["rejection_reasons"].append(reason)
         if action["attempt_history"]:
             action["attempt_history"][-1]["rejection_reason"] = reason
-        if action["attempts"] >= 3:
-            new_status = "blocked"
-            action["blocker"] = "blocked:quality"
     if new_status == "blocked" and not action["blocker"]:
         action["blocker"] = reason or "blocked:unknown"
 
     action["status"] = new_status
     action["updated_at"] = now_iso()
+    _block_view_at_generation_cap(view)
+    state["schema_version"] = max(3, state.get("schema_version", 1))
     _recompute_state(state)
     return state
 
