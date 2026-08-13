@@ -1,0 +1,4 @@
+interface:
+  display_name: "SKC 四视角 Lovart 延展"
+  short_description: "批量分析、生成并逐张质检 SKC 四视角 Lovart 延展图"
+  default_prompt: "Use $fashion-lovart-view-extension to process this SKC folder and run its Lovart view-extension workflow."
