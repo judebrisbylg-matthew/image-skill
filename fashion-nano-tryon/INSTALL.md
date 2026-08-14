@@ -1,12 +1,12 @@
 # 安装方式
 
-本文档说明如何从私有 GitHub 仓库安装 `fashion-nano-tryon` skill 到本机 Codex。
+本文档说明如何从 `image-skill` 仓库安装 `fashion-nano-tryon` 到本机 Codex。
 
 ## 前提
 
-- 你已经有该私有仓库的访问权限
-- 本机已经安装 Codex
-- 本机能访问 GitHub 私有仓库
+- 你已经有仓库访问权限。
+- 本机已经安装 Codex。
+- 本机能访问 GitHub。
 
 Codex skills 默认目录：
 
@@ -14,40 +14,30 @@ Codex skills 默认目录：
 ~/.codex/skills
 ```
 
-## 方式一：克隆私有仓库后复制 skill
-
-适合最稳定的私享安装方式。
+## 推荐方式：只同步正式 skill 包
 
 ```bash
-git clone git@github.com:<owner>/<repo>.git
-mkdir -p ~/.codex/skills
-cp -R <repo>/fashion-nano-tryon ~/.codex/skills/fashion-nano-tryon
+git clone https://github.com/judebrisbylg-matthew/image-skill.git
+mkdir -p ~/.codex/skills/fashion-nano-tryon
+rsync -a --delete \
+  image-skill/fashion-nano-tryon/skill/ \
+  ~/.codex/skills/fashion-nano-tryon/
 ```
 
-如果仓库内采用 `skills/fashion-nano-tryon` 目录：
+为什么只同步 `skill/`：
+
+- `skill/` 是 Codex 真正需要读取的正式能力包。
+- `docs/` 是给人看的手册，不需要安装进 Codex。
+- `tools/` 是文档构建工具，不需要安装进 Codex。
+
+## 更新已安装 skill
 
 ```bash
-git clone git@github.com:<owner>/<repo>.git
-mkdir -p ~/.codex/skills
-cp -R <repo>/skills/fashion-nano-tryon ~/.codex/skills/fashion-nano-tryon
-```
-
-## 方式二：更新已安装 skill
-
-```bash
-cd <repo>
+cd image-skill
 git pull
-rm -rf ~/.codex/skills/fashion-nano-tryon
-cp -R fashion-nano-tryon ~/.codex/skills/fashion-nano-tryon
-```
-
-如果仓库内采用 `skills/fashion-nano-tryon` 目录：
-
-```bash
-cd <repo>
-git pull
-rm -rf ~/.codex/skills/fashion-nano-tryon
-cp -R skills/fashion-nano-tryon ~/.codex/skills/fashion-nano-tryon
+rsync -a --delete \
+  fashion-nano-tryon/skill/ \
+  ~/.codex/skills/fashion-nano-tryon/
 ```
 
 ## 验证安装
@@ -62,27 +52,45 @@ ls ~/.codex/skills/fashion-nano-tryon
 
 ```text
 SKILL.md
-agents/openai.yaml
-demo.html
-README.md
-INSTALL.md
-examples/
+agents
+examples
+references
+```
+
+检查正式规则：
+
+```bash
+sed -n '1,40p' ~/.codex/skills/fashion-nano-tryon/SKILL.md
 ```
 
 在 Codex 中测试调用：
 
 ```text
-[$fashion-nano-tryon] 图1-图4是产品图；图5-图8是配饰图；图9是对标图。执行流程
+[$fashion-nano-tryon] 图1-图4是产品图；图5-图8是搭配图；图9是对标图。执行流程
 ```
 
 正确行为：
 
-1. 先输出黑白线稿生成策略
-2. 等你确认
-3. 再输出黑白线稿 Prompt
-4. 等你生成/确认线稿
-5. 再进入产品拆解
-6. 最后才输出 Nano Banana Pro 最终 Prompt
+1. 先输出参考图角色映射或黑白线稿生成策略。
+2. 等你确认。
+3. 再输出黑白线稿 prompt。
+4. 等你生成或确认线稿。
+5. 再进入产品拆解。
+6. 最后才输出 Nano Banana Pro 最终 prompt。
+
+## 查看新人手册
+
+无需安装到 Codex，也可以直接查看手册：
+
+```bash
+open image-skill/fashion-nano-tryon/docs/handbook.html
+```
+
+如果修改了 `skill/` 下的 Markdown，重新生成手册：
+
+```bash
+node image-skill/fashion-nano-tryon/tools/build_handbook.mjs
+```
 
 ## 卸载
 
@@ -100,24 +108,16 @@ rm -rf ~/.codex/skills/fashion-nano-tryon
 cat ~/.codex/skills/fashion-nano-tryon/SKILL.md
 ```
 
-确保 `SKILL.md` 在 `fashion-nano-tryon` 目录第一层，不要多嵌套一级。
-
-### 私有仓库 clone 失败
-
-确认你对仓库有访问权限，并配置了 SSH key 或 GitHub credential。
-
-SSH 测试：
-
-```bash
-ssh -T git@github.com
-```
+确保 `SKILL.md` 在 `~/.codex/skills/fashion-nano-tryon/` 第一层，不要多嵌套一级。
 
 ### 更新后仍是旧流程
 
-删除旧目录后重新复制：
+重新同步正式 skill 包：
 
 ```bash
-rm -rf ~/.codex/skills/fashion-nano-tryon
-cp -R <repo>/fashion-nano-tryon ~/.codex/skills/fashion-nano-tryon
+rsync -a --delete \
+  image-skill/fashion-nano-tryon/skill/ \
+  ~/.codex/skills/fashion-nano-tryon/
 ```
 
+然后开启一个新的 Codex 会话再触发。

@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="fashion-nano-tryon Skill 可视化工作手册" />
+  <title>Fashion Nano Tryon · 可视化工作手册</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #5f6b7a;
+      --faint: #8b95a5;
+      --line: #dde3ea;
+      --soft: #f6f8fb;
+      --paper: #fff;
+      --blue: #2563eb;
+      --blue-dark: #1d4ed8;
+      --blue-soft: #eff6ff;
+      --green: #16875d;
+      --green-soft: #e8f7ef;
+      --amber: #b35b09;
+      --amber-soft: #fff7e8;
+      --red: #c33c54;
+      --red-soft: #fff1f3;
+      --shadow: 0 18px 55px rgba(15, 23, 42, .08);
+      --sans: "Aptos", "SF Pro Text", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      --mono: "SFMono-Regular", "Cascadia Mono", "Roboto Mono", monospace;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; color: var(--ink); background: var(--paper); font: 15px/1.62 var(--sans); -webkit-font-smoothing: antialiased; }
+    a { color: inherit; text-decoration: none; }
+    code, pre, textarea { font-family: var(--mono); }
+    .topbar { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; min-height: 58px; padding: 0 24px; background: rgba(255,255,255,.94); border-bottom: 1px solid var(--line); backdrop-filter: blur(18px); }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .mark { width: 28px; height: 28px; display: grid; place-items: center; color: #fff; background: var(--blue); border-radius: 8px; font-weight: 850; }
+    .brand strong { display: block; font-size: 14px; }
+    .brand small { color: var(--faint); font-size: 12px; }
+    .pill { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; color: #0f6b49; background: var(--green-soft); border: 1px solid #cfeedd; border-radius: 999px; font-size: 12px; font-weight: 750; }
+    .pill::before { content: ""; width: 7px; height: 7px; background: var(--green); border-radius: 50%; }
+    .shell { display: grid; grid-template-columns: 240px minmax(0,1fr) 300px; min-height: calc(100vh - 58px); }
+    .left, .right { position: sticky; top: 58px; height: calc(100vh - 58px); overflow: auto; padding: 28px 20px 44px; background: #fff; }
+    .left { border-right: 1px solid var(--line); }
+    .right { border-left: 1px solid var(--line); }
+    .rail-label { margin: 0 8px 10px; color: var(--faint); font: 800 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+    .nav { display: grid; gap: 3px; }
+    .nav a { display: flex; justify-content: space-between; align-items: center; min-height: 36px; padding: 8px 10px; color: var(--muted); border-radius: 8px; font-size: 13px; }
+    .nav a:hover, .nav a.active { color: var(--blue-dark); background: var(--blue-soft); font-weight: 750; }
+    .nav a span:last-child { color: var(--faint); font: 10px/1 var(--mono); }
+    main { min-width: 0; padding: 48px clamp(24px, 5vw, 76px) 96px; }
+    .content { max-width: 920px; margin: 0 auto; }
+    section { scroll-margin-top: 82px; padding-top: 76px; }
+    .kicker { color: var(--blue-dark); font: 800 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    h1, h2, h3 { line-height: 1.13; letter-spacing: -.035em; text-wrap: balance; }
+    h1 { margin: 10px 0 20px; font-size: clamp(42px, 7vw, 72px); letter-spacing: -.06em; }
+    h1 span { color: var(--blue); }
+    h2 { margin: 8px 0 14px; font-size: 34px; }
+    h3 { margin: 0 0 8px; font-size: 17px; }
+    p { color: var(--muted); }
+    .lede { max-width: 730px; margin: 0 0 28px; font-size: 18px; line-height: 1.7; }
+    .hero { display: grid; grid-template-columns: 1.05fr .95fr; gap: 16px; margin-top: 26px; }
+    .hero-card { min-height: 250px; padding: 26px; color: #fff; background: #111827; border-radius: 18px; box-shadow: var(--shadow); }
+    .hero-card b { display: block; margin-bottom: 12px; font-size: 68px; line-height: 1; letter-spacing: -.06em; }
+    .hero-card p { max-width: 330px; color: #cbd5e1; }
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric { min-height: 120px; display: flex; flex-direction: column; justify-content: space-between; padding: 18px; background: var(--soft); border: 1px solid var(--line); border-radius: 13px; }
+    .metric b { font-size: 30px; line-height: 1; }
+    .metric span { color: var(--muted); font-size: 12px; }
+    .metric.accent { color: var(--blue-dark); background: var(--blue-soft); }
+    .map { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; margin-top: 22px; }
+    .node { position: relative; min-height: 128px; padding: 16px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+    .node:not(:last-child)::after { content: "→"; position: absolute; top: 50%; right: -10px; z-index: 1; color: var(--blue); background: #fff; font-weight: 900; transform: translateY(-50%); }
+    .node.core { color: #fff; background: #111827; border-color: #111827; }
+    .node.core p { color: #cbd5e1; }
+    .node small { display: block; margin-bottom: 8px; color: var(--faint); font: 800 10px/1 var(--mono); }
+    .cards { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+    .card { padding: 18px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+    .card.warn { background: var(--amber-soft); border-color: #f0d8ad; }
+    .card.danger { background: var(--red-soft); border-color: #f3c6cf; }
+    .card p, .card ul { margin: 0; color: var(--muted); font-size: 13px; }
+    .card ul { padding-left: 18px; }
+    .roles { overflow: hidden; border: 1px solid var(--line); border-radius: 13px; }
+    .role { display: grid; grid-template-columns: 190px 1fr 1fr; border-bottom: 1px solid var(--line); }
+    .role:last-child { border-bottom: 0; }
+    .role > * { margin: 0; padding: 13px 15px; font-size: 13px; }
+    .role code { color: var(--blue-dark); background: var(--blue-soft); }
+    .role p { border-left: 1px solid var(--line); }
+    .pipeline { display: grid; grid-template-columns: repeat(6, minmax(90px,1fr)); gap: 8px; margin: 24px 0 16px; padding: 7px; background: var(--soft); border: 1px solid var(--line); border-radius: 14px; }
+    .stage { min-height: 96px; padding: 11px 10px; text-align: left; background: transparent; border: 0; border-radius: 10px; cursor: pointer; }
+    .stage.active { color: #fff; background: var(--blue); }
+    .stage small { display: block; margin-bottom: 9px; font: 800 10px/1 var(--mono); opacity: .72; }
+    .stage strong { display: block; font-size: 12px; line-height: 1.35; }
+    .stage-detail { display: grid; grid-template-columns: 62px 1fr auto; gap: 16px; align-items: center; min-height: 128px; padding: 22px; background: #fff; border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--shadow); }
+    .stage-no { color: var(--blue); font-size: 36px; font-weight: 850; }
+    .stage-tag { padding: 6px 9px; color: var(--blue-dark); background: var(--blue-soft); border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .codebox { position: relative; overflow: auto; padding: 18px 18px 18px; color: #e5e7eb; background: #111827; border-radius: 12px; font: 12px/1.7 var(--mono); white-space: pre; }
+    .copy { position: absolute; top: 10px; right: 10px; padding: 5px 8px; color: #cbd5e1; background: #1f2937; border: 1px solid #374151; border-radius: 7px; cursor: pointer; font-size: 10px; }
+    .done { display: grid; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .done div { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+    .done div:last-child { border-bottom: 0; }
+    .check { display: grid; place-items: center; width: 18px; height: 18px; color: #fff; background: var(--green); border-radius: 50%; font-size: 10px; }
+    .done code { color: var(--faint); font-size: 10px; }
+    .context { margin-bottom: 15px; padding: 16px; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; }
+    .context h3 { font-size: 13px; }
+    .context p { margin: 0; font-size: 12px; }
+    .spec { display: grid; gap: 9px; }
+    .spec div { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 12px; }
+    .spec strong { color: var(--ink); text-align: right; }
+    .md-workbench { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: var(--shadow); }
+    .md-head { display: flex; justify-content: space-between; gap: 14px; padding: 14px 16px; background: var(--soft); border-bottom: 1px solid var(--line); }
+    .md-path { display: block; color: var(--faint); font: 10px/1.5 var(--mono); }
+    .md-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .md-btn { padding: 7px 10px; background: #fff; border: 1px solid var(--line); border-radius: 7px; cursor: pointer; font-size: 11px; font-weight: 750; }
+    .md-btn.primary { color: #fff; background: var(--blue); border-color: var(--blue); }
+    .md-layout { display: grid; grid-template-columns: 220px minmax(0,1fr); min-height: 700px; }
+    .md-library { padding: 12px; background: #fafbfc; border-right: 1px solid var(--line); }
+    .md-search { width: 100%; height: 36px; margin-bottom: 10px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; outline: none; }
+    .md-doc-list { display: grid; gap: 4px; }
+    .md-doc { width: 100%; padding: 10px; text-align: left; color: var(--muted); background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
+    .md-doc.active, .md-doc:hover { color: var(--blue-dark); background: var(--blue-soft); }
+    .md-doc strong { display: block; font-size: 12px; }
+    .md-doc small { display: block; margin-top: 3px; font: 9px/1.35 var(--mono); }
+    .md-editor { display: grid; grid-template-columns: 1fr 1fr; min-width: 0; }
+    .md-pane + .md-pane { border-left: 1px solid var(--line); }
+    .md-pane-title { display: flex; justify-content: space-between; align-items: center; height: 38px; padding: 0 12px; color: var(--faint); background: #fbfcfd; border-bottom: 1px solid var(--line); font: 10px/1 var(--mono); }
+    #markdownInput { display: block; width: 100%; height: 662px; resize: none; padding: 18px; color: #e5e7eb; background: #111827; border: 0; outline: none; font: 12px/1.72 var(--mono); }
+    .md-preview { height: 662px; overflow: auto; padding: 22px; font-size: 13px; }
+    .md-preview h1 { margin: 0 0 24px; font-size: 30px; }
+    .md-preview h2 { margin: 30px 0 12px; font-size: 21px; }
+    .md-preview h3 { margin: 22px 0 10px; font-size: 16px; }
+    .md-preview p, .md-preview li { color: var(--muted); }
+    .md-preview code { padding: 2px 5px; color: var(--blue-dark); background: var(--blue-soft); border-radius: 4px; }
+    .md-preview pre { overflow: auto; padding: 15px; color: #e5e7eb; background: #111827; border-radius: 9px; }
+    .md-preview pre code { padding: 0; color: inherit; background: transparent; }
+    .md-preview table { width: 100%; margin: 16px 0; border-collapse: collapse; font-size: 11px; }
+    .md-preview th, .md-preview td { padding: 8px; text-align: left; border: 1px solid var(--line); }
+    .md-preview th { background: var(--soft); }
+    footer { margin-top: 74px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--faint); font-size: 11px; }
+    @media (max-width: 1180px) { .shell { grid-template-columns: 220px minmax(0,1fr); } .right { display: none; } }
+    @media (max-width: 840px) { .shell { display: block; } .left { display: none; } main { padding: 36px 18px 70px; } .hero, .cards, .split { grid-template-columns: 1fr; } .map { grid-template-columns: 1fr; } .node:not(:last-child)::after { content: "↓"; top: auto; right: 50%; bottom: -14px; transform: translateX(50%); } .pipeline { grid-template-columns: repeat(2, 1fr); } .stage-detail { grid-template-columns: 48px 1fr; } .stage-tag { display: none; } .role { grid-template-columns: 1fr; } .role p { border-left: 0; border-top: 1px solid var(--line); } .md-layout, .md-editor { grid-template-columns: 1fr; } .md-library { border-right: 0; border-bottom: 1px solid var(--line); } .md-pane + .md-pane { border-left: 0; border-top: 1px solid var(--line); } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><div class="mark">N</div><div><strong>Fashion Nano Tryon</strong><small>线稿辅助白底试穿 · 可视化工作手册</small></div></div>
+    <span class="pill">仓库随附 Skill</span>
+  </header>
+  <div class="shell">
+    <aside class="left">
+      <p class="rail-label">指南</p>
+      <nav class="nav" id="sideNav">
+        <a href="#overview" class="active"><span>概览</span><span>01</span></a>
+        <a href="#architecture"><span>整体框架</span><span>02</span></a>
+        <a href="#roles"><span>图片角色</span><span>03</span></a>
+        <a href="#workflow"><span>六阶段流程</span><span>04</span></a>
+        <a href="#gates"><span>确认门槛</span><span>05</span></a>
+        <a href="#nano"><span>Nano Prompt</span><span>06</span></a>
+        <a href="#usage"><span>安装使用</span><span>07</span></a>
+        <a href="#mistakes"><span>常见错误</span><span>08</span></a>
+        <a href="#markdown"><span>Markdown 原文</span><span>09</span></a>
+        <a href="#completion"><span>完成标准</span><span>10</span></a>
+      </nav>
+    </aside>
+    <main>
+      <div class="content">
+        <section id="overview">
+          <span class="kicker">01 / OVERVIEW</span>
+          <h1>把多参考图试穿，拆成<span>可控流程</span></h1>
+          <p class="lede">`fashion-nano-tryon` 用黑白线稿先锁住对标图的动作、构图和人体比例，再把产品图、配饰图、下装图和人物外观锁合成 Nano Banana Pro 可执行的白底电商试穿 prompt。它不是直接生图工具，而是一个防混图的提示词工作流。</p>
+          <div class="hero">
+            <div class="hero-card"><b>3:4</b><p>默认输出 `3:4 ratio, 4K output`，纯白 `#FFFFFF` 背景，服务 Nano Banana Pro 的高端电商目录图。</p></div>
+            <div class="metrics">
+              <div class="metric accent"><b>6</b><span>从角色映射到最终 prompt 的阶段</span></div>
+              <div class="metric"><b>3</b><span>不可跳过的确认门槛</span></div>
+              <div class="metric"><b>1</b><span>主商品唯一来源：产品图</span></div>
+              <div class="metric"><b>0</b><span>不继承对标图原服装设计</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="architecture">
+          <span class="kicker">02 / ARCHITECTURE</span>
+          <h2>仓库、Skill、线稿和 Nano 的关系</h2>
+          <p>正式规则放在 `skill/`，HTML 只是给新人看的工作手册。不要把手册里的本地草稿当成正式规则。</p>
+          <div class="map">
+            <div class="node"><small>INPUT</small><h3>产品 / 搭配 / 对标图</h3><p>多张参考图先按角色分配，避免一股脑混合。</p></div>
+            <div class="node"><small>STAGE 1</small><h3>对标图转线稿</h3><p>保留姿势、裁切、手位、比例，弱化颜色和服装细节。</p></div>
+            <div class="node core"><small>CORE</small><h3>fashion-nano-tryon</h3><p>执行确认门槛、产品拆解和最终 prompt 组织。</p></div>
+            <div class="node"><small>FINAL</small><h3>Nano Banana Pro Prompt</h3><p>用短块结构锁定来源合同和防混图规则。</p></div>
+            <div class="node"><small>OUTPUT</small><h3>白底电商试穿图</h3><p>单人、单图、纯白背景、高端棚拍质感。</p></div>
+          </div>
+        </section>
+
+        <section id="roles">
+          <span class="kicker">03 / SOURCE ROLES</span>
+          <h2>每张图只做自己该做的事</h2>
+          <p>这套框架的关键是“角色合同”。Nano Banana Pro 很擅长融合，所以 prompt 必须先把哪些来源能控制什么写死。</p>
+          <div class="roles">
+            <div class="role"><code>PRODUCT SOURCE</code><p>产品多角度图</p><p>只控制最终主商品的身份、款式、颜色、结构、材质、工艺和体量。</p></div>
+            <div class="role"><code>BENCHMARK SOURCE</code><p>对标模特图</p><p>生成线稿前用于分析动作、构图和人物外观锁。</p></div>
+            <div class="role"><code>LINE_ART SOURCE</code><p>批准后的黑白线稿</p><p>只控制姿势、身体比例、手位、腿位、拍摄距离、裁切和空间关系。</p></div>
+            <div class="role"><code>MODEL APPEARANCE LOCK</code><p>对标图提取文字</p><p>只控制肤色、可见皮肤一致性、发色、发型和基础外观。</p></div>
+            <div class="role"><code>ACCESSORY / BOTTOMS</code><p>搭配图</p><p>只控制明确提供的配饰和下装，不允许改写主商品。</p></div>
+            <div class="role"><code>DENIED SOURCES</code><p>禁止来源</p><p>对标图原服装、线稿原服装、人台比例、随机配饰、随机肤色、文字和背景。</p></div>
+          </div>
+        </section>
+
+        <section id="workflow">
+          <span class="kicker">04 / WORKFLOW</span>
+          <h2>六阶段流程，一步都别省</h2>
+          <p>点击阶段可以查看该阶段到底交付什么。这里故意慢半拍，因为线稿确认是整套控制力的地基。</p>
+          <div class="pipeline" id="pipeline"></div>
+          <div class="stage-detail">
+            <div class="stage-no" id="stageNo">0</div>
+            <div><h3 id="stageTitle">参考图角色映射</h3><p id="stageText">确认产品图、对标图、配饰图、下装图各自的控制边界。</p></div>
+            <span class="stage-tag" id="stageTag">确认来源</span>
+          </div>
+        </section>
+
+        <section id="gates">
+          <span class="kicker">05 / GATES</span>
+          <h2>三个门槛，专门拦住失控</h2>
+          <div class="cards">
+            <div class="card warn"><h3>Gate 1：先确认线稿策略</h3><p>没有确认线稿策略和人物外观锁定前，不写线稿 prompt。</p></div>
+            <div class="card warn"><h3>Gate 2：先确认线稿可用</h3><p>没有批准线稿前，不做产品拆解和最终 prompt。</p></div>
+            <div class="card warn"><h3>Gate 3：先确认产品和最终策略</h3><p>没有确认产品拆解和最终白底策略前，不输出 Nano Banana Pro prompt。</p></div>
+            <div class="card"><h3>批处理例外</h3><p>`fashion-lovart-nano-batch` 自动调用时可以默认确认，但仍要产出完整阶段内容。</p></div>
+          </div>
+        </section>
+
+        <section id="nano">
+          <span class="kicker">06 / NANO PROMPT</span>
+          <h2>最终 prompt 用短块结构，不写成长作文</h2>
+          <p>短块结构能帮助 Nano Banana Pro 明确每个来源的职责，尤其适合多参考图、防混图、保商品身份的场景。</p>
+          <div class="codebox"><button class="copy" data-copy="schema">复制</button><span id="schemaText">FINAL OUTPUT
+Create one high-end fashion ecommerce studio photo, 3:4 ratio, 4K output, pure white #FFFFFF background.
+
+REFERENCE ROLE CONTRACT
+PRODUCT SOURCE: ...
+LINE_ART SOURCE: ...
+MODEL APPEARANCE LOCK: ...
+ACCESSORY SOURCES: ...
+BOTTOMS SOURCE: ...
+DENIED SOURCES: ...
+
+REFERENCE PRIORITY
+...
+
+GARMENT HARD LOCK
+...
+
+POSE AND BODY HARD LOCK
+...
+
+MODEL APPEARANCE HARD LOCK
+...
+
+ACCESSORIES AND BOTTOMS
+...
+
+LIGHTING AND FINISH
+...
+
+DO NOT INCLUDE
+...</span></div>
+        </section>
+
+        <section id="usage">
+          <span class="kicker">07 / USAGE</span>
+          <h2>安装和调用方式</h2>
+          <div class="split">
+            <div class="card"><h3>安装正式 Skill</h3><div class="codebox">mkdir -p ~/.codex/skills/fashion-nano-tryon
+rsync -a --delete \
+  image-skill/fashion-nano-tryon/skill/ \
+  ~/.codex/skills/fashion-nano-tryon/</div></div>
+            <div class="card"><h3>典型调用</h3><div class="codebox">[$fashion-nano-tryon] 图1-图4是产品图；图5-图8是搭配图；图9是对标图。执行流程</div></div>
+          </div>
+        </section>
+
+        <section id="mistakes">
+          <span class="kicker">08 / COMMON MISTAKES</span>
+          <h2>新人最容易踩的坑</h2>
+          <div class="cards">
+            <div class="card danger"><h3>跳过黑白线稿</h3><p>Nano 会直接混合对标图、商品图和搭配图，动作、肤色、构图都容易漂。</p></div>
+            <div class="card danger"><h3>把对标图原服装带入最终图</h3><p>对标图只控制姿势和外观锁，不控制主商品款式。</p></div>
+            <div class="card danger"><h3>用线稿推断肤色</h3><p>线稿没有颜色，肤色必须来自对标图阶段提取的文字锁定。</p></div>
+            <div class="card danger"><h3>写旧尺寸</h3><p>默认写 `3:4 ratio, 4K output`，不要写回 `2048x3072` 或 `2:3`。</p></div>
+          </div>
+        </section>
+
+        <section id="markdown">
+          <span class="kicker">09 / MARKDOWN SOURCE CENTER</span>
+          <h2>正式规则原文和本地预览</h2>
+          <p>这里收录 `skill/` 下的正式 Markdown。页面里改动只保存在浏览器本地草稿，不会自动覆盖仓库文件。</p>
+          <div class="md-workbench">
+            <div class="md-head"><div><strong id="mdTitle">智能体主流程</strong><span class="md-path" id="mdPath">SKILL.md</span></div><div class="md-actions"><button class="md-btn" id="mdReset">恢复原文</button><button class="md-btn" id="mdCopy">复制 Markdown</button><button class="md-btn primary" id="mdDownload">下载当前 .md</button></div></div>
+            <div class="md-layout">
+              <aside class="md-library"><input class="md-search" id="mdSearch" type="search" placeholder="搜索文档…" aria-label="搜索 Markdown 文档"><div class="md-doc-list" id="mdDocList"></div></aside>
+              <div class="md-editor"><div class="md-pane"><div class="md-pane-title"><span>MARKDOWN SOURCE</span><span id="mdDraftState">原始版本</span></div><textarea id="markdownInput" spellcheck="false"></textarea></div><div class="md-pane"><div class="md-pane-title"><span>LIVE PREVIEW</span><span>实时预览</span></div><article class="md-preview" id="markdownPreview"></article></div></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="completion">
+          <span class="kicker">10 / DEFINITION OF DONE</span>
+          <h2>什么才算这个 skill 做对了</h2>
+          <div class="done">
+            <div><span class="check">✓</span><span>保留线稿策略、线稿 prompt、批准线稿、产品拆解、最终策略和最终 prompt</span><code>workflow</code></div>
+            <div><span class="check">✓</span><span>主商品只来自产品图，对标图和线稿都不能改写商品身份</span><code>product</code></div>
+            <div><span class="check">✓</span><span>姿势、裁切、身体比例和手位来自线稿</span><code>line-art</code></div>
+            <div><span class="check">✓</span><span>肤色和头发来自人物外观锁，不从黑白线稿随机推断</span><code>appearance</code></div>
+            <div><span class="check">✓</span><span>最终 prompt 是 Nano Banana Pro 短块结构，规格为 3:4 / 4K / #FFFFFF</span><code>final</code></div>
+          </div>
+        </section>
+        <footer>正式行为以 <code>skill/SKILL.md</code> 和 <code>skill/references/</code> 为准。HTML 手册用于阅读、培训和本地预览。</footer>
+      </div>
+    </main>
+    <aside class="right">
+      <div class="context"><h3>运行规格</h3><div class="spec"><div><span>模型</span><strong>Nano Banana Pro</strong></div><div><span>比例</span><strong>3:4</strong></div><div><span>像素</span><strong>4K</strong></div><div><span>背景</span><strong>#FFFFFF</strong></div></div></div>
+      <div class="context"><h3>一句话理解</h3><p>商品图控衣服，线稿控动作，对标图控肤色发型，搭配图控配饰下装。</p></div>
+      <div class="context"><h3>真源提醒</h3><p>安装到 Codex 的目录只需要复制 <code>skill/</code> 内容。</p></div>
+    </aside>
+  </div>
+  <script>
+    const markdownDocuments = [{"id":"skill","title":"智能体主流程","relativePath":"SKILL.md","fileName":"SKILL.md","content":"---\nname: fashion-nano-tryon\ndescription: \"Use when the user wants the fashion line-art-assisted try-on workflow preserved through benchmark-to-line-art, appearance lock, product extraction, and final strategy confirmation, but wants the final white-background ecommerce try-on prompt written specifically for Nano Banana Pro.\"\n---\n\n# Fashion Nano Tryon\n\n## Role\n\nAct as a **Nano Banana Pro final-prompt meta-engineer for fashion ecommerce line-art-assisted try-on production**.\n\nYour job is not to generate the final image directly. Your job is to run the same line-art-assisted workflow used by Fashion Line Tryon, then write the final white-background try-on prompt in a Nano Banana Pro-friendly structure.\n\nDefault conversation language is Chinese. The final executable prompt should be English unless the user asks otherwise.\n\n## Core Principle\n\nPreserve the upstream workflow:\n\n1. Confirm source-role mapping.\n2. Confirm black-and-white line-art strategy from the benchmark image.\n3. Generate the black-and-white line-art prompt.\n4. Wait for the approved line-art image and model appearance lock.\n5. Confirm product feature extraction.\n6. Confirm final white-background synthesis strategy.\n7. Generate the final white-background try-on prompt for **Nano Banana Pro**.\n\nOnly the final white-background try-on prompt is Nano Banana Pro-specific. Do not remove the line-art generation stage.\n\n## Source Roles\n\nThe user may provide references with any numbering. Map them into these roles:\n\n- `PRODUCT SOURCE`: product multi-angle reference images. This is the only source for the final garment.\n- `BENCHMARK SOURCE`: original model/pose/composition image. This is first converted into a black-and-white line-art reference and is also used to extract the model appearance lock before color is lost.\n- `LINE_ART SOURCE`: the approved black-and-white line-art generated from the benchmark source. It controls pose, shooting distance, crop, body scale, body proportions, hand pose, leg pose, composition, clothing-body spatial relationship, and compatible wearing behavior only.\n- `MODEL APPEARANCE LOCK`: text extracted from the benchmark source before line-art conversion. It controls final skin tone, visible skin color consistency, hair color, hairstyle, and basic visible model appearance.\n- `ACCESSORY SOURCES`: explicitly provided jewelry, bags, belts, hats, glasses, shoes, and other accessories.\n- `BOTTOMS SOURCE`: explicitly provided jeans, trousers, skirts, shorts, or other bottoms when needed.\n- `DENIED SOURCES`: benchmark outfit design, line-art outfit design, mannequin body proportions, unlisted accessories, random styling, random skin tone, random model identity, text, logos, watermarks, and background elements.\n\nIf roles are ambiguous, ask the user to clarify before continuing. If the user says a source-number mapping explicitly, follow it.\n\n## Output Defaults\n\n- Final image: one studio ecommerce photo, not a collage, not a grid, not multiple variants.\n- Aspect ratio: **3:4** unless the user requests otherwise.\n- Size setting: **4K** unless the user requests otherwise.\n- Final prompt wording should say `3:4 ratio, 4K output` instead of fixed pixel dimensions.\n- Background: pure white `#FFFFFF`.\n- Quality: high-end fashion ecommerce catalog finish with clean studio lighting, accurate product texture, polished accessory highlights, and clean visible bottoms.\n\n## Non-Negotiable Gates\n\nDo not skip these gates unless the user has already explicitly confirmed that stage:\n\n- Gate 1: Do not write the line-art prompt until the user confirms the black-and-white line-art strategy and model appearance lock.\n- Gate 2: Do not proceed to product extraction until the user confirms the generated line-art image is acceptable or uploads the approved line-art image.\n- Gate 3: Do not write the final Nano Banana Pro prompt until the user confirms product feature extraction and final synthesis strategy.\n\nIf the user says `执行流程`, start at Stage 1 and wait at each gate.\n\n## Stage 0: Source Role Mapping\n\nWhen the user provides source numbers, output a concise mapping:\n\n```markdown\n**参考图角色映射**\n- PRODUCT SOURCE：\n- BENCHMARK SOURCE：\n- ACCESSORY SOURCES：\n- BOTTOMS SOURCE：\n- 输出规格：\n- 背景：\n\n请确认以上角色分配是否准确。确认后我进入黑白线稿生成策略。\n```\n\nIf the user's mapping is already explicit and they ask to execute the workflow, continue to Stage 1.\n\n## Stage 1: Black-And-White Line-Art Strategy\n\n### Goal\n\nConvert the benchmark source into a black-and-white pencil line-art reference that preserves useful pose and spatial information while reducing color, material, lighting, branding, and texture. Also extract a separate model appearance lock before color information is lost.\n\nDo not erase all clothing or accessory outlines. The original outfit and accessory positions may remain as simplified line information only when they help preserve:\n\n- body posture\n- shooting distance\n- crop and composition\n- body scale\n- body proportions such as shoulder width, neck-to-shoulder relationship, torso length, chest/waist/hip width relationship, waist position, hip/waistband height, arm length, elbow position, hand size, visible leg proportion, and body scale in frame\n- hand and arm placement\n- leg stance\n- clothing-body overlap\n- garment volume around the body\n- object-hand relationship\n- wearing behavior such as hem tuck, soft drape, sleeve bunching, fabric pull, garment looseness, and garment-to-waistband relationship\n\nThe line-art must not become a fashion design sketch of the benchmark outfit. It is a pose, spatial, and wearing-behavior reference.\n\nOutput for user confirmation:\n\n```markdown\n**黑白线稿生成策略**\n- BENCHMARK SOURCE 用途：\n- 保留的姿势信息：\n- 保留的人体比例：\n- 保留的拍摄距离/裁切：\n- 保留的手部信息：\n- 保留的腿部/重心信息：\n- 保留的服装与身体空间关系：\n- 保留的穿着效果：\n- 可保留的原配饰位置关系：\n- 需要弱化的信息：\n- 不能强化的信息：\n- 人物外观锁定：\n- 肤色锁定：\n- 发色/发型锁定：\n- 可见皮肤区域一致性：\n- 线稿风格：\n- 输出要求：\n- 负向约束：\n\n请确认这个黑白线稿策略和人物外观锁定是否准确。确认后我再生成黑白线稿 prompt。\n```\n\n## Stage 2: Generate Line-Art Prompt\n\nOnly after Stage 1 confirmation, output:\n\n```markdown\n**黑白线稿 Prompt**\n\n中文要点：\n[brief Chinese summary]\n\n人物外观锁定：\n[skin tone, visible skin consistency, hair color, hairstyle, basic visible model appearance extracted from the benchmark source]\n\n中文 Prompt：\n[one fluent Chinese paragraph]\n\nEnglish prompt:\n[one fluent English paragraph for generating the black-and-white line-art reference]\n```\n\nThe English prompt must include:\n\n- Convert the benchmark source into a clean black-and-white pencil line-art pose reference.\n- Preserve the original shooting distance, crop, body scale, body angle, hand positions, leg pose, and overall composition.\n- Preserve body proportions: shoulder width, neck-to-shoulder relationship, torso length, chest/waist/hip width relationship, waist position, hip/waistband height, arm length, elbow position, hand size, visible leg proportion, and body scale in frame.\n- Keep simplified clothing-body overlap and major garment volume only as spatial guidance.\n- Keep simplified wearing-behavior cues when visible.\n- Accessory outlines may remain only when they clarify hand position, held-object logic, or body occlusion.\n- Reduce color, material, lighting, shadows, brand text, logos, patterns, fabric texture, jewelry detail, accessory detail, and decorative elements into minimal line information.\n- Do not create a detailed fashion design sketch of the original outfit.\n- No color, no gray filled shading, no photorealistic rendering, no random text, no watermark, no logo-like marks.\n\nAfter outputting the line-art prompt, tell the user to generate or upload the approved line-art image before Stage 3.\n\n## Stage 3: Product Feature Extraction\n\nOnly after the approved line-art image and model appearance lock are available, analyze only `PRODUCT SOURCE` for product details. Do not borrow garment details from the line-art or the benchmark source.\n\nOutput for user confirmation:\n\n```markdown\n**产品特征拆解**\n- 产品来源：\n- 产品类型：\n- 主色：\n- 版型/廓形：\n- 产品真实比例/长度关系：\n- 领口/领型：\n- 袖型/肩部：\n- 门襟/开合：\n- 扣子/五金：\n- 腰部结构：\n- 下摆/裙摆/裤型结构：\n- 面料纹理：\n- 正面结构：\n- 侧面结构：\n- 背面结构：\n- 必须保留的产品细节：\n- 产品在人台/平铺/模特上的长度与体量推断：\n- 不能被线稿原服饰覆盖的元素：\n- 可参考线稿的穿着效果：\n- 容易与线稿原服饰混淆的风险点：\n- 不应出现的元素：\n\n请确认以上产品拆解是否准确。确认后我再进入最终白底展示图策略。\n```\n\n## Stage 4: Final White-Background Synthesis Strategy\n\nAfter product confirmation, output:\n\n```markdown\n**最终白底展示图生成策略**\n- PRODUCT SOURCE 控制：\n- LINE_ART SOURCE 控制：\n- LINE_ART SOURCE 不控制：\n- MODEL APPEARANCE LOCK 控制：\n- ACCESSORY SOURCES 对应关系：\n- BOTTOMS SOURCE 对应关系：\n- 人体比例锁定：\n- 肤色一致性：\n- 发色/发型一致性：\n- 拍摄距离/裁切：\n- 身体角度/主体比例：\n- 肩宽/躯干/腰线/胯部比例：\n- 手臂长度/手肘/手掌比例：\n- 可见腿部比例：\n- 左手硬锁：\n- 右手硬锁：\n- 腿部/下半身硬锁：\n- 线稿原服饰空间关系如何使用：\n- 线稿穿着效果如何使用：\n- 产品长度/体量与线稿穿着效果如何融合：\n- 线稿原服饰与产品防混淆规则：\n- Nano Banana Pro 图像角色合同：\n- Nano Banana Pro 防混图规则：\n- Nano Banana Pro 动作/构图硬锁：\n- Nano Banana Pro 肤色来源规则：\n- 配饰一致性锁定：\n- 配饰可见性判断：\n- 搭配白名单：\n- 是否允许扩边：\n- 背景：\n- 光影：\n- 输出规格：\n- 负向约束：\n\n请确认这个最终展示图策略是否准确。确认后我再生成 Nano Banana Pro 最终白底穿搭展示图 prompt。\n```\n\n## Stage 5: Final Nano Banana Pro Prompt\n\nOnly after Stage 4 confirmation, output:\n\n```markdown\n**Nano Banana Pro 最终白底穿搭展示图 Prompt**\n\n中文要点：\n[brief Chinese summary]\n\nEnglish prompt for Nano Banana Pro:\n[structured English prompt with short labeled blocks]\n```\n\nThe English prompt must use this structure:\n\n```text\nFINAL OUTPUT\nCreate one high-end fashion ecommerce studio photo, [size], [ratio], pure white #FFFFFF background.\n\nREFERENCE ROLE CONTRACT\nPRODUCT SOURCE: [source labels]. Use only these sources for the final garment.\nLINE_ART SOURCE: [approved line-art source]. Use only for pose, body proportions, crop, shooting distance, hand positions, leg pose, body angle, composition, spatial relationship, and compatible wearing behavior.\nMODEL APPEARANCE LOCK: [text lock]. Use only this for skin tone, visible skin color consistency, hair color, hairstyle, and basic model appearance.\nACCESSORY SOURCES: [source labels]. Use only these listed accessories.\nBOTTOMS SOURCE: [source labels or omit]. Use only these listed bottoms.\nDENIED SOURCES: do not use benchmark outfit design, line-art outfit design, mannequin body proportions, unlisted accessories, random styling, random skin tone, random model identity, text, logos, watermarks, or background elements.\n\nREFERENCE PRIORITY\nGarment identity and garment details must match PRODUCT SOURCE first.\nPose, body proportions, hand placement, leg placement, body scale, crop, and framing must match LINE_ART SOURCE first.\nSkin tone and hair must match MODEL APPEARANCE LOCK first.\nAccessories must match ACCESSORY SOURCES first.\nBottoms must match BOTTOMS SOURCE first.\n\nGARMENT HARD LOCK\n[exact product type, color, neckline, shoulder/sleeve construction, straps/ties, waist, hem, texture, seams, proportions, length, volume, construction details]\n\nPOSE AND BODY HARD LOCK\n[head visibility, crop boundary, body angle, shoulder width, torso length, waist position, hip height, arm length, elbow position, hand size, hand placement, leg placement, visible leg proportion, scale in frame]\n\nMODEL APPEARANCE HARD LOCK\n[skin tone consistency across face, neck, shoulders, arms, hands, and visible legs; hair color; hairstyle; basic visible appearance]\n\nACCESSORIES AND BOTTOMS\n[each explicitly provided accessory and bottom, with category, count, color, material, shape, size relationship, texture, hardware, chain/strap type, pendant/buckle shape, finish, and wearing/carrying position]\n\nLIGHTING AND FINISH\nProfessional studio ecommerce lighting, soft key light, gentle fill, accurate product texture, polished metal highlights, clean bottoms visibility, subtle natural contact shadow if visible, refined catalog finish.\n\nDO NOT INCLUDE\nNo words, letters, numbers, captions, watermarks, logo-like marks, random symbols, unprovided styling items, extra garments, extra jewelry, extra bags, extra shoes, background props, benchmark-background elements, collage layout, multiple models, duplicate limbs, changed pose, changed crop, changed skin tone, changed hairstyle, changed garment design, borrowed benchmark outfit details, borrowed line-art outfit details, mannequin, mannequin stand, or product-reference background.\n```\n\n## Nano Banana Pro Control Rules For Final Prompt\n\n- Treat each source as a separate locked role, not as a moodboard.\n- Use short labeled blocks, not one overloaded paragraph.\n- Put the role contract and reference priority before the visual description.\n- Use direct control language: `copy`, `preserve exactly`, `must match`, `do not borrow`, `ignore`.\n- If a source role is missing, explicitly omit that category instead of inventing it.\n- If an accessory conflicts with the locked pose or crop, preserve the pose/crop first and include only the visible compatible part of the accessory.\n- Do not change the line-art framing to fit accessories unless the user explicitly approves a crop change.\n- No handbag unless a handbag is explicitly assigned to `ACCESSORY SOURCES`.\n- Do not infer skin tone from black-and-white line art.\n- Do not alter body proportions to match mannequin, product flat-lay, or product-only references.\n\n## Quality Checklist\n\nBefore finalizing, check:\n\n- Did the workflow preserve black-and-white line-art strategy, line-art prompt, approved line-art, model appearance lock, product extraction, and final strategy confirmation?\n- Is PRODUCT SOURCE the only source for the garment?\n- Is LINE_ART SOURCE limited to pose, body proportions, crop, shooting distance, hands, legs, body angle, composition, spatial relationship, and compatible wearing behavior?\n- Is MODEL APPEARANCE LOCK the only source for skin tone and hair?\n- Are accessories and bottoms only from explicitly labeled sources?\n- Does the final prompt deny benchmark outfit details, line-art outfit details, mannequin body proportions, random skin tone, unlisted styling, changed pose, and changed crop?\n- Is the final output one ecommerce studio photo on pure white `#FFFFFF`?\n- Is the English final prompt directly copyable into Nano Banana Pro?\n\n## Tone\n\nUse Chinese for analysis and confirmations. Keep the Chinese summary short. Make the final structured English prompt the main deliverable.\n"},{"id":"roles","title":"图片角色合同","relativePath":"references/source-role-contract.md","fileName":"source-role-contract.md","content":"# Source Role Contract\n\n`fashion-nano-tryon` 的核心不是把多张图当成 moodboard 混合，而是把每张图分配到固定控制角色。角色一旦确认，后续 prompt 必须持续遵守。\n\n## 标准输入角色\n\n| 角色 | 常见来源 | 只允许控制 |\n| --- | --- | --- |\n| `PRODUCT SOURCE` | 产品图，多角度人台、平铺或细节图 | 最终主商品的款式、颜色、结构、比例、面料、纹理、工艺、五金、长度和体量 |\n| `BENCHMARK SOURCE` | 对标模特图 | 生成线稿前的人物外观锁定，以及线稿所需的姿势、构图、裁切和空间关系 |\n| `LINE_ART SOURCE` | 已批准的黑白线稿 | 姿势、拍摄距离、裁切、身体比例、手位、腿位、主体比例、服装与身体空间关系 |\n| `MODEL APPEARANCE LOCK` | 从对标图提取的文字描述 | 肤色、可见皮肤一致性、发色、发型、基础模特外观 |\n| `ACCESSORY SOURCES` | 配饰图、包、腰带、首饰、帽子、眼镜等 | 已明确提供的配饰类别、数量、颜色、材质、形状、尺寸关系和佩戴位置 |\n| `BOTTOMS SOURCE` | 牛仔裤、裤子、裙子、短裤等 | 下装的类别、颜色、版型、腰头、口袋、裤型、洗水和可见细节 |\n| `DENIED SOURCES` | 未授权信息 | 对标图原服装、线稿原服装、人台比例、随机配饰、随机肤色、文字、logo、水印和背景 |\n\n## 角色优先级\n\n1. 主商品永远以 `PRODUCT SOURCE` 为最高优先级。\n2. 动作、构图、手位和人体比例以 `LINE_ART SOURCE` 为最高优先级。\n3. 肤色和头发以 `MODEL APPEARANCE LOCK` 为最高优先级。\n4. 配饰和下装只来自明确标注的 `ACCESSORY SOURCES` 与 `BOTTOMS SOURCE`。\n5. 任何来源冲突时，先保商品身份，再保线稿动作，最后决定配饰是否可见。\n\n## 新人判断规则\n\n- 产品图里没有的主商品结构，不要从对标图补。\n- 对标图里的衣服即使好看，也只用于线稿阶段的空间关系。\n- 线稿没有颜色，所以最终肤色不能从线稿推断。\n- 配饰图只提供配饰本身，不允许改变主商品领口、袖型、下摆或廓形。\n- 如果手位或裁切不支持完整显示某个配饰，允许只显示可见部分，不允许改动作硬塞配饰。\n"},{"id":"gates","title":"阶段确认门槛","relativePath":"references/workflow-gates.md","fileName":"workflow-gates.md","content":"# Workflow Gates\n\n这个 skill 必须保留线稿辅助流程。不能因为用户说“执行”就直接输出最终白底图 prompt。\n\n## 阶段总览\n\n| 阶段 | 输出 | 等待确认 |\n| --- | --- | --- |\n| Stage 0 | 参考图角色映射 | 角色有歧义时必须确认 |\n| Stage 1 | 黑白线稿生成策略 + 人物外观锁定 | 必须确认 |\n| Stage 2 | 黑白线稿 Prompt | 等用户生成或上传批准线稿 |\n| Stage 3 | 产品特征拆解 | 必须确认 |\n| Stage 4 | 最终白底展示图生成策略 | 必须确认 |\n| Stage 5 | Nano Banana Pro 最终英文 Prompt | 最终交付 |\n\n## Gate 1: 线稿策略确认\n\n在用户确认黑白线稿策略前，不输出线稿 prompt。\n\n需要确认的信息：\n\n- 对标图控制什么。\n- 线稿保留哪些姿势、比例、手位、腿位、裁切和空间关系。\n- 哪些颜色、图案、品牌、材质和背景必须弱化。\n- 人物外观锁定是否准确。\n\n## Gate 2: 线稿结果确认\n\n在用户确认线稿可用或上传批准线稿前，不进入产品拆解和最终策略。\n\n线稿可用标准：\n\n- 黑白线稿干净。\n- 保留对标图拍摄距离和裁切。\n- 保留关键手位、腿位、身体角度和比例。\n- 没有彩色、灰底、随机文字、品牌标识或复杂材质表现。\n- 原服装只剩空间线索，不是详细设计稿。\n\n## Gate 3: 产品拆解与最终策略确认\n\n在用户确认产品拆解和最终白底展示策略前，不输出 Nano Banana Pro 最终 prompt。\n\n需要确认的信息：\n\n- 主商品身份是否准确。\n- 产品结构、长度、体量、面料和工艺是否完整。\n- 配饰和下装来源是否清晰。\n- 线稿动作与产品结构如何保守融合。\n- Nano Banana Pro 防混图规则是否明确。\n\n## 自动批处理例外\n\n当 `fashion-lovart-nano-batch` 调用本 skill 时，可以进入自动批处理模式。自动批处理模式默认各阶段已确认，但仍必须产出同样的线稿 prompt、外观锁、产品拆解、最终策略和 Nano Banana Pro prompt。\n"},{"id":"schema","title":"Nano Prompt 结构","relativePath":"references/nano-prompt-schema.md","fileName":"nano-prompt-schema.md","content":"# Nano Banana Pro Prompt Schema\n\n最终 prompt 必须是 Nano Banana Pro 友好的短块结构。不要写成一整段长 prompt。\n\n## 默认输出规格\n\n```text\n3:4 ratio, 4K output, pure white #FFFFFF background\n```\n\n不要再写旧的 `2048x3072` 或 `2:3`，除非用户明确要求。\n\n## 推荐结构\n\n```text\nFINAL OUTPUT\nCreate one high-end fashion ecommerce studio photo, 3:4 ratio, 4K output, pure white #FFFFFF background.\n\nREFERENCE ROLE CONTRACT\nPRODUCT SOURCE: ...\nLINE_ART SOURCE: ...\nMODEL APPEARANCE LOCK: ...\nACCESSORY SOURCES: ...\nBOTTOMS SOURCE: ...\nDENIED SOURCES: ...\n\nREFERENCE PRIORITY\n...\n\nGARMENT HARD LOCK\n...\n\nPOSE AND BODY HARD LOCK\n...\n\nMODEL APPEARANCE HARD LOCK\n...\n\nACCESSORIES AND BOTTOMS\n...\n\nLIGHTING AND FINISH\n...\n\nDO NOT INCLUDE\n...\n```\n\n## 写法要求\n\n- 先写角色合同，再写视觉描述。\n- 每个来源只控制自己的范围。\n- 用 `must match`, `preserve exactly`, `copy only`, `do not borrow`, `ignore` 这类直接控制语言。\n- 主商品描述必须非常具体，包括领口、袖型、肩部、腰线、下摆、面料、纹理、五金、花型和长度体量。\n- 对动作和构图使用硬锁语言，不让 Nano Banana Pro 自由改姿势。\n- 肤色必须来自 `MODEL APPEARANCE LOCK`，不能来自黑白线稿。\n- 配饰不允许遮挡主商品关键细节。\n\n## 常见负向约束\n\n```text\nNo words, letters, numbers, captions, watermarks, logo-like marks, random symbols, unprovided styling items, extra garments, extra jewelry, extra bags, extra shoes, background props, benchmark-background elements, collage layout, multiple models, duplicate limbs, changed pose, changed crop, changed skin tone, changed hairstyle, changed garment design, borrowed benchmark outfit details, borrowed line-art outfit details, mannequin, mannequin stand, or product-reference background.\n```\n"},{"id":"checklist","title":"质检清单","relativePath":"references/quality-checklist.md","fileName":"quality-checklist.md","content":"# Quality Checklist\n\n用这份清单判断一次 `fashion-nano-tryon` 输出是否合格。\n\n## 流程完整性\n\n- 是否先做了参考图角色映射。\n- 是否先确认黑白线稿策略和人物外观锁定。\n- 是否等待用户生成或上传批准线稿。\n- 是否只从产品图拆解主商品。\n- 是否先确认最终合成策略，再输出最终 Nano Banana Pro prompt。\n\n## 主商品一致性\n\n- 主商品是否只来自 `PRODUCT SOURCE`。\n- 产品颜色、花型、领口、袖型、腰部、下摆、面料和工艺是否完整。\n- 是否禁止对标图原服装覆盖产品图。\n- 是否禁止线稿原服装覆盖产品图。\n- 是否没有使用人台比例改变模特身体。\n\n## 动作与人体一致性\n\n- 姿势、拍摄距离、裁切、主体比例是否来自 `LINE_ART SOURCE`。\n- 肩宽、躯干长度、腰线、胯高、手臂长度、手掌大小是否锁定。\n- 手位和腿位是否没有被配饰或产品参考图改写。\n- 最终 prompt 是否明确不要改变 pose 和 crop。\n\n## 外观与搭配一致性\n\n- 肤色和发型是否来自 `MODEL APPEARANCE LOCK`。\n- 可见皮肤颜色是否要求一致。\n- 配饰和下装是否只来自明确提供的图。\n- 配饰是否没有遮挡领口、肩部、腰部、面料纹理和下摆。\n\n## Nano Banana Pro 输出一致性\n\n- 最终 prompt 是否使用短块结构。\n- 是否写明 `3:4 ratio, 4K output`。\n- 是否写明纯白背景 `#FFFFFF`。\n- 是否只生成一张高端电商棚拍图。\n- 是否排除文字、水印、logo、随机符号、多人物、拼图和背景道具。\n"},{"id":"example","title":"示例流程","relativePath":"examples/sample-workflow.md","fileName":"sample-workflow.md","content":"# 示例工作流\n\n## 输入\n\n```text\n[$fashion-nano-tryon] 图1-图4是产品图；图5-图8是配饰图；图9是对标图。执行流程\n```\n\n## 期望流程\n\n### 1. 黑白线稿生成策略\n\nCodex 应先输出：\n\n```markdown\n**黑白线稿生成策略**\n- BENCHMARK SOURCE 用途：\n- 保留的姿势信息：\n- 保留的人体比例：\n- 保留的拍摄距离/裁切：\n- 保留的手部信息：\n- 保留的腿部/重心信息：\n- 保留的服装与身体空间关系：\n- 保留的穿着效果：\n- 可保留的原配饰位置关系：\n- 需要弱化的信息：\n- 不能强化的信息：\n- 人物外观锁定：\n- 肤色锁定：\n- 发色/发型锁定：\n- 可见皮肤区域一致性：\n- 线稿风格：\n- 输出要求：\n- 负向约束：\n```\n\n用户确认后才能继续。\n\n### 2. 黑白线稿 Prompt\n\nCodex 输出中英文线稿 Prompt，并提醒用户生成或上传可用线稿。\n\n### 3. 产品特征拆解\n\n线稿确认后，Codex 只分析产品图，输出产品细节：\n\n- 产品类型\n- 主色\n- 版型/廓形\n- 领口/领型\n- 袖型/肩部\n- 面料纹理\n- 必须保留的产品细节\n- 容易与线稿原服饰混淆的风险点\n\n### 4. 最终白底展示图策略\n\nCodex 确认：\n\n- 产品图控制什么\n- 线稿控制什么\n- 线稿不控制什么\n- 人物外观锁控制什么\n- 配饰/下装如何迁移\n- Nano Banana Pro 防混图规则\n- 输出规格：`3:4 ratio, 4K output`\n\n### 5. 最终 Nano Banana Pro Prompt\n\n最终英文 Prompt 必须使用短块结构：\n\n```text\nFINAL OUTPUT\n...\n\nREFERENCE ROLE CONTRACT\n...\n\nREFERENCE PRIORITY\n...\n\nGARMENT HARD LOCK\n...\n\nPOSE AND BODY HARD LOCK\n...\n\nMODEL APPEARANCE HARD LOCK\n...\n\nACCESSORIES AND BOTTOMS\n...\n\nLIGHTING AND FINISH\n...\n\nDO NOT INCLUDE\n...\n```\n\n## 验收标准\n\n- 没有跳过线稿流程\n- 没有直接输出最终 Prompt\n- 最终规格是 `3:4 ratio, 4K output`\n- 最终背景是 `pure white #FFFFFF`\n- 产品来源、线稿来源、人物外观锁、配饰和下装职责分开\n- 明确禁止 benchmark outfit、line-art outfit、mannequin proportions、random skin tone、unlisted accessories\n\n"}];
+    const stages = [
+      ['0', '角色映射', '确认产品图、对标图、配饰图、下装图各自的控制边界。', '确认来源'],
+      ['1', '线稿策略', '分析对标图，锁定姿势、比例、裁切、手位、腿位和人物外观。', '必须确认'],
+      ['2', '线稿 Prompt', '输出中英文黑白铅笔线稿 prompt，等待用户生成或上传批准线稿。', '等待线稿'],
+      ['3', '产品拆解', '只从产品图拆解主商品，不借用线稿或对标图服装细节。', '必须确认'],
+      ['4', '最终策略', '确认来源合同、防混图规则、配饰可见性和白底输出规格。', '必须确认'],
+      ['5', '最终 Prompt', '输出 Nano Banana Pro 结构化英文 prompt。', '最终交付'],
+    ];
+    const pipeline = document.getElementById('pipeline');
+    const stageNo = document.getElementById('stageNo');
+    const stageTitle = document.getElementById('stageTitle');
+    const stageText = document.getElementById('stageText');
+    const stageTag = document.getElementById('stageTag');
+    function setStage(index) {
+      [...pipeline.children].forEach((button, i) => button.classList.toggle('active', i === index));
+      const [no, title, text, tag] = stages[index];
+      stageNo.textContent = no; stageTitle.textContent = title; stageText.textContent = text; stageTag.textContent = tag;
+    }
+    stages.forEach((stage, index) => {
+      const button = document.createElement('button');
+      button.className = 'stage' + (index === 0 ? ' active' : '');
+      button.innerHTML = '<small>STAGE ' + stage[0] + '</small><strong>' + stage[1] + '</strong>';
+      button.onclick = () => setStage(index);
+      pipeline.appendChild(button);
+    });
+    document.querySelectorAll('[data-copy]').forEach(button => {
+      button.onclick = async () => {
+        const text = document.getElementById('schemaText').textContent;
+        try { await navigator.clipboard.writeText(text); } catch {}
+        const old = button.textContent; button.textContent = '已复制'; setTimeout(() => button.textContent = old, 1000);
+      };
+    });
+    const escapeMd = value => value.replace(/[&<>"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
+    function inlineMarkdown(value) {
+      return escapeMd(value)
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\x60([^\x60]+)\x60/g, '<code>$1</code>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+    }
+    function renderMarkdown(source) {
+      const lines = source.replace(/\r/g, '').split('\n');
+      let output = '', inCode = false, code = [], list = null, table = [];
+      const closeList = () => { if (list) { output += '</' + list + '>'; list = null; } };
+      const flushTable = () => {
+        if (!table.length) return;
+        const rows = table.map(row => row.split('|').slice(1, -1).map(cell => cell.trim()));
+        if (rows.length > 1 && rows[1].every(cell => /^:?-{3,}:?$/.test(cell))) {
+          output += '<table><thead><tr>' + rows[0].map(cell => '<th>' + inlineMarkdown(cell) + '</th>').join('') + '</tr></thead><tbody>' + rows.slice(2).map(row => '<tr>' + row.map(cell => '<td>' + inlineMarkdown(cell) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+        } else output += table.map(row => '<p>' + inlineMarkdown(row) + '</p>').join('');
+        table = [];
+      };
+      for (const line of lines) {
+        if (line.startsWith('\x60\x60\x60')) {
+          closeList(); flushTable();
+          if (inCode) { output += '<pre><code>' + escapeMd(code.join('\n')) + '</code></pre>'; code = []; }
+          inCode = !inCode; continue;
+        }
+        if (inCode) { code.push(line); continue; }
+        if (/^\|.*\|$/.test(line)) { closeList(); table.push(line); continue; }
+        flushTable();
+        if (!line.trim()) { closeList(); continue; }
+        const heading = line.match(/^(#{1,4})\s+(.*)$/);
+        if (heading) { closeList(); const level = heading[1].length; output += '<h' + level + '>' + inlineMarkdown(heading[2]) + '</h' + level + '>'; continue; }
+        const unordered = line.match(/^\s*[-*]\s+(.*)$/);
+        if (unordered) { if (list !== 'ul') { closeList(); list = 'ul'; output += '<ul>'; } output += '<li>' + inlineMarkdown(unordered[1]) + '</li>'; continue; }
+        const ordered = line.match(/^\s*\d+\.\s+(.*)$/);
+        if (ordered) { if (list !== 'ol') { closeList(); list = 'ol'; output += '<ol>'; } output += '<li>' + inlineMarkdown(ordered[1]) + '</li>'; continue; }
+        closeList();
+        if (line === '---') output += '<hr>';
+        else if (line.startsWith('> ')) output += '<blockquote>' + inlineMarkdown(line.slice(2)) + '</blockquote>';
+        else output += '<p>' + inlineMarkdown(line) + '</p>';
+      }
+      closeList(); flushTable();
+      return output;
+    }
+    const state = { active: markdownDocuments[0].id };
+    const mdList = document.getElementById('mdDocList'), mdInput = document.getElementById('markdownInput'), mdPreview = document.getElementById('markdownPreview');
+    const mdTitle = document.getElementById('mdTitle'), mdPath = document.getElementById('mdPath'), mdDraftState = document.getElementById('mdDraftState');
+    const storageKey = id => 'fashion-nano-md-draft:' + id;
+    const activeDocument = () => markdownDocuments.find(doc => doc.id === state.active);
+    const currentValue = doc => localStorage.getItem(storageKey(doc.id)) ?? doc.content;
+    function renderDocList(query = '') {
+      const term = query.trim().toLowerCase();
+      mdList.innerHTML = '';
+      markdownDocuments.filter(doc => !term || doc.title.toLowerCase().includes(term) || doc.relativePath.toLowerCase().includes(term)).forEach(doc => {
+        const button = document.createElement('button');
+        button.className = 'md-doc' + (doc.id === state.active ? ' active' : '');
+        button.innerHTML = '<strong>' + doc.title + '</strong><small>' + doc.relativePath + '</small>';
+        button.onclick = () => loadMarkdownDocument(doc.id);
+        mdList.appendChild(button);
+      });
+    }
+    function loadMarkdownDocument(id) {
+      state.active = id;
+      const doc = activeDocument();
+      mdTitle.textContent = doc.title; mdPath.textContent = doc.relativePath;
+      mdInput.value = currentValue(doc); mdPreview.innerHTML = renderMarkdown(mdInput.value);
+      mdDraftState.textContent = localStorage.getItem(storageKey(doc.id)) === null ? '原始版本' : '本地草稿已保存';
+      renderDocList(document.getElementById('mdSearch').value);
+    }
+    let timer;
+    mdInput.addEventListener('input', () => {
+      const doc = activeDocument();
+      mdPreview.innerHTML = renderMarkdown(mdInput.value);
+      mdDraftState.textContent = '正在保存…';
+      clearTimeout(timer);
+      timer = setTimeout(() => { localStorage.setItem(storageKey(doc.id), mdInput.value); mdDraftState.textContent = '本地草稿已保存'; }, 250);
+    });
+    document.getElementById('mdSearch').addEventListener('input', event => renderDocList(event.target.value));
+    document.getElementById('mdReset').onclick = () => {
+      const doc = activeDocument();
+      if (!confirm('恢复“' + doc.title + '”的原始 Markdown？当前浏览器草稿将被清除。')) return;
+      localStorage.removeItem(storageKey(doc.id)); loadMarkdownDocument(doc.id);
+    };
+    document.getElementById('mdCopy').onclick = async event => {
+      try { await navigator.clipboard.writeText(mdInput.value); } catch { mdInput.select(); document.execCommand('copy'); }
+      const old = event.currentTarget.textContent; event.currentTarget.textContent = '已复制'; setTimeout(() => event.currentTarget.textContent = old, 1000);
+    };
+    document.getElementById('mdDownload').onclick = () => {
+      const doc = activeDocument();
+      const blob = new Blob([mdInput.value], {type:'text/markdown;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a'); link.href = url; link.download = doc.fileName; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 500);
+    };
+    const sections = [...document.querySelectorAll('main section[id]')];
+    const navLinks = [...document.querySelectorAll('#sideNav a')];
+    addEventListener('scroll', () => {
+      const current = sections.reduce((picked, section) => section.getBoundingClientRect().top < 120 ? section : picked, sections[0]);
+      navLinks.forEach(link => link.classList.toggle('active', link.getAttribute('href') === '#' + current.id));
+    }, {passive: true});
+    renderDocList(); loadMarkdownDocument(markdownDocuments[0].id);
+  </script>
+</body>
+</html>
