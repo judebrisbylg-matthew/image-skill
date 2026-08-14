@@ -340,6 +340,25 @@
     }
     .view-tab.active { color: var(--accent-dark); background: var(--accent-soft); font-weight: 750; }
     .canvas-hint { color: var(--faint); font-size: 11px; }
+    .canvas-hierarchy {
+      margin: 0 0 16px;
+      padding: 16px;
+      background: #181a28;
+      border-radius: 14px;
+      color: #fff;
+      overflow: hidden;
+    }
+    .axis-note { margin-bottom: 10px; color: #a9b0c8; font: 700 10px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .date-regions { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; min-width: 620px; }
+    .date-region { padding: 12px; border: 1px solid #3b3e54; border-radius: 10px; background: #212438; }
+    .date-region.next { border-color: #6962e9; background: #242443; }
+    .date-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; font-size: 12px; font-weight: 800; }
+    .date-title small { color: #a9b0c8; font: 9px/1 var(--mono); }
+    .skc-stack { display: grid; gap: 7px; }
+    .skc-block { display: grid; grid-template-columns: 72px 1fr; gap: 9px; padding: 9px; background: #fff; border-radius: 7px; color: var(--ink); }
+    .skc-block strong { font: 700 10px/1.4 var(--mono); }
+    .skc-block span { color: var(--muted); font-size: 10px; }
+    .hierarchy-rule { margin: 12px 0 0; color: #c8cbe0; font-size: 11px; line-height: 1.55; }
     .lanes { padding: 14px; }
     .lane {
       display: grid;
@@ -504,7 +523,7 @@
         <section id="overview" style="padding-top:0">
           <p class="eyebrow">Automation skill · 操作手册</p>
           <h1>从参考图到<br><span>20 张合格延展图</span></h1>
-          <p class="lede">扫描 SKC 的正面、侧面、背面、全身参考图，生成 20 个独立动作任务，在 Lovart 中按免费并发上限运行，并把每张完成图片立刻归位到确定的四行画布。</p>
+          <p class="lede">扫描 SKC 的正面、侧面、背面、全身参考图，生成 20 个独立动作任务，在 Lovart 中按免费并发上限运行，并把每张完成图片立刻归位到“日期横向、同日 SKC 纵向”的确定位置。</p>
           <div class="hero-grid">
             <div class="hero-stat">
               <div class="big">20<small> 张</small></div>
@@ -528,7 +547,7 @@
             <div class="system-node"><small>RUNTIME</small><strong>Codex</strong><p>理解任务、视觉分析、决策、调度和质检。</p></div>
             <div class="system-node core"><small>CORE CAPABILITY</small><strong>Skill</strong><p>SKILL.md、四视角模板、执行规范与状态脚本。</p></div>
             <div class="system-node"><small>EXECUTION</small><strong>Chrome</strong><p>复用登录状态，在一个标签页内控制 Lovart。</p></div>
-            <div class="system-node"><small>GENERATION</small><strong>Lovart</strong><p>Nano Banana Pro 生图、免费队列和四行画布。</p></div>
+            <div class="system-node"><small>GENERATION</small><strong>Lovart</strong><p>Nano Banana Pro 生图、免费队列和日期 × SKC × 四行画布。</p></div>
             <div class="system-node docs"><small>HUMAN GUIDE</small><strong>本 HTML</strong><p>阅读流程、查看 Markdown、临时改稿与团队分享。</p></div>
           </div>
           <div class="truth-note"><strong>唯一真源：</strong>正式规则始终以仓库 <code>skill/</code> 下的 Markdown 和脚本为准；HTML 由这些源文件重新生成，页面本地草稿不会自动改写正式 Skill。</div>
@@ -590,7 +609,27 @@
         <section id="canvas">
           <span class="section-kicker">06 / CANVAS PLACEMENT</span>
           <h2>每做好一张，就马上排列一张</h2>
-          <p class="section-intro">画布不是最终收尾工作，而是每个任务完成时的即时事务。点击视角标签，查看主槽与补图带的归属关系。</p>
+          <p class="section-intro">画布不是最终收尾工作，而是每个任务完成时的即时事务。日期决定横向分区，同一天的 SKC 只能纵向堆叠；每个 SKC 再按四视角分行。</p>
+          <div class="canvas-hierarchy">
+            <div class="axis-note">横向 X 轴 · 日期从左到右，并为完整 10 槽宽度预留空间 →</div>
+            <div class="date-regions">
+              <article class="date-region">
+                <div class="date-title"><span>8月13日</span><small>DATE REGION 01</small></div>
+                <div class="skc-stack">
+                  <div class="skc-block"><strong>SKC A</strong><span>正面 ↓ 侧面 ↓ 背面 ↓ 全身</span></div>
+                  <div class="skc-block"><strong>SKC B</strong><span>位于同日上一 SKC 的下方</span></div>
+                </div>
+              </article>
+              <article class="date-region next">
+                <div class="date-title"><span>8月14日</span><small>PREVIOUS RIGHT EDGE + GAP</small></div>
+                <div class="skc-stack">
+                  <div class="skc-block"><strong>SKC C</strong><span>新日期整体放在前一天右侧</span></div>
+                  <div class="skc-block"><strong>SKC D</strong><span>同日继续向下，不左右并排</span></div>
+                </div>
+              </article>
+            </div>
+            <p class="hierarchy-rule">定位键：日期 → SKC → 视角 → 动作/尝试。新日期从前一日期的实际最右边界加安全间距开始；新 SKC 从同日上一 SKC 的实际最下边界加安全间距开始。</p>
+          </div>
           <div class="canvas-demo">
             <div class="canvas-toolbar">
               <div class="view-tabs" id="viewTabs"></div>
@@ -651,7 +690,8 @@
           <div class="done-list">
             <div class="done-item"><i class="check">✓</i><span>正面、侧面、背面、全身各 5 张合格图</span><code>20 QUALIFIED</code></div>
             <div class="done-item"><i class="check">✓</i><span>所有生成尝试都有已验证的画布位置</span><code>PLACED</code></div>
-            <div class="done-item"><i class="check">✓</i><span>四行主图区顺序正确，补图留在所属视角右侧</span><code>4 LANES</code></div>
+            <div class="done-item"><i class="check">✓</i><span>日期横向、同日 SKC 纵向；标签和区域互不重叠</span><code>DATE × SKC</code></div>
+            <div class="done-item"><i class="check">✓</i><span>四行主图区顺序正确，补图留在所属视角右侧</span><code>4 × 10 CELLS</code></div>
             <div class="done-item"><i class="check">✓</i><span>没有使用积分、付费加速或自动下载</span><code>FREE QUEUE</code></div>
             <div class="done-item"><i class="check">✓</i><span>全身图均从头顶到脚底完整入镜</span><code>HEAD-TO-TOE</code></div>
             <div class="done-item"><i class="check">✓</i><span>每个视角累计不超过10张候选图</span><code>≤10 / VIEW</code></div>
@@ -685,7 +725,7 @@
       </div>
       <div class="context-card context-alert">
         <h3>最容易漏掉的规则</h3>
-        <p>每张图片一完成就必须立即归位并验证保存。禁止让结果堆积到最后再统一排列。</p>
+        <p>日期横向、同日 SKC 纵向。必须按完整 10 槽宽度预留日期区；每张图片一完成就立即归位，禁止最后统一排列。</p>
       </div>
       <div class="context-card">
         <h3>状态文件</h3>

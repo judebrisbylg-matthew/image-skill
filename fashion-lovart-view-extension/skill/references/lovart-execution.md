@@ -5,7 +5,7 @@
 1. Use Chrome through `chrome:control-chrome` and name the browser session.
 2. Confirm Lovart is visible and signed in.
 3. Open or create the monthly project `YYYY年M月`; never hard-code a project ID.
-4. Locate/create the SKC area and the active view subsection.
+4. Locate/create the correct date region, then the SKC area inside it, then the active view row. Dates run left-to-right; SKCs within the same date run top-to-bottom.
 5. Start a fresh conversation for the action. Keep all actions in one Chrome tab, but never reuse a conversation for another unfinished action.
 6. Confirm the visible model is Nano Banana Pro, output is 4K, ratio is 2:3, and no points acceleration is enabled.
 
@@ -27,9 +27,28 @@
 - Stop immediately when the view reaches five qualified actions. Never generate unused correction capacity.
 - If the view reaches 10 generated candidates with fewer than five qualified actions, mark unresolved actions `blocked:quality-cap`, preserve every result and placement, and continue other views or SKCs.
 
+## Monthly canvas coordinate contract
+
+Treat the monthly Lovart project as a deterministic two-dimensional layout:
+
+- **Horizontal axis = date.** Date regions such as `8月13日`, `8月14日`, and `8月15日` advance from left to right.
+- **Vertical axis inside a date = SKC.** Different SKCs from the same date must stack from top to bottom and must never be placed side by side.
+- **Rows inside an SKC = view.** The fixed order is front, side, back, full.
+- **Columns inside a view = action/attempt.** Five primary cells are followed by five supplemental cells.
+
+Before the first submission for a date or SKC:
+
+1. Derive the date from the dated input folder or batch label and locate or create a visible date label.
+2. If the date already exists, reuse its horizontal region. Find the actual bottom edge of every object belonging to the last SKC in that date and place the new SKC below it with a visible safety gap.
+3. If the date is new, find the actual rightmost edge of the previous date region, including labels, all SKCs, every five-cell primary strip, and every five-cell supplemental strip. Start the new date only after that boundary plus a visible safety gap.
+4. Create a visible SKC label and reserve a four-row block whose full width covers all 10 cells in every row.
+5. Verify that the reserved date and SKC regions do not overlap any existing image, label, supplemental strip, or future correction area.
+
+Do not infer a region boundary from the current viewport, the first five base images, or an incomplete SKC. The placement key is always `date -> SKC -> view -> action/attempt`.
+
 ## Immediate canvas placement
 
-Create the four row lanes before the first submission and keep them stable for the entire SKC:
+Inside the assigned date/SKC region, create the four row lanes before the first submission and keep them stable for the entire SKC:
 
 1. `front` / `正面`
 2. `side` / `侧面`
@@ -57,7 +76,7 @@ python3 scripts/update_run_state.py place <state> <view> <action-id> <attempt> \
 
 When moving a displaced candidate to the supplemental strip, update its earlier placement with the same command using `--area supplemental --slot <stable-row-local-index> --verified`.
 
-Do not use `Cmd+A`, whole-canvas Auto Layout, or a final bulk drag. Do not leave any generated candidate in Lovart's default vertical stack. If a move cannot be verified, stop new submissions and log `blocked:canvas-placement` rather than risking the established rows.
+Do not use `Cmd+A`, whole-canvas Auto Layout, or a final bulk drag. Do not leave any generated candidate in Lovart's default vertical stack. Do not move a correction into another SKC or date region. If a move cannot be verified, stop new submissions and log `blocked:canvas-placement` rather than risking the established rows.
 
 ## State labels
 
@@ -81,7 +100,7 @@ Append the exact submitted correction and Lovart task label to `run-log.md`. Do 
 
 ## Canvas organization
 
-Within the monthly project, group by SKC and preserve the four continuously maintained row lanes. The five current candidates remain in the aligned primary strip; up to five replaced or rejected candidates remain in the fixed supplemental strip of their own row. Normalize image size and spacing at placement time, not at the end. Do not download any result.
+Within the monthly project, place date regions left-to-right. Within each date, stack SKCs top-to-bottom. Within each SKC, preserve the four continuously maintained row lanes. The five current candidates remain in the aligned primary strip; up to five replaced or rejected candidates remain in the fixed supplemental strip of their own row. Normalize image size and spacing at placement time, not at the end. Do not download any result.
 
 ## Acceptable micro-variation
 

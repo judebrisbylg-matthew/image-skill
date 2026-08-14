@@ -126,7 +126,9 @@ Keep a mapping from temporary name to manifest path in the run log. Prompts refe
 
 ### 6. Operate Lovart in Chrome
 
-Read `references/lovart-execution.md` completely before browser work. Use the existing signed-in Chrome session. Work in project `YYYY年M月`, then find or create an SKC section with four view subsections.
+Read `references/lovart-execution.md` completely before browser work. Use the existing signed-in Chrome session. Work in project `YYYY年M月`, then resolve the canvas hierarchy before submitting anything: dates are horizontal canvas regions from left to right; SKCs belonging to the same date are stacked vertically from top to bottom; every SKC contains four view rows; every row contains five primary cells followed by five supplemental cells. The exact destination of every result is therefore `date -> SKC -> view -> action/attempt`.
+
+Create or locate the date label and SKC label before generation. A date region must be wide enough for the full 10-cell row plus labels and safety padding. Place a new date strictly to the right of the previous date region's actual rightmost object plus a visible safety gap. Place a new SKC for an existing date strictly below that date region's previous SKC actual bottom edge plus a visible safety gap. Never place two different SKCs from the same date side by side, and never estimate the next region from only the first five base images.
 
 Use one Chrome tab and a separate Lovart conversation for every action. Upload that action's view package, submit exactly one task, wait until Lovart visibly accepts or queues it, then switch to a new conversation without opening another browser tab. Do not submit a second task in the same conversation while the first is unfinished: Lovart cancels the earlier free-queue task. Select Nano Banana Pro, 4K, 2:3. Treat 10 accepted unfinished tasks as Lovart's hard global concurrency window: count `submitted`, `queued`, and visibly generating actions across all views and SKCs, fill the window up to 10 even when early tasks show a free-queue estimate, never submit an 11th, and fill every released slot immediately with the next pending action. For a fresh four-view SKC, submit front `FR01`–`FR05` and side `SI01`–`SI05` as the first 10-task wave unless existing unfinished tasks already occupy slots. As soon as any slot is released, continue with back and then full-body actions; do not wait for a whole wave to finish.
 
@@ -161,11 +163,11 @@ A candidate qualifies only when all are true:
 
 On failure, record a specific reason and resubmit the same action with a concise correction only when the view still has generation capacity. Append each exact correction prompt and visible Lovart label to `run-log.md`; `run-state.json` retains structured attempt and rejection history plus the view-level generated count. There is no per-action three-attempt rule. The view stops at five qualified actions or 10 generated candidates; unresolved actions then become `blocked:quality-cap`.
 
-Maintain the canvas continuously as four horizontal lanes: row 1 `正面`, row 2 `侧面`, row 3 `背面`, row 4 `全身`. The left side of every row is a fixed five-cell primary strip ordered action `01` through `05`. The right side is a fixed five-cell supplemental strip, so each row can contain at most 10 generated images. Place every base result immediately in its action's primary cell. When a retry finishes, first move the displaced/rejected candidate into the same row's next supplemental cell, then put the new candidate into the original primary cell. Keep supplemental candidates grouped by action and attempt number. Never move supplemental images to another row or a detached vertical pile.
+Maintain the canvas continuously inside the assigned date/SKC region as four horizontal lanes: row 1 `正面`, row 2 `侧面`, row 3 `背面`, row 4 `全身`. The left side of every row is a fixed five-cell primary strip ordered action `01` through `05`. The right side is a fixed five-cell supplemental strip, so each row can contain at most 10 generated images. Place every base result immediately in its action's primary cell. When a retry finishes, first move the displaced/rejected candidate into the same row's next supplemental cell, then put the new candidate into the original primary cell. Keep supplemental candidates grouped by action and attempt number. Never move supplemental images to another row, another SKC/date region, or a detached vertical pile.
 
 After every placement, verify all of the following before continuing: the result is in the correct view row, the action cell or supplemental position is correct, image size matches the row, spacing is even, no other image moved unexpectedly, and Lovart has visibly retained the position. Record the placement in `run-state.json`. If placement cannot be verified, stop new submissions, record `blocked:canvas-placement`, and preserve the existing layout; do not attempt a final bulk rearrangement.
 
-An SKC is `completed` only when all four views contain five `qualified` actions, every generated attempt has a verified canvas placement, and the five current qualified candidates in each row occupy the official primary strip: 20 qualified images total.
+An SKC is `completed` only when all four views contain five `qualified` actions, every generated attempt has a verified canvas placement, the five current qualified candidates in each row occupy the official primary strip, and its entire four-row block remains inside the correct date region without overlap: 20 qualified images total.
 
 ## Stop Conditions
 
@@ -180,5 +182,7 @@ A visible multi-minute free-queue estimate is not itself a stop condition. Mark 
 - Exceeding 10 generated candidates in a view. Five base images plus five correction images is the absolute row limit.
 - Reusing one Lovart conversation for multiple unfinished actions. Lovart cancels the earlier free-queue task; use one conversation per action while keeping one browser tab.
 - Deferring layout until all results finish. Place and verify every completed result immediately; late bulk layout is fragile and can exceed the browser-control window.
+- Arranging SKCs from the same date side by side. Dates advance horizontally; SKCs within one date advance vertically.
+- Starting the next date after only the five-cell primary strip. Reserve the full 10-cell row width and a safety gap so later corrections cannot collide with the next date.
 - Spending points to clear a queue. This workflow is free-queue only.
 - Downloading results. Leave them organized on the Lovart canvas.
