@@ -2,12 +2,14 @@
 
 面向 Codex 的生图工作流 Skill 仓库。每个目录是一套独立能力包；先阅读对应说明，再将其中的正式 Skill 安装到本机。
 
+> 🌐 **新手入口：** [点击打开《SKC 四视角 Lovart 延展·可视化工作手册》](https://judebrisbylg-matthew.github.io/image-skill/)
+
 ## Skill 目录
 
 | Skill | 作用 | 文档 |
 |---|---|---|
 | [`fashion-nano-tryon`](fashion-nano-tryon/) | 用 Nano Banana Pro 完成线稿辅助的白底时装试穿 | [使用说明](fashion-nano-tryon/README.md) |
-| [`fashion-lovart-view-extension`](fashion-lovart-view-extension/) | 批量处理 SKC 的正面、侧面、背面、全身延展图，并在 Lovart 中生成、质检和排版 | [使用说明](fashion-lovart-view-extension/README.md) · [可视化手册](fashion-lovart-view-extension/docs/handbook.html) |
+| [`fashion-lovart-view-extension`](fashion-lovart-view-extension/) | 批量处理 SKC 的正面、侧面、背面、全身延展图，并在 Lovart 中生成、质检和排版 | [使用说明](fashion-lovart-view-extension/README.md) · [在线可视化手册](https://judebrisbylg-matthew.github.io/image-skill/) · [HTML 源文件](fashion-lovart-view-extension/docs/handbook.html) |
 
 ## 仓库、智能体与 Skill 的关系
 

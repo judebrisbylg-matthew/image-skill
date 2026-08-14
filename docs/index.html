@@ -1,0 +1,1098 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="fashion-lovart-view-extension Skill 可视化工作手册" />
+  <title>SKC 四视角 Lovart 延展 · 可视化工作手册</title>
+  <!--
+    Design direction: 现实参照 / Stripe Documentation-inspired information architecture.
+    Assumptions: 这是一份给实际操作者使用的工作手册，不是营销落地页；重点是快速理解、运行和排错。
+    Form source: 四个视角 × 五个动作天然形成 4×5 生产矩阵；七阶段流程天然形成运行轨道。
+    No Stripe brand assets, marks, or proprietary UI are reproduced.
+  -->
+  <style>
+    :root {
+      --ink: #101828;
+      --muted: #596579;
+      --faint: #8a94a6;
+      --line: #dfe3ea;
+      --line-soft: #edf0f4;
+      --paper: #ffffff;
+      --surface: #f7f8fb;
+      --surface-blue: #f2f5ff;
+      --accent: #635bff;
+      --accent-dark: #4338ca;
+      --accent-soft: #e9e7ff;
+      --success: #16875d;
+      --success-soft: #e7f6ef;
+      --warning: #b35b09;
+      --warning-soft: #fff3df;
+      --danger: #c33c54;
+      --danger-soft: #fff0f3;
+      --radius: 12px;
+      --shadow: 0 18px 50px rgba(16, 24, 40, .08);
+      --sans: "Aptos", "SF Pro Text", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      --display: "Aptos Display", "SF Pro Display", "PingFang SC", sans-serif;
+      --mono: "SFMono-Regular", "Cascadia Mono", "Roboto Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.62;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, input { font: inherit; }
+    button { color: inherit; }
+    a { color: inherit; text-decoration: none; }
+    code { font-family: var(--mono); }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: rgba(255,255,255,.94);
+      border-bottom: 1px solid var(--line-soft);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 260px; }
+    .mark {
+      width: 26px;
+      height: 26px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 3px;
+      padding: 4px;
+      background: var(--ink);
+      border-radius: 7px;
+    }
+    .mark span { background: #fff; border-radius: 2px; opacity: .94; }
+    .brand strong { font-size: 14px; letter-spacing: -.01em; }
+    .brand small { color: var(--faint); font-size: 12px; }
+    .brand-copy { display: flex; flex-direction: column; line-height: 1.25; }
+
+    .top-status { display: flex; align-items: center; gap: 9px; }
+    .version { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 10px;
+      color: #116646;
+      background: var(--success-soft);
+      border: 1px solid #cfeadf;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .status-dot { width: 7px; height: 7px; background: var(--success); border-radius: 50%; }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 236px minmax(0, 1fr) 310px;
+      min-height: calc(100vh - 58px);
+    }
+
+    .left-rail,
+    .right-rail {
+      position: sticky;
+      top: 58px;
+      height: calc(100vh - 58px);
+      overflow: auto;
+      background: var(--paper);
+    }
+    .left-rail { padding: 28px 20px 40px; border-right: 1px solid var(--line-soft); }
+    .right-rail { padding: 28px 22px 40px; border-left: 1px solid var(--line-soft); }
+
+    .rail-label {
+      margin: 0 10px 10px;
+      color: var(--faint);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    .nav { display: grid; gap: 3px; }
+    .nav a {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 36px;
+      padding: 7px 10px;
+      color: var(--muted);
+      border-radius: 8px;
+      font-size: 13px;
+      transition: .18s ease;
+    }
+    .nav a:hover { color: var(--ink); background: var(--surface); }
+    .nav a.active { color: var(--accent-dark); background: var(--accent-soft); font-weight: 700; }
+    .nav a span:last-child { font-family: var(--mono); font-size: 10px; opacity: .62; }
+    .rail-rule { height: 1px; margin: 18px 10px; background: var(--line-soft); }
+    .rail-note { margin: 0 10px; color: var(--faint); font-size: 12px; line-height: 1.55; }
+
+    main { min-width: 0; padding: 48px clamp(28px, 5vw, 76px) 100px; }
+    .content { width: min(860px, 100%); margin: 0 auto; }
+
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 17px;
+      color: var(--accent-dark);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 24px; height: 2px; background: var(--accent); }
+    h1, h2, h3 { font-family: var(--display); text-wrap: balance; }
+    h1 { margin: 0; font-size: clamp(40px, 6vw, 68px); line-height: 1.02; letter-spacing: -.055em; }
+    h1 span { color: var(--accent); }
+    .lede {
+      max-width: 690px;
+      margin: 24px 0 30px;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.65;
+      text-wrap: pretty;
+    }
+
+    .hero-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; align-items: stretch; }
+    .hero-stat {
+      position: relative;
+      min-height: 236px;
+      overflow: hidden;
+      padding: 25px;
+      color: #fff;
+      background: #15162b;
+      border-radius: 16px;
+    }
+    .hero-stat::after {
+      content: "";
+      position: absolute;
+      right: -55px;
+      bottom: -85px;
+      width: 220px;
+      height: 220px;
+      border: 42px solid #635bff;
+      border-radius: 50%;
+      opacity: .9;
+    }
+    .hero-stat .big { position: relative; z-index: 1; font: 760 76px/1 var(--display); letter-spacing: -.06em; }
+    .hero-stat .big small { color: #a6a3ff; font-size: 28px; }
+    .hero-stat p { position: relative; z-index: 1; max-width: 250px; margin: 12px 0 0; color: #c7cad7; }
+    .hero-stat .formula { position: absolute; left: 25px; bottom: 24px; z-index: 1; color: #fff; font: 600 12px/1.4 var(--mono); }
+
+    .hero-points { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 112px;
+      padding: 17px;
+      background: var(--surface);
+      border: 1px solid var(--line-soft);
+      border-radius: 13px;
+    }
+    .metric b { font: 750 30px/1 var(--display); letter-spacing: -.03em; }
+    .metric span { color: var(--muted); font-size: 12px; }
+    .metric.accent { color: var(--accent-dark); background: var(--surface-blue); border-color: #dcdef8; }
+
+    .system-map { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; align-items: stretch; margin-top: 24px; }
+    .system-node { position: relative; min-width: 0; padding: 16px 14px; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
+    .system-node:not(:last-child)::after { content: "→"; position: absolute; top: 50%; right: -9px; z-index: 2; width: 18px; color: var(--accent); background: var(--paper); text-align: center; font-weight: 800; transform: translateY(-50%); }
+    .system-node.core { color: #fff; background: #171927; border-color: #171927; }
+    .system-node.docs { background: var(--surface-blue); border-color: #dcdcf8; }
+    .system-node small { display: block; margin-bottom: 8px; color: var(--faint); font: 700 9px/1 var(--mono); letter-spacing: .06em; }
+    .system-node.core small { color: #aaaee6; }
+    .system-node strong { display: block; margin-bottom: 6px; font-size: 13px; }
+    .system-node p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .system-node.core p { color: #c7cad7; }
+    .truth-note { margin-top: 14px; padding: 13px 15px; color: #3d4160; background: var(--accent-soft); border-radius: 9px; font-size: 12px; }
+    .truth-note strong { color: var(--accent-dark); }
+
+    section { scroll-margin-top: 84px; padding-top: 76px; }
+    .section-kicker { color: var(--accent-dark); font-family: var(--mono); font-size: 11px; font-weight: 700; }
+    h2 { margin: 8px 0 13px; font-size: 32px; line-height: 1.15; letter-spacing: -.035em; }
+    .section-intro { max-width: 700px; margin: 0 0 26px; color: var(--muted); font-size: 16px; }
+
+    .role-table { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); }
+    .role-row { display: grid; grid-template-columns: 160px 1fr; min-height: 56px; border-bottom: 1px solid var(--line-soft); }
+    .role-row:last-child { border-bottom: 0; }
+    .role-row code { display: flex; align-items: center; padding: 13px 16px; color: var(--accent-dark); background: #fafaff; font-size: 12px; }
+    .role-row p { display: flex; align-items: center; margin: 0; padding: 12px 16px; color: var(--muted); font-size: 13px; }
+
+    .tree {
+      position: relative;
+      overflow: auto;
+      margin-top: 18px;
+      padding: 20px 22px;
+      color: #d9dce9;
+      background: #171927;
+      border-radius: var(--radius);
+      font: 12px/1.75 var(--mono);
+      white-space: pre;
+    }
+    .tree strong { color: #fff; }
+    .tree .folder { color: #9aa5ff; }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(88px, 1fr));
+      gap: 7px;
+      margin: 28px 0 18px;
+      padding: 6px;
+      background: var(--surface);
+      border: 1px solid var(--line-soft);
+      border-radius: 14px;
+    }
+    .stage-btn {
+      min-height: 82px;
+      padding: 10px 7px;
+      text-align: left;
+      background: transparent;
+      border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: .18s ease;
+    }
+    .stage-btn:hover { background: #fff; box-shadow: 0 3px 12px rgba(16,24,40,.05); }
+    .stage-btn.active { color: #fff; background: var(--accent); box-shadow: 0 8px 24px rgba(99,91,255,.22); }
+    .stage-no { display: block; margin-bottom: 9px; font: 700 10px/1 var(--mono); opacity: .72; }
+    .stage-name { display: block; font-size: 12px; font-weight: 750; line-height: 1.3; }
+    .stage-detail {
+      display: grid;
+      grid-template-columns: 58px 1fr auto;
+      gap: 16px;
+      align-items: center;
+      min-height: 122px;
+      padding: 22px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .stage-index { color: var(--accent); font: 750 36px/1 var(--display); }
+    .stage-copy h3 { margin: 0 0 5px; font-size: 19px; }
+    .stage-copy p { margin: 0; color: var(--muted); font-size: 13px; }
+    .stage-tag { padding: 6px 9px; color: var(--accent-dark); background: var(--accent-soft); border-radius: 999px; font-size: 11px; font-weight: 750; white-space: nowrap; }
+
+    .queue-board {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 24px;
+    }
+    .queue-card { padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); }
+    .queue-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+    .queue-head strong { font-size: 14px; }
+    .slots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
+    .slot {
+      display: grid;
+      place-items: center;
+      aspect-ratio: 1;
+      color: var(--accent-dark);
+      background: var(--accent-soft);
+      border: 1px solid #d4d0ff;
+      border-radius: 7px;
+      font: 700 10px/1 var(--mono);
+    }
+    .queue-note { margin: 13px 0 0; color: var(--muted); font-size: 12px; }
+    .guardrails { background: var(--warning-soft); border-color: #f2d4a8; }
+    .guardrails ul { margin: 7px 0 0; padding-left: 18px; color: #74420f; font-size: 12px; }
+
+    .canvas-demo {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fbfbfd;
+    }
+    .canvas-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 14px;
+      background: #fff;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .view-tabs { display: flex; gap: 5px; }
+    .view-tab {
+      padding: 5px 10px;
+      color: var(--muted);
+      background: transparent;
+      border: 0;
+      border-radius: 7px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .view-tab.active { color: var(--accent-dark); background: var(--accent-soft); font-weight: 750; }
+    .canvas-hint { color: var(--faint); font-size: 11px; }
+    .canvas-hierarchy {
+      margin: 0 0 16px;
+      padding: 16px;
+      background: #181a28;
+      border-radius: 14px;
+      color: #fff;
+      overflow: hidden;
+    }
+    .axis-note { margin-bottom: 10px; color: #a9b0c8; font: 700 10px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .date-regions { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; min-width: 620px; }
+    .date-region { padding: 12px; border: 1px solid #3b3e54; border-radius: 10px; background: #212438; }
+    .date-region.next { border-color: #6962e9; background: #242443; }
+    .date-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; font-size: 12px; font-weight: 800; }
+    .date-title small { color: #a9b0c8; font: 9px/1 var(--mono); }
+    .skc-stack { display: grid; gap: 7px; }
+    .skc-block { display: grid; grid-template-columns: 72px 1fr; gap: 9px; padding: 9px; background: #fff; border-radius: 7px; color: var(--ink); }
+    .skc-block strong { font: 700 10px/1.4 var(--mono); }
+    .skc-block span { color: var(--muted); font-size: 10px; }
+    .hierarchy-rule { margin: 12px 0 0; color: #c8cbe0; font-size: 11px; line-height: 1.55; }
+    .lanes { padding: 14px; }
+    .lane {
+      display: grid;
+      grid-template-columns: 66px minmax(330px, 1fr) minmax(120px, .42fr);
+      gap: 10px;
+      align-items: center;
+      min-height: 76px;
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line-soft);
+      transition: .18s ease;
+    }
+    .lane:last-child { border-bottom: 0; }
+    .lane.focus { background: var(--surface-blue); box-shadow: inset 3px 0 var(--accent); }
+    .lane-name { font-size: 12px; font-weight: 750; }
+    .primary-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
+    .image-cell {
+      position: relative;
+      aspect-ratio: 2 / 3;
+      min-height: 54px;
+      overflow: hidden;
+      background: #e7e2d8;
+      border: 1px solid #d1ccc2;
+      border-radius: 5px;
+    }
+    .image-cell::before {
+      content: "";
+      position: absolute;
+      left: 50%; top: 18%;
+      width: 28%; height: 64%;
+      transform: translateX(-50%);
+      background: #f6f0df;
+      border-radius: 45% 45% 24% 24%;
+      box-shadow: 0 7px 14px rgba(65, 56, 45, .14);
+    }
+    .image-cell::after {
+      content: attr(data-id);
+      position: absolute;
+      left: 3px; bottom: 3px;
+      padding: 2px 3px;
+      color: #fff;
+      background: rgba(20,22,35,.72);
+      border-radius: 3px;
+      font: 700 7px/1 var(--mono);
+    }
+    .supplemental { display: flex; align-items: center; gap: 5px; min-height: 56px; padding-left: 9px; border-left: 1px dashed #cad0da; }
+    .retry-cell { width: 31px; aspect-ratio: 2/3; background: #efe7d4; border: 1px solid #d9cdb6; border-radius: 4px; }
+    .retry-label { color: var(--faint); font: 9px/1.35 var(--mono); }
+
+    .immediate-rule {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .rule-step { position: relative; padding: 15px; background: var(--surface); border-radius: 10px; }
+    .rule-step:not(:last-child)::after { content: "→"; position: absolute; right: -10px; top: 50%; z-index: 2; color: var(--accent); font-weight: 800; transform: translateY(-50%); }
+    .rule-step b { display: block; margin-bottom: 5px; font-size: 12px; }
+    .rule-step span { color: var(--muted); font-size: 11px; }
+
+    .quality-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+    details { background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+    summary { padding: 14px 16px; font-weight: 750; font-size: 13px; cursor: pointer; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "+"; float: right; color: var(--accent); font-size: 18px; line-height: 1; }
+    details[open] summary::after { content: "−"; }
+    details p, details ul { margin: 0; padding: 0 16px 16px; color: var(--muted); font-size: 12px; }
+    details ul { padding-left: 33px; }
+    .attempts { display: flex; gap: 8px; margin-top: 18px; }
+    .attempt {
+      flex: 1;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+    }
+    .attempt b { display: block; font: 700 11px/1 var(--mono); }
+    .attempt span { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; }
+    .attempt:last-child { border-color: #f0c6cf; background: var(--danger-soft); }
+
+    .code-tabs { display: flex; gap: 4px; margin-bottom: -1px; }
+    .code-tab { padding: 8px 12px; background: var(--surface); border: 1px solid var(--line); border-bottom: 0; border-radius: 8px 8px 0 0; color: var(--muted); font-size: 12px; cursor: pointer; }
+    .code-tab.active { color: var(--accent-dark); background: #181a28; border-color: #181a28; }
+    .codebox { position: relative; padding: 21px 54px 21px 20px; color: #ececf6; background: #181a28; border-radius: 0 10px 10px 10px; font: 12px/1.7 var(--mono); overflow: auto; white-space: pre; }
+    .copy-btn { position: absolute; right: 12px; top: 12px; padding: 5px 8px; color: #b8bed0; background: #292c40; border: 1px solid #3a3e55; border-radius: 6px; font-size: 10px; cursor: pointer; }
+
+    .done-list { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+    .done-item { display: grid; grid-template-columns: 25px 1fr auto; gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line-soft); }
+    .done-item:last-child { border-bottom: 0; }
+    .check { display: grid; place-items: center; width: 18px; height: 18px; color: #fff; background: var(--success); border-radius: 50%; font-size: 10px; }
+    .done-item span { font-size: 13px; }
+    .done-item code { color: var(--faint); font-size: 10px; }
+
+    .context-card { margin-bottom: 16px; padding: 16px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 11px; }
+    .context-card h3 { margin: 0 0 11px; font-size: 13px; }
+    .spec-list { display: grid; gap: 9px; }
+    .spec-row { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 11px; }
+    .spec-row strong { color: var(--ink); font-weight: 750; text-align: right; }
+    .matrix-mini { display: grid; grid-template-columns: 58px repeat(5, 1fr); gap: 4px; }
+    .matrix-mini span { display: grid; place-items: center; min-height: 23px; background: #fff; border: 1px solid var(--line-soft); border-radius: 4px; color: var(--muted); font: 8px/1 var(--mono); }
+    .matrix-mini .label { justify-content: start; padding-left: 4px; color: var(--ink); background: transparent; border: 0; font-family: var(--sans); font-weight: 700; }
+    .matrix-mini .ok { color: var(--success); background: var(--success-soft); border-color: #d4ebdf; }
+    .context-alert { color: #71420f; background: var(--warning-soft); border-color: #f2d4a8; }
+    .context-alert p { margin: 0; font-size: 11px; line-height: 1.55; }
+
+    footer { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--line-soft); color: var(--faint); font-size: 11px; }
+    footer a { color: var(--accent-dark); border-bottom: 1px solid #c8c3ff; }
+
+    @media (max-width: 1180px) {
+      .shell { grid-template-columns: 210px minmax(0,1fr); }
+      .right-rail { display: none; }
+    }
+    @media (max-width: 800px) {
+      .topbar { padding: 0 15px; }
+      .version, .brand small { display: none; }
+      .brand { min-width: auto; }
+      .shell { display: block; }
+      .left-rail { display: none; }
+      main { padding: 38px 18px 70px; }
+      .hero-grid, .queue-board, .quality-grid { grid-template-columns: 1fr; }
+      .system-map { grid-template-columns: 1fr; }
+      .system-node:not(:last-child)::after { content: "↓"; top: auto; right: 50%; bottom: -13px; transform: translateX(50%); }
+      .pipeline { grid-template-columns: repeat(4, 1fr); }
+      .stage-detail { grid-template-columns: 48px 1fr; }
+      .stage-tag { display: none; }
+      .lane { grid-template-columns: 48px minmax(290px, 1fr) 100px; min-width: 590px; }
+      .lanes { overflow-x: auto; }
+      .immediate-rule { grid-template-columns: 1fr 1fr; }
+      .rule-step:nth-child(2)::after { display: none; }
+    }
+    .md-workbench {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: var(--shadow);
+    }
+    .md-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line-soft);
+      background: var(--surface);
+    }
+    .md-head-copy { min-width: 0; }
+    .md-head-copy strong { display: block; font-size: 14px; }
+    .md-path { display: block; overflow: hidden; color: var(--faint); font: 10px/1.5 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+    .md-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+    .md-btn {
+      padding: 7px 10px;
+      color: var(--muted);
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .md-btn:hover { color: var(--accent-dark); border-color: #c9c5ff; }
+    .md-btn.primary { color: #fff; background: var(--accent); border-color: var(--accent); }
+    .md-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); min-height: 720px; }
+    .md-library { padding: 12px; background: #fafbfc; border-right: 1px solid var(--line-soft); }
+    .md-search {
+      width: 100%;
+      height: 36px;
+      margin-bottom: 10px;
+      padding: 0 11px;
+      color: var(--ink);
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      outline: none;
+      font-size: 12px;
+    }
+    .md-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .md-doc-list { display: grid; gap: 4px; }
+    .md-doc {
+      width: 100%;
+      padding: 10px;
+      text-align: left;
+      color: var(--muted);
+      background: transparent;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .md-doc:hover { color: var(--ink); background: #fff; }
+    .md-doc.active { color: var(--accent-dark); background: var(--accent-soft); }
+    .md-doc strong { display: block; font-size: 12px; }
+    .md-doc small { display: block; margin-top: 3px; font: 9px/1.35 var(--mono); opacity: .7; }
+    .md-editor { display: grid; grid-template-columns: 1fr 1fr; min-width: 0; }
+    .md-pane { min-width: 0; }
+    .md-pane + .md-pane { border-left: 1px solid var(--line-soft); }
+    .md-pane-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 38px;
+      padding: 0 12px;
+      color: var(--faint);
+      background: #fbfcfd;
+      border-bottom: 1px solid var(--line-soft);
+      font: 10px/1 var(--mono);
+      letter-spacing: .05em;
+    }
+    .draft-state { color: var(--success); }
+    #markdownInput {
+      display: block;
+      width: 100%;
+      height: 682px;
+      resize: none;
+      padding: 18px;
+      color: #dfe3ef;
+      background: #171927;
+      border: 0;
+      outline: none;
+      font: 12px/1.72 var(--mono);
+      tab-size: 2;
+    }
+    .md-preview {
+      height: 682px;
+      overflow: auto;
+      padding: 22px;
+      color: var(--ink);
+      background: #fff;
+      font-size: 13px;
+    }
+    .md-preview h1 { margin: 0 0 24px; font-size: 30px; letter-spacing: -.035em; }
+    .md-preview h2 { margin: 30px 0 12px; padding-top: 8px; font-size: 21px; }
+    .md-preview h3 { margin: 22px 0 10px; font-size: 16px; }
+    .md-preview p { margin: 0 0 12px; color: var(--muted); }
+    .md-preview ul, .md-preview ol { margin: 0 0 16px; padding-left: 22px; color: var(--muted); }
+    .md-preview li { margin: 4px 0; }
+    .md-preview code { padding: 2px 5px; color: var(--accent-dark); background: var(--accent-soft); border-radius: 4px; font-size: .9em; }
+    .md-preview pre { overflow: auto; margin: 14px 0 18px; padding: 15px; color: #e8eaf4; background: #171927; border-radius: 9px; }
+    .md-preview pre code { padding: 0; color: inherit; background: transparent; }
+    .md-preview blockquote { margin: 16px 0; padding: 3px 0 3px 14px; color: var(--muted); border-left: 3px solid var(--accent); }
+    .md-preview table { width: 100%; margin: 16px 0; border-collapse: collapse; font-size: 11px; }
+    .md-preview th, .md-preview td { padding: 8px; text-align: left; border: 1px solid var(--line); }
+    .md-preview th { background: var(--surface); }
+    .md-notice { display: flex; gap: 10px; margin: 0 0 16px; padding: 13px 14px; color: #664214; background: var(--warning-soft); border: 1px solid #efd5ad; border-radius: 10px; font-size: 12px; }
+    @media (max-width: 980px) {
+      .md-layout { grid-template-columns: 1fr; }
+      .md-library { border-right: 0; border-bottom: 1px solid var(--line-soft); }
+      .md-doc-list { grid-template-columns: repeat(2, 1fr); }
+      .md-editor { grid-template-columns: 1fr; }
+      .md-pane + .md-pane { border-left: 0; border-top: 1px solid var(--line-soft); }
+      #markdownInput, .md-preview { height: 520px; }
+      .md-head { align-items: flex-start; flex-direction: column; }
+    }
+
+  </style>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23635bff%22/%3E%3Cpath d=%22M18 17h28v7H25v9h18v7H25v9h21v7H18z%22 fill=%22white%22/%3E%3C/svg%3E">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="mark" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+      <div class="brand-copy"><strong>SKC 四视角 Lovart 延展</strong><small>可视化工作手册</small></div>
+    </div>
+    <div class="top-status"><span class="version">fashion-lovart-view-extension</span><span class="status-pill"><i class="status-dot"></i>仓库随附 Skill</span></div>
+  </header>
+
+  <div class="shell">
+    <aside class="left-rail">
+      <p class="rail-label">指南</p>
+      <nav class="nav" id="sideNav">
+        <a href="#overview" class="active"><span>概览</span><span>01</span></a>
+        <a href="#architecture"><span>智能体组成</span><span>02</span></a>
+        <a href="#input"><span>输入与识别</span><span>03</span></a>
+        <a href="#workflow"><span>七阶段流程</span><span>04</span></a>
+        <a href="#concurrency"><span>并发调度</span><span>05</span></a>
+        <a href="#canvas"><span>即时排版</span><span>06</span></a>
+        <a href="#quality"><span>质检与重试</span><span>07</span></a>
+        <a href="#resume"><span>断点续跑</span><span>08</span></a>
+        <a href="#usage"><span>如何使用</span><span>09</span></a>
+        <a href="#markdown"><span>Markdown 编辑</span><span>10</span></a>
+        <a href="#completion"><span>完成标准</span><span>11</span></a>
+      </nav>
+      <div class="rail-rule"></div>
+      <p class="rail-label">原则</p>
+      <p class="rail-note">保留原图、不猜角色、不消费积分、不自动下载。完成不是「生成了」，而是「20 张全部通过质检且排版已验证」。</p>
+    </aside>
+
+    <main>
+      <div class="content">
+        <section id="overview" style="padding-top:0">
+          <p class="eyebrow">Automation skill · 操作手册</p>
+          <h1>从参考图到<br><span>20 张合格延展图</span></h1>
+          <p class="lede">扫描 SKC 的正面、侧面、背面、全身参考图，生成 20 个独立动作任务，在 Lovart 中按免费并发上限运行，并把每张完成图片立刻归位到“日期横向、同日 SKC 纵向”的确定位置。</p>
+          <div class="hero-grid">
+            <div class="hero-stat">
+              <div class="big">20<small> 张</small></div>
+              <p>单个完整 SKC 的唯一完成单位：四个视角，每个视角五个动作。</p>
+              <div class="formula">4 VIEWS × 5 ACTIONS = 20 QUALIFIED</div>
+            </div>
+            <div class="hero-points">
+              <div class="metric accent"><b>4</b><span>正面 / 侧面 / 背面 / 全身</span></div>
+              <div class="metric"><b>5</b><span>每个视角的独立动作</span></div>
+              <div class="metric"><b>10</b><span>Lovart 未完成任务上限</span></div>
+              <div class="metric"><b>10</b><span>每个视角最多生成图片</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="architecture">
+          <span class="section-kicker">02 / AGENT ARCHITECTURE</span>
+          <h2>这是一套智能体，Skill 是它的核心能力包</h2>
+          <p class="section-intro">HTML 不是可执行 Skill。真正运行时，由 Codex 读取 Skill，调用确定性脚本，再通过 Chrome 操作 Lovart；本页面负责让人理解、安装和维护整套关系。</p>
+          <div class="system-map">
+            <div class="system-node"><small>RUNTIME</small><strong>Codex</strong><p>理解任务、视觉分析、决策、调度和质检。</p></div>
+            <div class="system-node core"><small>CORE CAPABILITY</small><strong>Skill</strong><p>SKILL.md、四视角模板、执行规范与状态脚本。</p></div>
+            <div class="system-node"><small>EXECUTION</small><strong>Chrome</strong><p>复用登录状态，在一个标签页内控制 Lovart。</p></div>
+            <div class="system-node"><small>GENERATION</small><strong>Lovart</strong><p>Nano Banana Pro 生图、免费队列和日期 × SKC × 四行画布。</p></div>
+            <div class="system-node docs"><small>HUMAN GUIDE</small><strong>本 HTML</strong><p>阅读流程、查看 Markdown、临时改稿与团队分享。</p></div>
+          </div>
+          <div class="truth-note"><strong>唯一真源：</strong>正式规则始终以仓库 <code>skill/</code> 下的 Markdown 和脚本为准；HTML 由这些源文件重新生成，页面本地草稿不会自动改写正式 Skill。</div>
+        </section>
+
+        <section id="input">
+          <span class="section-kicker">03 / INPUT CONTRACT</span>
+          <h2>输入不是编号，是视觉证据</h2>
+          <p class="section-intro">Skill 接受单个 SKC 或批次根目录。图片保留原名称与位置，系统通过实际画面判断语义角色；数字文件名不会被当成角色规则。</p>
+          <div class="tree"><strong>8月/</strong>
+└── <span class="folder">ds726301071/</span>
+    ├── <span class="folder">正面/</span>     1.jpg · 2.jpg · 3.jpg · 4.jpg
+    ├── <span class="folder">侧面/</span>
+    ├── <span class="folder">背面/</span>
+    ├── <span class="folder">全身/</span>     配饰图可以是鞋，而不是构图图
+    └── <span class="folder">_codex/</span>   manifest · prompts · run-state · run-log</div>
+          <div class="role-table" style="margin-top:18px">
+            <div class="role-row"><code>model_source</code><p>模特身份、人体和基础穿搭参考</p></div>
+            <div class="role-row"><code>product_source</code><p>颜色、版型、领口、袖型、长度与面料证据</p></div>
+            <div class="role-row"><code>scene_source</code><p>背景环境、光向、色温与投影依据</p></div>
+            <div class="role-row"><code>composition_source</code><p>构图、机位与裁切；缺失时可由人物图兼任</p></div>
+            <div class="role-row"><code>accessory_source</code><p>鞋、包等可选配饰；全身图尤其需要辨认鞋子</p></div>
+          </div>
+        </section>
+
+        <section id="workflow">
+          <span class="section-kicker">04 / WORKFLOW</span>
+          <h2>七个阶段，一条可恢复的生产轨道</h2>
+          <p class="section-intro">点击阶段查看该阶段的产物与停止条件。每个动作都有明确标签、状态和历史，不靠浏览器记忆维持进度。</p>
+          <div class="pipeline" id="pipeline"></div>
+          <div class="stage-detail" id="stageDetail" aria-live="polite"></div>
+        </section>
+
+        <section id="concurrency">
+          <span class="section-kicker">05 / CONCURRENCY</span>
+          <h2>10 个任务填满，但永远不提交第 11 个</h2>
+          <p class="section-intro">全局同时统计 submitted、queued 和 visibly generating。新 SKC 的第一波默认是正面五个加侧面五个；任一槽位释放后，先排好刚完成的图，再补入背面、全身任务。</p>
+          <div class="queue-board">
+            <div class="queue-card">
+              <div class="queue-head"><strong>首波 · 10 / 10</strong><span class="status-pill"><i class="status-dot"></i>免费队列</span></div>
+              <div class="slots">
+                <div class="slot">FR01</div><div class="slot">FR02</div><div class="slot">FR03</div><div class="slot">FR04</div><div class="slot">FR05</div>
+                <div class="slot">SI01</div><div class="slot">SI02</div><div class="slot">SI03</div><div class="slot">SI04</div><div class="slot">SI05</div>
+              </div>
+              <p class="queue-note">完成一个 → 立即归位 → 写入状态 → 才补下一个。</p>
+            </div>
+            <div class="queue-card guardrails">
+              <div class="queue-head"><strong>硬性护栏</strong><code>NO PAID ACCELERATION</code></div>
+              <ul>
+                <li>不点击「立即生成」或积分加速</li>
+                <li>不在同一对话叠加未完成任务</li>
+                <li>不等待整波完成才继续后续视角</li>
+                <li>不自动下载结果</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="canvas">
+          <span class="section-kicker">06 / CANVAS PLACEMENT</span>
+          <h2>每做好一张，就马上排列一张</h2>
+          <p class="section-intro">画布不是最终收尾工作，而是每个任务完成时的即时事务。日期决定横向分区，同一天的 SKC 只能纵向堆叠；每个 SKC 再按四视角分行。</p>
+          <div class="canvas-hierarchy">
+            <div class="axis-note">横向 X 轴 · 日期从左到右，并为完整 10 槽宽度预留空间 →</div>
+            <div class="date-regions">
+              <article class="date-region">
+                <div class="date-title"><span>8月13日</span><small>DATE REGION 01</small></div>
+                <div class="skc-stack">
+                  <div class="skc-block"><strong>SKC A</strong><span>正面 ↓ 侧面 ↓ 背面 ↓ 全身</span></div>
+                  <div class="skc-block"><strong>SKC B</strong><span>位于同日上一 SKC 的下方</span></div>
+                </div>
+              </article>
+              <article class="date-region next">
+                <div class="date-title"><span>8月14日</span><small>PREVIOUS RIGHT EDGE + GAP</small></div>
+                <div class="skc-stack">
+                  <div class="skc-block"><strong>SKC C</strong><span>新日期整体放在前一天右侧</span></div>
+                  <div class="skc-block"><strong>SKC D</strong><span>同日继续向下，不左右并排</span></div>
+                </div>
+              </article>
+            </div>
+            <p class="hierarchy-rule">定位键：日期 → SKC → 视角 → 动作/尝试。新日期从前一日期的实际最右边界加安全间距开始；新 SKC 从同日上一 SKC 的实际最下边界加安全间距开始。</p>
+          </div>
+          <div class="canvas-demo">
+            <div class="canvas-toolbar">
+              <div class="view-tabs" id="viewTabs"></div>
+              <span class="canvas-hint">左：5 个主槽 · 右：同视角补图带</span>
+            </div>
+            <div class="lanes" id="lanes"></div>
+          </div>
+          <div class="immediate-rule">
+            <div class="rule-step"><b>01 · 结果完成</b><span>暂停补位提交</span></div>
+            <div class="rule-step"><b>02 · 放入主槽</b><span>按视角与动作定位</span></div>
+            <div class="rule-step"><b>03 · 视觉确认</b><span>尺寸、间距、保存状态</span></div>
+            <div class="rule-step"><b>04 · 再补队列</b><span>填充释放的并发位</span></div>
+          </div>
+        </section>
+
+        <section id="quality">
+          <span class="section-kicker">07 / QUALITY GATE</span>
+          <h2>生成只是候选，核验通过才算完成</h2>
+          <p class="section-intro">20 张基础图生成完后进行统一质检。每个视角最多生成10张：5张基础图加最多5张补图；达到5张合格图或10张总量时立即停止该视角。</p>
+          <div class="quality-grid">
+            <details open><summary>产品一致性</summary><ul><li>颜色、版型、领口、袖型、长度和面料正确</li><li>视角与动作合同一致</li><li>包袋、鞋子和手部正确</li></ul></details>
+            <details open><summary>图像真实性</summary><ul><li>单图、单个成年模特、无拼图</li><li>光向、投影、反射与色温统一</li><li>无抠图白边、严重肢体错误、文字或水印</li></ul></details>
+            <details><summary>四视角不得混淆</summary><p>正面、侧面、背面、全身分别服务于不同展示目的，不能仅凭动作名称代替真实视角核验。</p></details>
+            <details><summary>全身图专属边界</summary><p>从头发最高点到两只脚底连续完整入镜，完整脸部、两只鞋、脚趾与鞋底可见，头顶和脚下均留安全边距。</p></details>
+          </div>
+          <div class="attempts">
+            <div class="attempt"><b>BASE · 5</b><span>每个动作先生成1张基础候选</span></div>
+            <div class="attempt"><b>CORRECTION · ≤5</b><span>优先让每个失败动作获得一次补图</span></div>
+            <div class="attempt"><b>VIEW CAP · 10</b><span>不足5张合格则 blocked:quality-cap</span></div>
+          </div>
+        </section>
+
+        <section id="resume">
+          <span class="section-kicker">08 / RESUME</span>
+          <h2>任何中断，都从 run-state 继续</h2>
+          <p class="section-intro">每次可观察状态变化和每次画布移动都会落盘。重新运行时先查 Lovart 中已有标签，避免重复提交。</p>
+          <div class="role-table">
+            <div class="role-row"><code>qualified</code><p>直接跳过，不重新生成</p></div>
+            <div class="role-row"><code>submitted / queued</code><p>先在月度项目中查找可见任务标签</p></div>
+            <div class="role-row"><code>rejected</code><p>当前视角累计未满 10 张时，按补图顺序继续带证据纠错</p></div>
+            <div class="role-row"><code>blocked</code><p>只隔离当前动作、视角或 SKC；批次继续</p></div>
+            <div class="role-row"><code>canvas_placement</code><p>记录行号、主槽/补图位和视觉确认结果</p></div>
+          </div>
+        </section>
+
+        <section id="usage">
+          <span class="section-kicker">09 / RUN</span>
+          <h2>给路径，即可选择运行方式</h2>
+          <p class="section-intro">入口会自动判断路径是单个 SKC 还是批次根目录。切换下方标签，复制对应调用方式。</p>
+          <div class="code-tabs" id="codeTabs"></div>
+          <div class="codebox"><button class="copy-btn" id="copyBtn">复制</button><code id="codeText"></code></div>
+        </section>
+
+
+        <section id="markdown">
+          <span class="section-kicker">10 / MARKDOWN SOURCE CENTER</span>
+          <h2>完整规则原文，也能随时二次修改</h2>
+          <p class="section-intro">这里收录当前 Skill 的全部 8 份 Markdown 源文件。修改会即时预览并自动保存为浏览器本地草稿，不会直接覆盖已安装的正式 Skill。</p>
+          <div class="md-notice"><strong>安全说明</strong><span>页面内编辑只保存在当前浏览器的 localStorage。确认修改后，可复制或下载 Markdown，再人工替换正式文件。</span></div>
+          <div class="md-workbench">
+            <div class="md-head">
+              <div class="md-head-copy"><strong id="mdTitle">智能体主流程</strong><span class="md-path" id="mdPath">SKILL.md</span></div>
+              <div class="md-actions">
+                <button class="md-btn" id="mdReset">恢复原文</button>
+                <button class="md-btn" id="mdCopy">复制 Markdown</button>
+                <button class="md-btn primary" id="mdDownload">下载当前 .md</button>
+              </div>
+            </div>
+            <div class="md-layout">
+              <aside class="md-library">
+                <input class="md-search" id="mdSearch" type="search" placeholder="搜索文档…" aria-label="搜索 Markdown 文档">
+                <div class="md-doc-list" id="mdDocList"></div>
+              </aside>
+              <div class="md-editor">
+                <div class="md-pane">
+                  <div class="md-pane-title"><span>MARKDOWN SOURCE</span><span class="draft-state" id="mdDraftState">原始版本</span></div>
+                  <textarea id="markdownInput" spellcheck="false" aria-label="Markdown 编辑器"></textarea>
+                </div>
+                <div class="md-pane">
+                  <div class="md-pane-title"><span>LIVE PREVIEW</span><span>实时预览</span></div>
+                  <article class="md-preview" id="markdownPreview"></article>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="completion">
+          <span class="section-kicker">11 / DEFINITION OF DONE</span>
+          <h2>完成标准是一组同时成立的条件</h2>
+          <p class="section-intro">任何一项缺失，都不能把 SKC 标为 completed。</p>
+          <div class="done-list">
+            <div class="done-item"><i class="check">✓</i><span>正面、侧面、背面、全身各 5 张合格图</span><code>20 QUALIFIED</code></div>
+            <div class="done-item"><i class="check">✓</i><span>所有生成尝试都有已验证的画布位置</span><code>PLACED</code></div>
+            <div class="done-item"><i class="check">✓</i><span>日期横向、同日 SKC 纵向；标签和区域互不重叠</span><code>DATE × SKC</code></div>
+            <div class="done-item"><i class="check">✓</i><span>四行主图区顺序正确，补图留在所属视角右侧</span><code>4 × 10 CELLS</code></div>
+            <div class="done-item"><i class="check">✓</i><span>没有使用积分、付费加速或自动下载</span><code>FREE QUEUE</code></div>
+            <div class="done-item"><i class="check">✓</i><span>全身图均从头顶到脚底完整入镜</span><code>HEAD-TO-TOE</code></div>
+            <div class="done-item"><i class="check">✓</i><span>每个视角累计不超过10张候选图</span><code>≤10 / VIEW</code></div>
+          </div>
+        </section>
+
+        <footer>视觉语言参照：<a href="https://docs.stripe.com/" target="_blank" rel="noreferrer">Stripe Documentation</a> 的应用化文档思路、三栏信息架构与克制交互；本页面未使用或仿冒其品牌标识。内容由仓库内 <code>fashion-lovart-view-extension/skill</code> 的正式源文件生成。</footer>
+      </div>
+    </main>
+
+    <aside class="right-rail">
+      <div class="context-card">
+        <h3>运行规格</h3>
+        <div class="spec-list">
+          <div class="spec-row"><span>模型</span><strong>Nano Banana Pro</strong></div>
+          <div class="spec-row"><span>输出</span><strong>4K · 2:3</strong></div>
+          <div class="spec-row"><span>项目</span><strong>YYYY年M月</strong></div>
+          <div class="spec-row"><span>浏览器</span><strong>一个 Chrome 标签</strong></div>
+          <div class="spec-row"><span>结果</span><strong>留在 Lovart 画布</strong></div>
+        </div>
+      </div>
+      <div class="context-card">
+        <h3>目标矩阵</h3>
+        <div class="matrix-mini">
+          <span></span><span>01</span><span>02</span><span>03</span><span>04</span><span>05</span>
+          <span class="label">正面</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span>
+          <span class="label">侧面</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span>
+          <span class="label">背面</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span>
+          <span class="label">全身</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span>
+        </div>
+      </div>
+      <div class="context-card context-alert">
+        <h3>最容易漏掉的规则</h3>
+        <p>日期横向、同日 SKC 纵向。必须按完整 10 槽宽度预留日期区；每张图片一完成就立即归位，禁止最后统一排列。</p>
+      </div>
+      <div class="context-card">
+        <h3>状态文件</h3>
+        <div class="spec-list">
+          <div class="spec-row"><span>素材角色</span><strong>manifest.json</strong></div>
+          <div class="spec-row"><span>任务状态</span><strong>run-state.json</strong></div>
+          <div class="spec-row"><span>纠错历史</span><strong>run-log.md</strong></div>
+          <div class="spec-row"><span>四套提示词</span><strong>prompts/*.json</strong></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const stages = [
+      {n:'01', name:'扫描目录', tag:'inventory', title:'发现 SKC 与四视角目录', text:'记录图片路径、哈希与重复组；所有语义角色先保持 unclassified。'},
+      {n:'02', name:'视觉分类', tag:'manifest', title:'把每张图分配到唯一语义角色', text:'人物、产品、场景为必需角色；低于 0.7 的置信度或多候选会只阻塞当前视角。'},
+      {n:'03', name:'生成提示词', tag:'4 × 5', title:'按四套模板生成 20 个独立动作', text:'每个视角恰好五条英文提示词，并带 SKC、VIEW、ACTION、ATTEMPT 可检索前缀。'},
+      {n:'04', name:'初始化状态', tag:'resume', title:'创建或读取 run-state.json', text:'合格项跳过、排队项先查找、失败项按尝试次数继续；完成的视角不会重启。'},
+      {n:'05', name:'准备参考图', tag:'ASCII', title:'建立去重的临时上传包', text:'按人物 → 产品 → 场景 → 构图 → 配饰排序，使用 ASCII 路径，原始素材不移动。'},
+      {n:'06', name:'Lovart 执行', tag:'10 slots', title:'在一个标签页内持续填充免费队列', text:'每个动作独立对话；任何结果完成后先即时排版并确认，再填充释放的并发位。'},
+      {n:'07', name:'统一质检', tag:'10 / view', title:'20 张基础图完成后逐张核验', text:'每个视角最多生成10张：5张基础图加最多5张补图；达到5张合格图或10张总量即停止。'}
+    ];
+
+    const pipeline = document.getElementById('pipeline');
+    const detail = document.getElementById('stageDetail');
+    function renderStage(index) {
+      [...pipeline.children].forEach((b,i) => b.classList.toggle('active', i === index));
+      const s = stages[index];
+      detail.innerHTML = `<div class="stage-index">${s.n}</div><div class="stage-copy"><h3>${s.title}</h3><p>${s.text}</p></div><span class="stage-tag">${s.tag}</span>`;
+    }
+    stages.forEach((s,i) => {
+      const b = document.createElement('button');
+      b.className = 'stage-btn';
+      b.innerHTML = `<span class="stage-no">${s.n}</span><span class="stage-name">${s.name}</span>`;
+      b.onclick = () => renderStage(i);
+      pipeline.appendChild(b);
+    });
+    renderStage(0);
+
+    const viewData = [
+      {key:'FR', name:'正面', retries:5},
+      {key:'SI', name:'侧面', retries:5},
+      {key:'BA', name:'背面', retries:5},
+      {key:'FU', name:'全身', retries:5}
+    ];
+    const tabs = document.getElementById('viewTabs');
+    const lanes = document.getElementById('lanes');
+    viewData.forEach((view,idx) => {
+      const tab = document.createElement('button');
+      tab.className = 'view-tab' + (idx === 0 ? ' active' : '');
+      tab.textContent = view.name;
+      tab.onclick = () => focusLane(idx);
+      tabs.appendChild(tab);
+      const lane = document.createElement('div');
+      lane.className = 'lane' + (idx === 0 ? ' focus' : '');
+      lane.dataset.index = idx;
+      lane.innerHTML = `<div class="lane-name">${idx + 1} · ${view.name}</div><div class="primary-strip">${[1,2,3,4,5].map(n => `<div class="image-cell" data-id="${view.key}0${n}"></div>`).join('')}</div><div class="supplemental">${Array.from({length:view.retries},(_,n)=>`<div class="retry-cell" title="${view.key} 补图 ${n+1}"></div>`).join('')}<span class="retry-label">补图带<br>同视角</span></div>`;
+      lanes.appendChild(lane);
+    });
+    function focusLane(i) {
+      [...tabs.children].forEach((t,j)=>t.classList.toggle('active',i===j));
+      [...lanes.children].forEach((l,j)=>l.classList.toggle('focus',i===j));
+    }
+
+    const codeModes = [
+      {label:'单个 SKC', code:'$fashion-lovart-view-extension /path/to/ds726301071'},
+      {label:'整个批次', code:'$fashion-lovart-view-extension /path/to/batch-root'},
+      {label:'仅生成提示词', code:'使用 $fashion-lovart-view-extension 分析这个批次并生成提示词，暂时不要进入 Lovart。\\n路径：/path/to/batch-root'},
+      {label:'断点继续', code:'使用 $fashion-lovart-view-extension 继续处理：/path/to/batch-root\\n从 run-state.json 继续，不要重复提交已完成任务。'}
+    ];
+    const codeTabs = document.getElementById('codeTabs');
+    const codeText = document.getElementById('codeText');
+    codeModes.forEach((m,i) => {
+      const b = document.createElement('button');
+      b.className = 'code-tab' + (i === 0 ? ' active' : '');
+      b.textContent = m.label;
+      b.onclick = () => {
+        [...codeTabs.children].forEach((x,j)=>x.classList.toggle('active',i===j));
+        codeText.textContent = m.code;
+      };
+      codeTabs.appendChild(b);
+    });
+    codeText.textContent = codeModes[0].code;
+    document.getElementById('copyBtn').onclick = async (e) => {
+      await navigator.clipboard.writeText(codeText.textContent);
+      const old = e.currentTarget.textContent;
+      e.currentTarget.textContent = '已复制';
+      setTimeout(()=>e.currentTarget.textContent=old,1200);
+    };
+
+
+    const markdownDocuments = [{"id":"skill","title":"智能体主流程","fileName":"SKILL.md","relativePath":"SKILL.md","content":"---\nname: fashion-lovart-view-extension\ndescription: Use when processing one SKC or a batch of SKCs containing 正面、侧面、背面、全身 reference folders for multi-view fashion extension prompts and Lovart Nano Banana Pro generation in Chrome.\n---\n\n# Fashion Lovart View Extension\n\n## Overview\n\nProcess every SKC as four isolated view jobs. Classify references visually, fill the matching Feishu-derived template, generate five independent prompts per view, operate Lovart in Chrome, and count completion only after five candidates pass Codex visual review.\n\n## Required Skills\n\n- **REQUIRED:** Use `chrome:control-chrome` for Lovart UI work.\n- Use `computer-use:computer-use` only for a native file picker or UI element Chrome control cannot operate.\n\n## Inputs and Outputs\n\nAccept either a single SKC folder or a batch root. A single SKC contains one or more direct children named `正面`, `侧面`, `背面`, `全身`.\n\nWrite into each SKC without renaming or moving source images:\n\n```text\n<skc>/_codex/\n├── manifest.json\n├── role-assignments.json\n├── run-state.json\n├── run-log.md\n└── prompts/\n    ├── front.json\n    ├── side.json\n    ├── back.json\n    └── full.json\n```\n\nUse `/tmp/lovart_view_extension/<first-12-sha256-of-skc-path>/<view>/` for ASCII-only upload packages. Never download Lovart results automatically.\n\n## Workflow\n\n### 1. Discover and inventory\n\nRun:\n\n```bash\npython3 scripts/scan_skc.py <input-path> --output <temporary-batch-inventory.json>\n```\n\nThe scanner records files, hashes, and duplicate groups. It deliberately leaves every semantic role `unclassified`.\n\n### 2. Classify references visually\n\nOpen every unique image with image-view tooling. Assign each path exactly one role in `role-assignments.json`:\n\n- `model_source`\n- `product_source`\n- `scene_source`\n- `composition_source`\n- `accessory_source`\n- `unused`\n\nEach assignment contains `role`, numeric `confidence` from 0 to 1, and a concrete visual `reason`. Follow the schema in `references/folder-contract.md`. Do not infer role from filename alone.\n\nApply these rules:\n\n- Each ready view has exactly one model, product, and scene source.\n- If composition is absent and the model source clearly controls crop, reuse the model source as composition fallback.\n- Accessories are optional. In the full-body workflow, shoes are normally an accessory source.\n- Each path has one primary role. The only multi-role rule is the explicit unique-model-to-composition fallback. Images with identical hashes upload only once.\n- Confidence below 0.7, unclassified images, or multiple candidates for a required role produce `blocked:role-ambiguous` for that view only.\n\nApply assignments using `apply_role_assignments()` from `scripts/scan_skc.py`, save the resulting single-SKC object as `_codex/manifest.json`, then validate:\n\n```bash\npython3 scripts/validate_manifest.py manifest <skc>/_codex/manifest.json\n```\n\n### 3. Build five prompts per ready view\n\nRead `references/prompt-output-schema.md` and the matching template:\n\n| View | Folder | Template |\n|---|---|---|\n| `front` | 正面 | `references/templates/front.md` |\n| `side` | 侧面 | `references/templates/side.md` |\n| `back` | 背面 | `references/templates/back.md` |\n| `full` | 全身 | `references/templates/full.md` |\n\nFill the template from visual evidence. Save the completed Chinese analysis in `analysis_markdown` and exactly five complete English prompts in `actions`. Prefix every executable prompt:\n\n```text\nSKC <skc_id> | VIEW <view> | ACTION <action_id> | ATTEMPT <n>\n```\n\nValidate each prompt JSON before browser work:\n\n```bash\npython3 scripts/validate_manifest.py prompt <skc>/_codex/prompts/<view>.json\n```\n\n### 4. Initialize or resume state\n\nIf `_codex/run-state.json` does not exist:\n\n```bash\npython3 scripts/update_run_state.py init <manifest.json> <run-state.json>\n```\n\nResume rules:\n\n- Skip `qualified` actions.\n- Search the monthly Lovart project for `submitted` or `queued` task labels before resubmitting.\n- Resume `rejected` actions only while that view has produced fewer than 10 candidate images.\n- Never restart completed views.\n\n### 5. Prepare references\n\nCreate one ASCII-only package per view. Use only the fixed ASCII root and a SHA-derived SKC slug; never place a Chinese or user-provided name directly in the temporary path. Copy unique files in this order:\n\n1. `model_01`\n2. `product_01`\n3. `scene_01`\n4. `composition_01` when its hash is not already present\n5. `accessory_01...`\n\nKeep a mapping from temporary name to manifest path in the run log. Prompts refer to semantic labels such as `MODEL SOURCE`, `PRODUCT SOURCE`, `SCENE SOURCE`, and `SHOES ACCESSORY SOURCE`, never Lovart's numeric image index. Upload all references once per isolated view conversation.\n\n### 6. Operate Lovart in Chrome\n\nRead `references/lovart-execution.md` completely before browser work. Use the existing signed-in Chrome session. Work in project `YYYY年M月`, then resolve the canvas hierarchy before submitting anything: dates are horizontal canvas regions from left to right; SKCs belonging to the same date are stacked vertically from top to bottom; every SKC contains four view rows; every row contains five primary cells followed by five supplemental cells. The exact destination of every result is therefore `date -> SKC -> view -> action/attempt`.\n\nCreate or locate the date label and SKC label before generation. A date region must be wide enough for the full 10-cell row plus labels and safety padding. Place a new date strictly to the right of the previous date region's actual rightmost object plus a visible safety gap. Place a new SKC for an existing date strictly below that date region's previous SKC actual bottom edge plus a visible safety gap. Never place two different SKCs from the same date side by side, and never estimate the next region from only the first five base images.\n\nUse one Chrome tab and a separate Lovart conversation for every action. Upload that action's view package, submit exactly one task, wait until Lovart visibly accepts or queues it, then switch to a new conversation without opening another browser tab. Do not submit a second task in the same conversation while the first is unfinished: Lovart cancels the earlier free-queue task. Select Nano Banana Pro, 4K, 2:3. Treat 10 accepted unfinished tasks as Lovart's hard global concurrency window: count `submitted`, `queued`, and visibly generating actions across all views and SKCs, fill the window up to 10 even when early tasks show a free-queue estimate, never submit an 11th, and fill every released slot immediately with the next pending action. For a fresh four-view SKC, submit front `FR01`–`FR05` and side `SI01`–`SI05` as the first 10-task wave unless existing unfinished tasks already occupy slots. As soon as any slot is released, continue with back and then full-body actions; do not wait for a whole wave to finish.\n\nUse a two-phase quality order for each SKC: first submit and wait for all 20 base actions (four views times five actions) to finish; only then begin the unified visual review. Do not interrupt base generation with quality retries. After all 20 base results exist, review them one by one, then use released slots for evidence-based retries.\n\nApply a hard generation cap independently to every view. Front, side, back, and full may each produce at most 10 candidate images total: five base candidates plus no more than five correction candidates. Count a candidate only after Lovart visibly returns an image; count rejected images and replacement images, but do not count pending, submitted, queued, cancelled, or failed requests that return no image. Before submitting, reserve capacity for all unfinished requests in that view so accepted work cannot exceed the 10-image cap. Give every rejected action one correction opportunity before assigning another correction to an action that has already received one. Stop the view immediately after it has five qualified actions or reaches 10 generated candidates. At the cap, mark every unresolved action `blocked:quality-cap` and continue other views or SKCs.\n\nCanvas placement is **not** deferred to either phase. The moment any task finishes, pause submission long enough to place its result in the deterministic row/slot described in `references/lovart-execution.md`. Verify the placement visually, record it with `update_run_state.py place`, and only then fill the released concurrency slot. Never allow completed results to accumulate in Lovart's automatic vertical output stack.\n\nNever click `立即生成`, use points, pay for acceleration, silently select Nano Banana 2, combine actions into a grid request, or upload references to the wrong view conversation.\n\nUpdate state after every observable task change:\n\n```bash\npython3 scripts/update_run_state.py transition <state> <view> <action-id> <status> [--reason ...] [--task-label ...]\n```\n\n### 7. Review candidates\n\nCodex must open or enlarge every candidate and compare it against the active manifest sources and action prompt. Lovart-written self-checks and thumbnail rows are not evidence.\n\nA candidate qualifies only when all are true:\n\n- One standalone image with exactly one adult model; no grid, collage, or multiple panels.\n- Garment color, silhouette, neckline, sleeves, length, material, and requested view match product evidence.\n- Action, hands, bag, shoes, camera, and crop match the action contract.\n- Scene identity is preserved while perspective changes only as the template permits.\n- Model, background lighting direction, ground shadow, reflections, and color temperature agree.\n- No cutout edge, halo, severe anatomy error, text, watermark, or random logo.\n- Front, side, back, and full-body purposes are not confused.\n- For every full-body action, the frame contains the complete model continuously from the very top of the hair/head to the bottom of both feet, including the complete face, both shoes, toes, and soles. Leave visible safety margin above the hair and below the footwear; no part of the head, chin, ankles, feet, or shoes may touch or cross the image edge.\n\nOn failure, record a specific reason and resubmit the same action with a concise correction only when the view still has generation capacity. Append each exact correction prompt and visible Lovart label to `run-log.md`; `run-state.json` retains structured attempt and rejection history plus the view-level generated count. There is no per-action three-attempt rule. The view stops at five qualified actions or 10 generated candidates; unresolved actions then become `blocked:quality-cap`.\n\nMaintain the canvas continuously inside the assigned date/SKC region as four horizontal lanes: row 1 `正面`, row 2 `侧面`, row 3 `背面`, row 4 `全身`. The left side of every row is a fixed five-cell primary strip ordered action `01` through `05`. The right side is a fixed five-cell supplemental strip, so each row can contain at most 10 generated images. Place every base result immediately in its action's primary cell. When a retry finishes, first move the displaced/rejected candidate into the same row's next supplemental cell, then put the new candidate into the original primary cell. Keep supplemental candidates grouped by action and attempt number. Never move supplemental images to another row, another SKC/date region, or a detached vertical pile.\n\nAfter every placement, verify all of the following before continuing: the result is in the correct view row, the action cell or supplemental position is correct, image size matches the row, spacing is even, no other image moved unexpectedly, and Lovart has visibly retained the position. Record the placement in `run-state.json`. If placement cannot be verified, stop new submissions, record `blocked:canvas-placement`, and preserve the existing layout; do not attempt a final bulk rearrangement.\n\nAn SKC is `completed` only when all four views contain five `qualified` actions, every generated attempt has a verified canvas placement, the five current qualified candidates in each row occupy the official primary strip, and its entire four-row block remains inside the correct date region without overlap: 20 qualified images total.\n\n## Stop Conditions\n\nStop the affected view and log the blocker when Lovart is signed out, Nano Banana Pro is unavailable, reference upload fails repeatedly, a required role remains ambiguous, or Lovart refuses to accept another task before the 10-task window is full. Continue other safe views or SKCs when the UI permits.\n\nA visible multi-minute free-queue estimate is not itself a stop condition. Mark each accepted job `queued`, record the estimate, and continue filling available slots until 10 unfinished tasks have been accepted. Stop the browser turn only after the 10-task window is full or the UI explicitly rejects further free submissions. Never click points acceleration and never wait indefinitely inside one tool call.\n\n## Common Mistakes\n\n- Treating `1/2/3/4` as global roles. Roles vary by view; full-body image 4 may be shoes.\n- Counting submitted or generated images as qualified. Only individual visual review changes status to `qualified`.\n- Exceeding 10 generated candidates in a view. Five base images plus five correction images is the absolute row limit.\n- Reusing one Lovart conversation for multiple unfinished actions. Lovart cancels the earlier free-queue task; use one conversation per action while keeping one browser tab.\n- Deferring layout until all results finish. Place and verify every completed result immediately; late bulk layout is fragile and can exceed the browser-control window.\n- Arranging SKCs from the same date side by side. Dates advance horizontally; SKCs within one date advance vertically.\n- Starting the next date after only the five-cell primary strip. Reserve the full 10-cell row width and a safety gap so later corrections cannot collide with the next date.\n- Spending points to clear a queue. This workflow is free-queue only.\n- Downloading results. Leave them organized on the Lovart canvas.\n"},{"id":"folder","title":"文件夹与图片角色","fileName":"folder-contract.md","relativePath":"references/folder-contract.md","content":"# Folder Contract\n\n## Accepted input\n\nA single SKC is a directory with at least one direct child named `正面`, `侧面`, `背面`, or `全身`. A batch root contains multiple such SKC directories as direct children.\n\nSupported images: `.jpg`, `.jpeg`, `.png`, `.webp`.\n\nIgnore `.DS_Store`, hidden metadata, existing `_codex`, and unsupported files.\n\n## Role contract\n\nRoles are assigned from visual content, never numeric names:\n\n- `model_source`: model identity, body, styling base, pose/crop when applicable.\n- `product_source`: garment construction for the requested view.\n- `scene_source`: environmental identity and light evidence.\n- `composition_source`: crop, subject scale, head visibility, and framing.\n- `accessory_source`: shoes, bags, jewelry, or other separately supplied styling.\n- `unused`: irrelevant or conflicting image.\n\nModel, product, and scene must each resolve to exactly one source. Composition may fall back to the unique model source. Accessories are optional and may contain multiple files.\n\nEach file path has exactly one primary role. The only supported multi-role behavior is `composition_fallback: model_source` when no separate composition source exists.\n\n## Role assignment JSON\n\n```json\n{\n  \"正面/1.jpg\": {\n    \"role\": \"model_source\",\n    \"confidence\": 0.98,\n    \"reason\": \"Adult model on a plain background; crop and styling are clearly visible.\"\n  },\n  \"全身/4.png\": {\n    \"role\": \"accessory_source\",\n    \"confidence\": 0.99,\n    \"reason\": \"Product-only image containing a pair of sandals.\"\n  }\n}\n```\n\nEvery supported visible image must appear. Confidence below `0.7` blocks that view for manual resolution.\n\n## Duplicate policy\n\nSHA-256 groups byte-identical files. Upload one physical copy per hash. Preserve logical role records in the manifest; do not delete originals.\n\n## ASCII upload names\n\nUse `/tmp/lovart_view_extension/<first-12-sha256-of-skc-path>/<view>/`. Preserve the original extension and name files `model_01`, `product_01`, `scene_01`, `composition_01`, `accessory_01...`. Resolve collisions by increasing the two-digit suffix.\n"},{"id":"schema","title":"提示词输出结构","fileName":"prompt-output-schema.md","relativePath":"references/prompt-output-schema.md","content":"# Prompt Output Schema\n\nWrite UTF-8 JSON for each view:\n\n```json\n{\n  \"schema_version\": 1,\n  \"skc_id\": \"ds726301071\",\n  \"view\": \"front\",\n  \"generation\": {\n    \"model\": \"nano banana pro\",\n    \"resolution\": \"4K\",\n    \"aspect_ratio\": \"2:3\"\n  },\n  \"analysis_markdown\": \"# Completed Chinese analysis...\",\n  \"actions\": [\n    {\n      \"action_id\": \"FR01\",\n      \"title\": \"正面标准角度\",\n      \"prompt_en\": \"SKC ... one complete executable English prompt\",\n      \"negative_prompt\": \"one complete shared negative prompt\"\n    }\n  ]\n}\n```\n\n## View action IDs\n\n- Front: `FR01`–`FR05`\n- Side: `SI01`–`SI05`\n- Back: `BA01`–`BA05`\n- Full: `FU01`–`FU05`\n\n## Contract\n\n- Exactly five unique action objects.\n- `prompt_en` is a complete standalone English prompt, not notes or a placeholder.\n- Preserve the template's action order, bag rules, view limits, crop/head rules, and scene-extension rules.\n- Append Nano Banana Pro, 4K, and 2:3 inside every English prompt even though these settings also exist in `generation`.\n- Keep the same negative prompt in all five actions unless a stricter action-specific prohibition is required.\n"},{"id":"lovart","title":"Lovart 执行规范","fileName":"lovart-execution.md","relativePath":"references/lovart-execution.md","content":"# Lovart Execution and Review\n\n## Preflight\n\n1. Use Chrome through `chrome:control-chrome` and name the browser session.\n2. Confirm Lovart is visible and signed in.\n3. Open or create the monthly project `YYYY年M月`; never hard-code a project ID.\n4. Locate/create the correct date region, then the SKC area inside it, then the active view row. Dates run left-to-right; SKCs within the same date run top-to-bottom.\n5. Start a fresh conversation for the action. Keep all actions in one Chrome tab, but never reuse a conversation for another unfinished action.\n6. Confirm the visible model is Nano Banana Pro, output is 4K, ratio is 2:3, and no points acceleration is enabled.\n\n## Upload and submit\n\n- Upload the action's view ASCII package in manifest order. Repeat the same view package in each action conversation. For full-body actions, include the footwear accessory source and append the hard requirement that the complete head-to-toe model, full face, both shoes, toes, and soles stay inside the frame with safety margin.\n- Verify the visible reference count and thumbnails before submitting.\n- Submit `01`–`05` as separate action conversations in the same browser tab. After each submission, wait until `submitted` or `queued` is visible, then click New Conversation before preparing the next action. Never submit a second prompt into a conversation that already has an unfinished free-queue task because Lovart cancels the earlier task. Lovart accepts a maximum wave of 10 unfinished image tasks across the workflow. Count `submitted`, `queued`, and visibly generating actions as occupied slots. A free-queue wait estimate on an accepted task does not prevent filling the remaining slots. For a fresh SKC, fill wave one with front `FR01`–`FR05` plus side `SI01`–`SI05`; never submit an 11th. As each task completes, use the released slot for the next pending back/full action.\n- Never request five variants in one combined image. Never use a collage, contact sheet, grid, or multiple people.\n- If a button offers `立即生成` or points acceleration, do not click it. Record queue state and mark the accepted task `queued`.\n- Record every visible free-queue estimate but continue submitting until 10 unfinished tasks are accepted. Fill a released slot immediately with the next pending back/full action. For each SKC, finish all 20 base generations before visual review or retry submissions. Finalize Chrome as a handoff only when the 10-task window is full or Lovart explicitly refuses an additional free submission. Do not block one tool call indefinitely.\n\n## Per-view generation cap\n\n- Treat 10 generated candidates as the absolute lifetime cap for each view: five base candidates plus no more than five correction candidates.\n- Count an image when Lovart visibly returns it. Rejected and replaced images count. Pending, submitted, queued, cancelled, or failed requests that return no image do not count.\n- Before submitting, add the view's generated count to its currently submitted/queued/generating reservations. Do not submit when that projected total is already 10.\n- After all five base candidates in the view have been reviewed, give each rejected action one correction opportunity before giving any action an additional correction.\n- Stop immediately when the view reaches five qualified actions. Never generate unused correction capacity.\n- If the view reaches 10 generated candidates with fewer than five qualified actions, mark unresolved actions `blocked:quality-cap`, preserve every result and placement, and continue other views or SKCs.\n\n## Monthly canvas coordinate contract\n\nTreat the monthly Lovart project as a deterministic two-dimensional layout:\n\n- **Horizontal axis = date.** Date regions such as `8月13日`, `8月14日`, and `8月15日` advance from left to right.\n- **Vertical axis inside a date = SKC.** Different SKCs from the same date must stack from top to bottom and must never be placed side by side.\n- **Rows inside an SKC = view.** The fixed order is front, side, back, full.\n- **Columns inside a view = action/attempt.** Five primary cells are followed by five supplemental cells.\n\nBefore the first submission for a date or SKC:\n\n1. Derive the date from the dated input folder or batch label and locate or create a visible date label.\n2. If the date already exists, reuse its horizontal region. Find the actual bottom edge of every object belonging to the last SKC in that date and place the new SKC below it with a visible safety gap.\n3. If the date is new, find the actual rightmost edge of the previous date region, including labels, all SKCs, every five-cell primary strip, and every five-cell supplemental strip. Start the new date only after that boundary plus a visible safety gap.\n4. Create a visible SKC label and reserve a four-row block whose full width covers all 10 cells in every row.\n5. Verify that the reserved date and SKC regions do not overlap any existing image, label, supplemental strip, or future correction area.\n\nDo not infer a region boundary from the current viewport, the first five base images, or an incomplete SKC. The placement key is always `date -> SKC -> view -> action/attempt`.\n\n## Immediate canvas placement\n\nInside the assigned date/SKC region, create the four row lanes before the first submission and keep them stable for the entire SKC:\n\n1. `front` / `正面`\n2. `side` / `侧面`\n3. `back` / `背面`\n4. `full` / `全身`\n\nEach row has two horizontal zones:\n\n- **Primary strip:** five equal cells for action `01`–`05`.\n- **Supplemental strip:** five fixed cells after one clearly visible gap to the right of the primary strip; contains replaced, rejected, and retry candidates for that same view only. A row therefore contains at most 10 generated images.\n\nFor every newly completed task, perform this sequence before submitting another task:\n\n1. Identify the result from its exact `SKC | VIEW | ACTION | ATTEMPT` conversation label.\n2. For attempt 1, move the result directly into the action's primary cell.\n3. For every correction attempt, move the candidate currently occupying that primary cell into the next available cell of the same row's five-cell supplemental strip, ordered by action then attempt; then move the new result into the vacated primary cell.\n4. Match the existing row image size and snap to the shared row baseline and column spacing.\n5. Deselect the object, navigate away and back or refocus the canvas, and visually confirm the position persisted and no neighboring object moved.\n6. Record the verified placement:\n\n```bash\npython3 scripts/update_run_state.py place <state> <view> <action-id> <attempt> \\\n  --area primary --slot <01-05> --verified\n```\n\nWhen moving a displaced candidate to the supplemental strip, update its earlier placement with the same command using `--area supplemental --slot <stable-row-local-index> --verified`.\n\nDo not use `Cmd+A`, whole-canvas Auto Layout, or a final bulk drag. Do not leave any generated candidate in Lovart's default vertical stack. Do not move a correction into another SKC or date region. If a move cannot be verified, stop new submissions and log `blocked:canvas-placement` rather than risking the established rows.\n\n## State labels\n\nUse the prompt prefix as the search label. Record the visible task label when Lovart exposes one.\n\n- `submitted`: request accepted.\n- `queued`: accepted but waiting in the free queue.\n- `qualified`: Codex individually inspected and accepted the image.\n- `rejected`: Codex inspected and recorded a concrete defect.\n- `blocked`: the view reached its 10-image quality cap or encountered an unrecoverable execution blocker.\n\n## Correction format\n\nKeep the original prompt and append only evidence-based corrections:\n\n```text\nCORRECTION FOR ATTEMPT <n>: Preserve all original reference roles and constraints. Fix only: <specific observed defects>. Do not change: <already-correct product, pose, crop, and scene elements>.\n```\n\nAppend the exact submitted correction and Lovart task label to `run-log.md`. Do not overwrite the base prompt JSON.\n\n## Canvas organization\n\nWithin the monthly project, place date regions left-to-right. Within each date, stack SKCs top-to-bottom. Within each SKC, preserve the four continuously maintained row lanes. The five current candidates remain in the aligned primary strip; up to five replaced or rejected candidates remain in the fixed supplemental strip of their own row. Normalize image size and spacing at placement time, not at the end. Do not download any result.\n\n## Acceptable micro-variation\n\nAllow small differences in loose hair strands, natural fabric wrinkles, micro-expression, and non-structural background texture. Reject any difference that changes garment construction, core action, hand/object placement, crop, requested view, shoes, scene identity, or lighting coherence.\n"},{"id":"front","title":"正面延展模板","fileName":"front.md","relativePath":"references/templates/front.md","content":"# 正面延展图模板\n\n来源：飞书《2.1生图工作流-背景延展图》“1、正面延展图”。\n\n## 输入角色\n\n- 图1：模特人物图。\n- 图2：产品正面款式图。\n- 图3：场景参考图。\n- 图4：人物构图参考图；与图1重复时使用逻辑角色，不重复上传。\n\n## 图像综合分析\n\n填写：模特人物特征、穿搭基底、原图背景；产品完整保留项、展示价值、面料质感；场景提取、光影、剔除元素；构图裁切、主体占比与目的；受光方向、环境反射、真实投影、统一色调与空间纵深。\n\n场景只做同一背景的多角度延伸。核心背景要素保持一致，仅根据机位远近、左右偏移调整可见范围与透视。\n\n## 五个动作\n\n1. **正面标准角度**：正面标准机位，均衡显示核心背景要素和服装正面；自然动作，禁止站军姿或双手同时垂下。\n2. **正面微侧角度**：正面偏左或偏右轻微侧转，同时显示服装正面廓形与轻微侧面层次。\n3. **正面近景特写角度**：背景略微虚化，突出胸前细节、领口、袖口和面料质感，仍遵循构图参考。\n4. **正面稍远角度，不拿包**：展示整体穿搭比例；不携带任何包，双手均不垂下。\n5. **正面低机位角度，不拿包**：突出下摆垂坠与整体气场；不携带任何包，双手均不垂下。\n\n每个动作均需明确图1人物、图2正面产品、图3场景、图4构图的融合关系，并输出完整中文分析和完整英文执行提示词。\n\n## 通用负面提示词\n\n```text\n(text, logo, watermark, signature, words, military stance, both hands hanging down, standing at attention:1.5), (pasted on, cutout, photo composite, mismatched lighting, edge glow, halo around person, green screen, chroma key, fake background, white outline:1.4), full head, complete face, holding phone, selfie, bag on ground, bag placed on floor, blurry fabric, distorted limbs, extra fingers, deformed body, oversaturated color, low detail, ugly, grainy, cartoon, illustration, white background\n```\n\n## 输出参数\n\n`4K resolution, 2:3 aspect ratio, model: nano banana pro`\n"},{"id":"side","title":"侧面延展模板","fileName":"side.md","relativePath":"references/templates/side.md","content":"# 侧面延展图模板\n\n来源：飞书《2.1生图工作流-背景延展图》“2、侧面延展图”。\n\n## 输入角色\n\n- 图1：模特人物图，同时控制构图裁切。\n- 图2：产品侧面款式图，是侧面版型唯一标准。\n- 图3：场景参考图。\n\n## 图像综合分析\n\n填写模特、产品侧面、场景、构图和光影。侧面产品分析必须覆盖侧面廓形厚度、袖管侧面形态、裙摆侧面垂坠和面料。构图以图1为准，必须明确半身或全身以及截头边界。\n\n五张图保持同一背景核心要素，仅根据左右侧、机位远近与前后偏移调整透视。所有人物侧转角度不超过30度。\n\n## 五个动作\n\n1. **左侧标准角度**：身体向左偏转不超过30度；视野均衡，姿态优雅松弛。\n2. **左侧微前移角度**：左侧微前移机位，强化侧面廓形和裙摆垂坠；重心在一条腿上。\n3. **左侧近景，不拿包**：左侧近景，背景略虚化；不得携带任何包，双手均不垂下。\n4. **右侧标准角度**：身体向右偏转不超过30度；产品右侧按图2侧面版型镜像还原，不发明结构。\n5. **右侧微后移，不拿包**：右侧微后移机位、视野更开阔；不得携带任何包，双手均不垂下。\n\n前3段为左侧动作，后2段为右侧动作。第3和第5段强制不拿包。\n\n## 英文提示词必含\n\n- Image 1 controls the model, crop and body scale.\n- Image 2 is the sole side-garment authority.\n- Image 3 controls the scene and lighting evidence.\n- `body turned no more than 30 degrees to the left/right`。\n- 人物光向、环境反射与地面投影匹配背景；不得出现贴图、白边或轮廓光晕。\n\n## 通用负面提示词\n\n```text\n(text, logo, watermark, signature, words, military stance, both hands hanging down, standing at attention:1.5), (pasted on, cutout, photo composite, mismatched lighting, edge glow, halo around person, green screen, chroma key, fake background, white outline:1.4), full head, complete face, holding phone, selfie, bag on ground, bag placed on floor, blurry fabric, distorted limbs, extra fingers, deformed body, oversaturated color, low detail, ugly, grainy, cartoon, illustration, white background, mannequin, dress form, stand, pole\n```\n\n## 输出参数\n\n`4K resolution, 2:3 aspect ratio, model: nano banana pro`\n"},{"id":"back","title":"背面延展模板","fileName":"back.md","relativePath":"references/templates/back.md","content":"# 背面延展图模板\n\n来源：飞书《2.1生图工作流-背景延展图》“3、背面延展图”。\n\n## 输入角色\n\n- 图1：模特、身形、肤色、基础服装色彩、下装、首饰、包袋和构图。\n- 图2：服装背面参考，是背面剪裁、后领、袖型、下摆和面料结构的唯一标准。\n- 图3：场景背景参考。\n\n## 图像综合分析\n\n填写图1模特复用项、服装基础款式和构图；图2背面核心版型；图3环境固定元素、实际光影方向和场景延展逻辑。清除场景里的文字、店铺招牌和品牌标识；包不得放在地面。\n\n五段提示词对应同一场景的近景、中景、纵深、街角和入口等机位变化。核心建筑、道具、路面、植被保持一致。光影描述必须从实际图3提取，不把示例场景的法式街头设定硬套到其他素材。\n\n## 五个动作\n\n1. **侧后方3/4转身，单手轻扶包肩带**：露出完整衣背，另一手搭腰侧，重心偏单腿；场景使用适合当前素材的近景前景角度。\n2. **正侧后方，单手插袋，不拿包**：移除所有包袋；后背完整朝镜头稍带侧面，另一手搭胯，双腿错开。\n3. **侧后方轻靠可用场景结构，单手握包带**：仅当图3确有安全可依靠的墙面或结构时使用；否则改为同等侧后方松弛站姿，不虚构建筑。\n4. **背面微侧，单手整理袖口**：另一手挎包；街角/转折机位仅在图3允许时使用，否则以同一场景的侧向纵深替代。\n5. **半侧身背面，单手扶场景结构**：仅使用图3确有的栏杆、门框或等价结构；若没有，改为一手置腰后的自然动作，不虚构道具。\n\n每段必须以图2背面款式为最高服装优先级，禁止出现服装正面主视图。\n\n## 通用负面提示词\n\n```text\nno text, no logo, no watermark, full head, complete face, eyes, stiff military standing pose, both hands hanging down, distorted limbs, extra fingers, blurry fabric, low resolution, ugly body proportions, bag on ground, shop sign text, street sign text, front view of top\n```\n\n## 输出参数\n\n`4K resolution, 2:3 aspect ratio, model: nano banana pro`\n"},{"id":"full","title":"全身延展模板","fileName":"full.md","relativePath":"references/templates/full.md","content":"# 四图融合延展图全身生图方案（______）\n\n---\n\n## 一、图像综合分析\n\n> **动态分析总规则**：必须根据本次提供的四张参考图重新分析模特、产品、场景、鞋履、配饰、构图和光影，不得直接复用其他案例中的人物特征、服装款式、鞋履、场景元素、色调或动作细节。标题括号中的内容应根据图2产品特征和图3场景风格概括填写，建议格式为“产品核心特征・场景/风格定位”。\n\n### 1. 图1（模特人物图）分析\n* **模特人物特征**：______\n* **模特体态与气质**：______\n* **模特发型与肤色**：______\n* **可复用配饰**：______\n* **可复用包袋**：______\n* **模特穿搭基底**：______，最终服装颜色、版型、结构和细节必须以图2产品图为准\n* **原图状态/背景**：______，后续替换为图3场景，并根据图3重新建立统一的环境光影\n\n### 2. 图2（产品款式图）分析\n* **产品类别与主色**：______\n* **核心服装（完整保留项）**：______\n* **领口结构**：______\n* **袖型与袖口结构**：______\n* **服装廓形与长度**：______\n* **下摆与装饰细节**：______\n* **产品展示价值**：______\n* **面料质感**：______\n* **禁止改变项**：不得改变产品颜色、版型、领口、袖型、长度、面料、装饰位置、开合方式或其他设计结构\n\n### 3. 图3（场景参考图）分析\n* **场景类型与风格定位**：______\n* **背景环境提取规则**：______\n* **核心背景元素**：______、______、______、______\n* **前景与地面元素**：______\n* **光源方向**：______\n* **光影软硬程度**：______\n* **环境反射色**：______\n* **整体色调与色温**：______\n* **地面投影特征**：______\n* **强制剔除元素**：移除图3中的原有人物、文字、logo、水印、签名、贴纸、店铺标识、路牌文字和其他无关人造标识\n* **场景多角度延伸规则**：5个方案分别对应**正面标准机位、正面偏左微侧机位、正面稍近完整全身机位、右侧微侧机位、左侧微侧机位**五个拍摄角度，背景核心要素（______、______、______、______）保持一致，仅根据机位远近、左右偏移和微侧角度调整画面可见范围、透视关系及前景分布，不得替换或重新设计背景\n\n### 4. 图4（鞋子搭配图）分析\n* **鞋履类别**：______\n* **鞋履颜色**：______\n* **鞋履材质**：______\n* **鞋面结构与装饰**：______\n* **鞋底与鞋跟结构**：______\n* **鞋履完整保留项**：______\n* **鞋履与服装搭配关系**：______\n* **鞋履展示硬性规则**：两只鞋、脚趾和鞋底必须完整可见，不得被服装下摆、地面、前景物体或画面边缘遮挡、覆盖或裁切\n\n### 5. 完整全身构图专项规则\n* **完整全身构图最高优先级**：以下规则为全部5个方案不可被动作、产品展示、近景要求、构图参考或场景要求覆盖的最高优先级规则\n* **完整头部强制要求**：必须保留模特完整头部，包括完整头发、头发最高点、完整头顶、完整脸部、下巴和颈部\n* **头顶到脚底强制要求**：必须从模特头发/头顶最高点开始，经过完整头部、脸部、下巴、颈部、身体、服装下摆、双腿、脚踝、双脚和鞋子，直到两只鞋底最低点，全部连续、完整地呈现在画面中\n* **安全边距要求**：头顶上方和鞋底下方必须保留清晰可见的安全边距，头发、头顶、脸部、下巴、脚踝、脚趾、鞋子和鞋底均不得触碰、越过或被画面边缘裁切\n* **构图禁止项**：不得使用半身图、七分身图、接近全身图或任何头部、脚部不完整的构图代替完整全身图\n* **机位冲突处理规则**：如果近景、动作或机位要求与完整全身构图发生冲突，必须通过拉远摄影机解决，优先保证完整头部以及头顶到脚底全部入镜，不得裁切人物\n* **画面主体占比要求**：模特及服装约占画面______%的核心区域，在保持完整头顶到脚底构图的前提下，让产品主体饱满清晰，不得因人物过小而降低产品展示价值\n* **构图核心目的**：在同一画面中完整展示模特、图2产品和图4鞋履，同时保证服装结构、下摆垂坠、双脚和鞋履细节清晰可辨\n* **不合格判定规则**：任何未完整呈现模特头顶至脚底范围的图片，都必须直接判定为不合格并重新生成\n\n### 6. 光影统一专项规则（防贴图感核心）\n* **受光方向统一**：人物主光源方向必须与图3一致（______），人物受光面与阴影面过渡自然，并与场景投影方向匹配\n* **环境光融合**：人物皮肤、服装边缘和鞋履带有图3场景中的______环境反射光，面料褶皱自然融入环境色调，边缘无抠图感\n* **投影真实**：模特脚边及身下必须具有自然地面投影，投影方向、长度、颜色和软硬程度与图3场景完全一致\n* **色调统一**：整体画面统一为______色调，人物、产品、鞋履和背景色温一致\n* **边缘融合**：禁止出现人物边缘发光、异常轮廓光、抠图白边、绿色溢色、贴图感或悬浮感\n* **空间纵深**：人物主体保持清晰，背景根据实际摄影景深自然虚化，人物与背景之间具有真实空气透视和空间层次\n\n---\n\n## 二、通用负面提示词（Negative Prompt，全方案共用）\n`(text, logo, watermark, signature, words, military stance, both hands hanging down, standing at attention:1.5), (pasted on, cutout, photo composite, mismatched lighting, edge glow, halo around person, green screen, chroma key, fake background, white outline:1.4), cropped head, cut-off head, incomplete head, missing top of head, missing hair crown, hair touching frame edge, no full head, missing face, cropped face, cropped chin, partial body, half body, three-quarter body, seven-eighth body, cropped legs, cropped ankles, cropped feet, cut-off feet, missing toes, cropped shoes, missing shoe soles, feet touching frame edge, shoes touching frame edge, body touching image edge, out of frame, bag on ground, bag placed on floor, holding phone, selfie, collage, split screen, multiple panels, multiple people, blurry fabric, distorted limbs, extra limbs, extra fingers, deformed hands, deformed body, oversaturated color, low detail, ugly, grainy, cartoon, illustration, white background`\n\n---\n\n## 三、5组正向生图提示词方案\n\n### 【方案一：正面标准角度・自然携带与本次造型匹配的包袋】\n* **四图融合逻辑说明**：人物身份、体态、肤色、发型、气质和可复用配饰取自图1；服装颜色、版型、结构和面料严格参照图2；______场景取自图3，使用正面标准机位；鞋履颜色、款式、材质和结构严格参照图4。完整头部以及从头顶到脚底的全部范围必须清晰可见\n* **模特动作设定**：根据图1已有包袋和本次服装风格选择合适的单手携带方式；另一只手自然放置于腰侧、胯侧或轻扶服装；双腿自然交叉或错步站立，姿态自然松弛，禁止站军姿和双手同时垂下\n\n**中文提示词：**\n\n根据以上图像分析生成一段完整、可独立执行的中文提示词。必须清晰说明图1人物、图2产品、图3场景和图4鞋履之间的融合关系，并准确写出模特、服装、鞋履、动作、场景、光源方向、环境反射、地面投影和整体色调。必须完整保留模特头部，画面从头发/头顶最高点连续呈现至两只鞋底最低点，头顶上方与鞋底下方保留安全边距，人物任何部位均不得被裁切。如果动作或机位与完整全身构图冲突，必须拉远摄影机。\n\n输出参数：4K像素，2:3尺寸比例，模型：nano banana pro\n\n---\n\n**英文提示词：**\n\nGenerate one complete and independently executable English prompt. Clearly explain the fusion of the MODEL SOURCE from image 1, PRODUCT SOURCE from image 2, SCENE SOURCE from image 3 and SHOES ACCESSORY SOURCE from image 4. Accurately describe the model, garment, footwear, action, scene, lighting direction, environmental reflection, ground shadow and color temperature. MANDATORY COMPLETE FULL-BODY FRAMING — HIGHEST PRIORITY: Show the model's complete head and entire body continuously inside the frame, from the highest point of the hair and top of the head to the lowest point of both feet and shoe soles. The complete hair crown, full head, full face, chin, neck, entire body, garment hem, ankles, both feet, toes, shoes and soles must all be fully visible. Leave clear visible safety margin above the hair and below the footwear. No body part may touch, cross or be cropped by any image edge. If the pose or camera distance conflicts with this requirement, move the camera farther away.\n\nOutput parameters: 4K resolution, 2:3 aspect ratio, model: nano banana pro\n\n---\n\n### 【方案二：正面偏左微侧角度・自然调整包袋或配饰】\n* **四图融合逻辑说明**：人物身份、体态、肤色、发型、气质和可复用配饰取自图1；图2是服装款式和结构的唯一标准，微侧机位同时展示产品正面廓形与轻微侧面垂坠；图3控制场景、光影和环境色；图4控制鞋履。身体向左偏转约15°至20°，脸部转回朝向镜头，完整头部以及从头顶到脚底的全部范围必须清晰可见\n* **模特动作设定**：根据图1已有造型决定是否单肩携带包袋；一只手自然调整包带、配饰或轻扶腰胯，另一只手弯曲形成自然动作；重心落在一条腿上，双手不得同时垂下\n\n**中文提示词：**\n\n根据以上图像分析生成一段完整、可独立执行的中文提示词。必须说明图1人物、图2产品、图3场景和图4鞋履之间的融合关系。身体向左微侧约15°至20°且不得超过20°，脸部朝向镜头。必须完整呈现头发最高点、头顶、完整脸部、身体、服装下摆、双脚和鞋底，并在头顶与鞋底外保留安全边距；任何人物部位均不得被裁切。\n\n输出参数：4K像素，2:3尺寸比例，模型：nano banana pro\n\n---\n\n**英文提示词：**\n\nGenerate one complete and independently executable English prompt. Clearly define the MODEL SOURCE, PRODUCT SOURCE, SCENE SOURCE and SHOES ACCESSORY SOURCE. Show the model at a slight left-facing angle of approximately 15 to 20 degrees, with the face turned toward the camera. MANDATORY COMPLETE FULL-BODY FRAMING — HIGHEST PRIORITY: Show the complete hair crown, full head, full face, chin, neck, entire body, garment hem, ankles, both feet, toes, shoes and soles continuously inside the frame. Leave clear safety margin above the hair and below the footwear. No body part may touch or cross any image edge. Move the camera farther away rather than crop the model.\n\nOutput parameters: 4K resolution, 2:3 aspect ratio, model: nano banana pro\n\n---\n\n### 【方案三：正面稍近完整全身角度・不拿任何包包】\n* **四图融合逻辑说明**：人物身份、体态、肤色、发型、气质和可复用配饰取自图1；产品颜色、版型、领口、袖型、长度、面料和装饰严格参照图2；图3场景可适度虚化以突出产品，但不得替换背景；鞋履严格参照图4。虽然使用稍近机位，仍必须通过调整摄影机距离保证完整头部以及从头顶到脚底的全部范围清晰可见\n* **模特动作设定**：不得携带任何包包；一只手可轻触发丝、耳侧、项链或领口附近，另一只手轻搭服装侧面、腰胯或下摆；双腿自然站立或轻微错步，姿态精致自然\n\n**中文提示词：**\n\n根据以上图像分析生成一段完整、可独立执行的中文提示词。突出图2产品的领口、面料、袖口、装饰、廓形和下摆细节，同时准确融合图1人物、图3场景和图4鞋履。模特不得携带任何包包。稍近机位不得造成头部、脚部或鞋履裁切；必须完整呈现从头顶最高点到鞋底最低点的全部范围，并保留上下安全边距。\n\n输出参数：4K像素，2:3尺寸比例，模型：nano banana pro\n\n---\n\n**英文提示词：**\n\nGenerate one complete and independently executable English prompt. Emphasize the PRODUCT SOURCE neckline, fabric, sleeves, decorative details, silhouette and hem while preserving the MODEL SOURCE, SCENE SOURCE and SHOES ACCESSORY SOURCE. The model must carry no bag. MANDATORY COMPLETE FULL-BODY FRAMING — HIGHEST PRIORITY: Show the complete hair crown, full head, full face, chin, neck, entire body, garment hem, ankles, both feet, toes, shoes and soles continuously inside the frame with visible safety margins. A closer camera position is allowed only when the complete head-to-toe framing remains intact.\n\nOutput parameters: 4K resolution, 2:3 aspect ratio, model: nano banana pro\n\n---\n\n### 【方案四：右侧微侧角度・自然携带与本次造型匹配的包袋】\n* **四图融合逻辑说明**：人物身份、体态、肤色、发型、气质和可复用配饰取自图1；图2控制服装正面结构与右侧垂坠关系；图3控制同一场景的右侧微侧机位、光影和环境色；图4控制鞋履。身体向右偏转约20°至25°且不得超过30°，脸部保持朝向镜头，完整头部以及从头顶到脚底的全部范围必须清晰可见\n* **模特动作设定**：根据图1已有搭配决定是否手提或挎包；另一只手轻扶服装侧面、腰胯或袖口；身体重心放在后腿或单腿，姿态自然松弛，双手不得同时垂下\n\n**中文提示词：**\n\n根据以上图像分析生成一段完整、可独立执行的中文提示词。必须说明图1人物、图2产品、图3场景和图4鞋履之间的融合关系。右侧微侧机位同时展示产品正面结构和侧面垂坠，身体向右偏转约20°至25°且不得超过30°，脸部朝向镜头。完整头部、身体、服装下摆、双脚及鞋底必须全部位于画面内，并保留上下安全边距。\n\n输出参数：4K像素，2:3尺寸比例，模型：nano banana pro\n\n---\n\n**英文提示词：**\n\nGenerate one complete and independently executable English prompt. Clearly explain the fusion of the MODEL SOURCE, PRODUCT SOURCE, SCENE SOURCE and SHOES ACCESSORY SOURCE. Show the model at a slight right-facing angle of approximately 20 to 25 degrees and never more than 30 degrees, with the face toward the camera. MANDATORY COMPLETE FULL-BODY FRAMING — HIGHEST PRIORITY: Keep the complete hair crown, full head, full face, chin, neck, entire body, garment hem, ankles, both feet, toes, shoes and soles continuously inside the frame with visible safety margins. Never crop the model.\n\nOutput parameters: 4K resolution, 2:3 aspect ratio, model: nano banana pro\n\n---\n\n### 【方案五：左侧微侧角度・不拿任何包包】\n* **四图融合逻辑说明**：人物身份、体态、肤色、发型、气质和可复用配饰取自图1；图2控制产品正面结构和左侧垂坠；图3控制同一场景的左侧微侧机位、环境光和投影；图4控制鞋履。身体向左偏转约25°至30°且不得超过30°，脸部保持朝向镜头，完整头部以及从头顶到脚底的全部范围必须清晰可见\n* **模特动作设定**：不得携带任何包包；一只手轻扶领口、项链、袖口或上身产品细节，另一只手轻搭服装侧面、腰胯或下摆；双腿自然错步，姿态优雅自然，禁止双手同时垂下\n\n**中文提示词：**\n\n根据以上图像分析生成一段完整、可独立执行的中文提示词。必须说明图1人物、图2产品、图3场景和图4鞋履之间的融合关系。左侧微侧机位展示产品正面结构和侧面垂坠，身体向左偏转约25°至30°且不得超过30°，脸部朝向镜头。模特不得携带任何包包。必须完整呈现头发最高点、完整头部、脸部、身体、服装下摆、双脚、鞋子和鞋底，并保留上下安全边距。\n\n输出参数：4K像素，2:3尺寸比例，模型：nano banana pro\n\n---\n\n**英文提示词：**\n\nGenerate one complete and independently executable English prompt. Clearly explain the fusion of the MODEL SOURCE, PRODUCT SOURCE, SCENE SOURCE and SHOES ACCESSORY SOURCE. Show the model at a slight left-facing angle of approximately 25 to 30 degrees and never more than 30 degrees, with the face toward the camera. The model must carry no bag. MANDATORY COMPLETE FULL-BODY FRAMING — HIGHEST PRIORITY: Keep the complete hair crown, full head, full face, chin, neck, entire body, garment hem, ankles, both feet, toes, shoes and soles continuously inside the frame with visible safety margins. Never crop the model.\n\nOutput parameters: 4K resolution, 2:3 aspect ratio, model: nano banana pro\n\n---\n\n## 四、提示词使用说明\n- 方案一、方案二、方案三为正面或接近正面的展示角度；\n- 方案四为右侧约20°至25°微侧角度，身体偏转不得超过30°；\n- 方案五为左侧约25°至30°微侧角度，身体偏转不得超过30°；\n- 方案三和方案五明确不携带任何包包；\n- 其他方案是否携带包袋，应根据图1已有搭配和本次产品风格决定；任何包袋均不得放在地面；\n- 五张图的动作、手部姿势、身体重心、拍摄距离和机位角度必须具有明显差异；\n- 五张图只能在图3同一场景中进行多角度延展，背景核心元素必须保持一致；\n- 图1控制模特人物，图2控制产品结构，图3控制场景与光影，图4控制鞋履；\n- 所有方案均必须为完整全身图，从头发/头顶最高点连续呈现至两只鞋底最低点，头顶上方与鞋底下方保留安全边距；\n- 头发、头顶、脸部、下巴、脚踝、脚趾、鞋子和鞋底均不得触碰、越过或被画面边缘裁切；\n- 如果动作、近景或机位与完整全身构图冲突，必须拉远摄影机；任何未完整呈现头顶至脚底范围的图片都必须判定为不合格；\n- 所有方案统一使用2:3比例、4K画质和Nano Banana Pro模型；\n- 通用负面提示词需全部加入Negative Prompt；\n- 画面中禁止出现文字、logo、水印、签名、拼图、多画面、多人、贴图白边、异常轮廓光、抠图痕迹、站军姿、双手同时垂下、头部裁切或脚部裁切。\n"}];
+    const markdownState = { active: markdownDocuments[0].id };
+    const mdList = document.getElementById('mdDocList');
+    const mdInput = document.getElementById('markdownInput');
+    const mdPreview = document.getElementById('markdownPreview');
+    const mdTitle = document.getElementById('mdTitle');
+    const mdPath = document.getElementById('mdPath');
+    const mdDraftState = document.getElementById('mdDraftState');
+    const storageKey = id => 'fashion-lovart-md-draft:' + id;
+    const escapeHtml = value => value.replace(/[&<>"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
+    function inlineMarkdown(value) {
+      return escapeHtml(value)
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/\x60([^\x60]+)\x60/g, '<code>$1</code>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+    }
+    function renderMarkdown(source) {
+      const lines = source.replace(/\r/g, '').split('\n');
+      let output = '', inCode = false, code = [], list = null, table = [];
+      const closeList = () => { if (list) { output += '</' + list + '>'; list = null; } };
+      const flushTable = () => {
+        if (!table.length) return;
+        const rows = table.map(row => row.split('|').slice(1,-1).map(cell => cell.trim()));
+        if (rows.length > 1 && rows[1].every(cell => /^:?-{3,}:?$/.test(cell))) {
+          output += '<table><thead><tr>' + rows[0].map(cell => '<th>' + inlineMarkdown(cell) + '</th>').join('') + '</tr></thead><tbody>' + rows.slice(2).map(row => '<tr>' + row.map(cell => '<td>' + inlineMarkdown(cell) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+        } else output += table.map(row => '<p>' + inlineMarkdown(row) + '</p>').join('');
+        table = [];
+      };
+      for (const line of lines) {
+        if (line.startsWith('\x60\x60\x60')) {
+          closeList(); flushTable();
+          if (inCode) { output += '<pre><code>' + escapeHtml(code.join('\n')) + '</code></pre>'; code = []; }
+          inCode = !inCode; continue;
+        }
+        if (inCode) { code.push(line); continue; }
+        if (/^\|.*\|$/.test(line)) { closeList(); table.push(line); continue; }
+        flushTable();
+        if (!line.trim()) { closeList(); continue; }
+        const heading = line.match(/^(#{1,4})\s+(.*)$/);
+        if (heading) { closeList(); const level = heading[1].length; output += '<h' + level + '>' + inlineMarkdown(heading[2]) + '</h' + level + '>'; continue; }
+        const unordered = line.match(/^\s*[-*]\s+(.*)$/);
+        if (unordered) { if (list !== 'ul') { closeList(); list = 'ul'; output += '<ul>'; } output += '<li>' + inlineMarkdown(unordered[1]) + '</li>'; continue; }
+        const ordered = line.match(/^\s*\d+\.\s+(.*)$/);
+        if (ordered) { if (list !== 'ol') { closeList(); list = 'ol'; output += '<ol>'; } output += '<li>' + inlineMarkdown(ordered[1]) + '</li>'; continue; }
+        closeList();
+        if (line.startsWith('> ')) output += '<blockquote>' + inlineMarkdown(line.slice(2)) + '</blockquote>';
+        else if (line === '---') output += '<hr>';
+        else output += '<p>' + inlineMarkdown(line) + '</p>';
+      }
+      closeList(); flushTable();
+      if (inCode) output += '<pre><code>' + escapeHtml(code.join('\n')) + '</code></pre>';
+      return output;
+    }
+    function activeDocument() { return markdownDocuments.find(doc => doc.id === markdownState.active); }
+    function currentValue(doc) { return localStorage.getItem(storageKey(doc.id)) ?? doc.content; }
+    function renderDocList(query = '') {
+      const term = query.trim().toLowerCase();
+      mdList.innerHTML = '';
+      markdownDocuments.filter(doc => !term || doc.title.toLowerCase().includes(term) || doc.relativePath.toLowerCase().includes(term)).forEach(doc => {
+        const button = document.createElement('button');
+        button.className = 'md-doc' + (doc.id === markdownState.active ? ' active' : '');
+        button.innerHTML = '<strong>' + doc.title + '</strong><small>' + doc.relativePath + '</small>';
+        button.onclick = () => loadMarkdownDocument(doc.id);
+        mdList.appendChild(button);
+      });
+    }
+    function loadMarkdownDocument(id) {
+      markdownState.active = id;
+      const doc = activeDocument();
+      mdTitle.textContent = doc.title;
+      mdPath.textContent = doc.relativePath;
+      mdInput.value = currentValue(doc);
+      mdPreview.innerHTML = renderMarkdown(mdInput.value);
+      mdDraftState.textContent = localStorage.getItem(storageKey(doc.id)) === null ? '原始版本' : '本地草稿已保存';
+      renderDocList(document.getElementById('mdSearch').value);
+      mdInput.scrollTop = 0; mdPreview.scrollTop = 0;
+    }
+    let mdSaveTimer;
+    mdInput.addEventListener('input', () => {
+      const doc = activeDocument();
+      mdPreview.innerHTML = renderMarkdown(mdInput.value);
+      mdDraftState.textContent = '正在保存…';
+      clearTimeout(mdSaveTimer);
+      mdSaveTimer = setTimeout(() => { localStorage.setItem(storageKey(doc.id), mdInput.value); mdDraftState.textContent = '本地草稿已保存'; }, 250);
+    });
+    document.getElementById('mdSearch').addEventListener('input', event => renderDocList(event.target.value));
+    document.getElementById('mdReset').onclick = () => {
+      const doc = activeDocument();
+      if (!confirm('恢复“' + doc.title + '”的原始 Markdown？当前浏览器草稿将被清除。')) return;
+      localStorage.removeItem(storageKey(doc.id));
+      loadMarkdownDocument(doc.id);
+    };
+    document.getElementById('mdCopy').onclick = async event => {
+      try { await navigator.clipboard.writeText(mdInput.value); }
+      catch { mdInput.focus(); mdInput.select(); document.execCommand('copy'); }
+      const old = event.currentTarget.textContent; event.currentTarget.textContent = '已复制'; setTimeout(() => event.currentTarget.textContent = old, 1100);
+    };
+    document.getElementById('mdDownload').onclick = () => {
+      const doc = activeDocument();
+      const blob = new Blob([mdInput.value], {type:'text/markdown;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a'); link.href = url; link.download = doc.fileName; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 500);
+    };
+    renderDocList();
+    loadMarkdownDocument(markdownDocuments[0].id);
+
+    const sections = [...document.querySelectorAll('main section[id]')];
+    const navLinks = [...document.querySelectorAll('#sideNav a')];
+    const observer = new IntersectionObserver(entries => {
+      const visible = entries.filter(e=>e.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];
+      if (!visible) return;
+      navLinks.forEach(a=>a.classList.toggle('active',a.getAttribute('href') === '#' + visible.target.id));
+    }, {rootMargin:'-18% 0px -68% 0px', threshold:[0,.1,.4]});
+    sections.forEach(s=>observer.observe(s));
+  </script>
+</body>
+</html>

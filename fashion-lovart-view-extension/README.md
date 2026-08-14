@@ -2,6 +2,8 @@
 
 这是一套由 Codex 驱动的时装延展图自动化工作流。它扫描一个 SKC 或整批 SKC 的 `正面/侧面/背面/全身` 参考图，为每个视角生成 5 个动作提示词，通过 Chrome 操作 Lovart，并在逐张质检后形成 20 张合格结果。
 
+> 🌐 **新手推荐：** [点击在线打开完整可视化工作手册](https://judebrisbylg-matthew.github.io/image-skill/)
+
 ![可视化工作手册预览](docs/handbook-preview.png)
 
 ## 它由什么组成
@@ -107,7 +109,7 @@ $fashion-lovart-view-extension /path/to/batch-root
 
 ## 查看可视化手册
 
-下载或克隆仓库后，用浏览器直接打开 [`docs/handbook.html`](docs/handbook.html)。手册包含：
+直接访问 [GitHub Pages 在线手册](https://judebrisbylg-matthew.github.io/image-skill/)，无需下载仓库。也可以下载或克隆仓库后，用浏览器打开 [`docs/handbook.html`](docs/handbook.html)。手册包含：
 
 - 智能体、Skill、Chrome、Lovart 和 HTML 的关系图。
 - 输入识别、并发调度、即时排版、质检与断点续跑说明。
