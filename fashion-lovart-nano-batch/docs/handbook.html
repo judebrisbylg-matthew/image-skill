@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="fashion-lovart-nano-batch Skill 可视化工作手册" />
+  <title>Fashion Lovart Nano Batch · 可视化工作手册</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #5f6b7a;
+      --faint: #8b95a5;
+      --line: #dde3ea;
+      --soft: #f6f8fb;
+      --paper: #fff;
+      --blue: #2563eb;
+      --blue-dark: #1d4ed8;
+      --blue-soft: #eff6ff;
+      --green: #16875d;
+      --green-soft: #e8f7ef;
+      --amber: #b35b09;
+      --amber-soft: #fff7e8;
+      --red: #c33c54;
+      --red-soft: #fff1f3;
+      --shadow: 0 18px 55px rgba(15, 23, 42, .08);
+      --sans: "Aptos", "SF Pro Text", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      --mono: "SFMono-Regular", "Cascadia Mono", "Roboto Mono", monospace;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; color: var(--ink); background: var(--paper); font: 15px/1.62 var(--sans); -webkit-font-smoothing: antialiased; }
+    a { color: inherit; text-decoration: none; }
+    code, pre, textarea { font-family: var(--mono); }
+    .topbar { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; min-height: 58px; padding: 0 24px; background: rgba(255,255,255,.94); border-bottom: 1px solid var(--line); backdrop-filter: blur(18px); }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .mark { width: 28px; height: 28px; display: grid; place-items: center; color: #fff; background: var(--blue); border-radius: 8px; font-weight: 850; }
+    .brand strong { display: block; font-size: 14px; }
+    .brand small { color: var(--faint); font-size: 12px; }
+    .pill { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; color: #0f6b49; background: var(--green-soft); border: 1px solid #cfeedd; border-radius: 999px; font-size: 12px; font-weight: 750; }
+    .pill::before { content: ""; width: 7px; height: 7px; background: var(--green); border-radius: 50%; }
+    .shell { display: grid; grid-template-columns: 240px minmax(0,1fr) 300px; min-height: calc(100vh - 58px); }
+    .left, .right { position: sticky; top: 58px; height: calc(100vh - 58px); overflow: auto; padding: 28px 20px 44px; background: #fff; }
+    .left { border-right: 1px solid var(--line); }
+    .right { border-left: 1px solid var(--line); }
+    .rail-label { margin: 0 8px 10px; color: var(--faint); font: 800 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+    .nav { display: grid; gap: 3px; }
+    .nav a { display: flex; justify-content: space-between; align-items: center; min-height: 36px; padding: 8px 10px; color: var(--muted); border-radius: 8px; font-size: 13px; }
+    .nav a:hover, .nav a.active { color: var(--blue-dark); background: var(--blue-soft); font-weight: 750; }
+    .nav a span:last-child { color: var(--faint); font: 10px/1 var(--mono); }
+    main { min-width: 0; padding: 48px clamp(24px, 5vw, 76px) 96px; }
+    .content { max-width: 920px; margin: 0 auto; }
+    section { scroll-margin-top: 82px; padding-top: 76px; }
+    .kicker { color: var(--blue-dark); font: 800 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    h1, h2, h3 { line-height: 1.13; letter-spacing: -.035em; text-wrap: balance; }
+    h1 { margin: 10px 0 20px; font-size: clamp(42px, 7vw, 72px); letter-spacing: -.06em; }
+    h1 span { color: var(--blue); }
+    h2 { margin: 8px 0 14px; font-size: 34px; }
+    h3 { margin: 0 0 8px; font-size: 17px; }
+    p { color: var(--muted); }
+    .lede { max-width: 730px; margin: 0 0 28px; font-size: 18px; line-height: 1.7; }
+    .hero { display: grid; grid-template-columns: 1.05fr .95fr; gap: 16px; margin-top: 26px; }
+    .hero-card { min-height: 250px; padding: 26px; color: #fff; background: #111827; border-radius: 18px; box-shadow: var(--shadow); }
+    .hero-card b { display: block; margin-bottom: 12px; font-size: 68px; line-height: 1; letter-spacing: -.06em; }
+    .hero-card p { max-width: 330px; color: #cbd5e1; }
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric { min-height: 120px; display: flex; flex-direction: column; justify-content: space-between; padding: 18px; background: var(--soft); border: 1px solid var(--line); border-radius: 13px; }
+    .metric b { font-size: 30px; line-height: 1; }
+    .metric span { color: var(--muted); font-size: 12px; }
+    .metric.accent { color: var(--blue-dark); background: var(--blue-soft); }
+    .map { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; margin-top: 22px; }
+    .node { position: relative; min-height: 128px; padding: 16px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+    .node:not(:last-child)::after { content: "→"; position: absolute; top: 50%; right: -10px; z-index: 1; color: var(--blue); background: #fff; font-weight: 900; transform: translateY(-50%); }
+    .node.core { color: #fff; background: #111827; border-color: #111827; }
+    .node.core p { color: #cbd5e1; }
+    .node small { display: block; margin-bottom: 8px; color: var(--faint); font: 800 10px/1 var(--mono); }
+    .cards { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+    .card { padding: 18px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+    .card.warn { background: var(--amber-soft); border-color: #f0d8ad; }
+    .card.danger { background: var(--red-soft); border-color: #f3c6cf; }
+    .card p, .card ul { margin: 0; color: var(--muted); font-size: 13px; }
+    .card ul { padding-left: 18px; }
+    .roles { overflow: hidden; border: 1px solid var(--line); border-radius: 13px; }
+    .role { display: grid; grid-template-columns: 190px 1fr 1fr; border-bottom: 1px solid var(--line); }
+    .role:last-child { border-bottom: 0; }
+    .role > * { margin: 0; padding: 13px 15px; font-size: 13px; }
+    .role code { color: var(--blue-dark); background: var(--blue-soft); }
+    .role p { border-left: 1px solid var(--line); }
+    .pipeline { display: grid; grid-template-columns: repeat(6, minmax(90px,1fr)); gap: 8px; margin: 24px 0 16px; padding: 7px; background: var(--soft); border: 1px solid var(--line); border-radius: 14px; }
+    .stage { min-height: 96px; padding: 11px 10px; text-align: left; background: transparent; border: 0; border-radius: 10px; cursor: pointer; }
+    .stage.active { color: #fff; background: var(--blue); }
+    .stage small { display: block; margin-bottom: 9px; font: 800 10px/1 var(--mono); opacity: .72; }
+    .stage strong { display: block; font-size: 12px; line-height: 1.35; }
+    .stage-detail { display: grid; grid-template-columns: 62px 1fr auto; gap: 16px; align-items: center; min-height: 128px; padding: 22px; background: #fff; border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--shadow); }
+    .stage-no { color: var(--blue); font-size: 36px; font-weight: 850; }
+    .stage-tag { padding: 6px 9px; color: var(--blue-dark); background: var(--blue-soft); border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .codebox { position: relative; overflow: auto; padding: 18px 18px 18px; color: #e5e7eb; background: #111827; border-radius: 12px; font: 12px/1.7 var(--mono); white-space: pre; }
+    .copy { position: absolute; top: 10px; right: 10px; padding: 5px 8px; color: #cbd5e1; background: #1f2937; border: 1px solid #374151; border-radius: 7px; cursor: pointer; font-size: 10px; }
+    .done { display: grid; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .done div { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+    .done div:last-child { border-bottom: 0; }
+    .check { display: grid; place-items: center; width: 18px; height: 18px; color: #fff; background: var(--green); border-radius: 50%; font-size: 10px; }
+    .done code { color: var(--faint); font-size: 10px; }
+    .context { margin-bottom: 15px; padding: 16px; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; }
+    .context h3 { font-size: 13px; }
+    .context p { margin: 0; font-size: 12px; }
+    .spec { display: grid; gap: 9px; }
+    .spec div { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 12px; }
+    .spec strong { color: var(--ink); text-align: right; }
+    .md-workbench { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: var(--shadow); }
+    .md-head { display: flex; justify-content: space-between; gap: 14px; padding: 14px 16px; background: var(--soft); border-bottom: 1px solid var(--line); }
+    .md-path { display: block; color: var(--faint); font: 10px/1.5 var(--mono); }
+    .md-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .md-btn { padding: 7px 10px; background: #fff; border: 1px solid var(--line); border-radius: 7px; cursor: pointer; font-size: 11px; font-weight: 750; }
+    .md-btn.primary { color: #fff; background: var(--blue); border-color: var(--blue); }
+    .md-layout { display: grid; grid-template-columns: 220px minmax(0,1fr); min-height: 700px; }
+    .md-library { padding: 12px; background: #fafbfc; border-right: 1px solid var(--line); }
+    .md-search { width: 100%; height: 36px; margin-bottom: 10px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; outline: none; }
+    .md-doc-list { display: grid; gap: 4px; }
+    .md-doc { width: 100%; padding: 10px; text-align: left; color: var(--muted); background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
+    .md-doc.active, .md-doc:hover { color: var(--blue-dark); background: var(--blue-soft); }
+    .md-doc strong { display: block; font-size: 12px; }
+    .md-doc small { display: block; margin-top: 3px; font: 9px/1.35 var(--mono); }
+    .md-editor { display: grid; grid-template-columns: 1fr 1fr; min-width: 0; }
+    .md-pane + .md-pane { border-left: 1px solid var(--line); }
+    .md-pane-title { display: flex; justify-content: space-between; align-items: center; height: 38px; padding: 0 12px; color: var(--faint); background: #fbfcfd; border-bottom: 1px solid var(--line); font: 10px/1 var(--mono); }
+    #markdownInput { display: block; width: 100%; height: 662px; resize: none; padding: 18px; color: #e5e7eb; background: #111827; border: 0; outline: none; font: 12px/1.72 var(--mono); }
+    .md-preview { height: 662px; overflow: auto; padding: 22px; font-size: 13px; }
+    .md-preview h1 { margin: 0 0 24px; font-size: 30px; }
+    .md-preview h2 { margin: 30px 0 12px; font-size: 21px; }
+    .md-preview h3 { margin: 22px 0 10px; font-size: 16px; }
+    .md-preview p, .md-preview li { color: var(--muted); }
+    .md-preview code { padding: 2px 5px; color: var(--blue-dark); background: var(--blue-soft); border-radius: 4px; }
+    .md-preview pre { overflow: auto; padding: 15px; color: #e5e7eb; background: #111827; border-radius: 9px; }
+    .md-preview pre code { padding: 0; color: inherit; background: transparent; }
+    .md-preview table { width: 100%; margin: 16px 0; border-collapse: collapse; font-size: 11px; }
+    .md-preview th, .md-preview td { padding: 8px; text-align: left; border: 1px solid var(--line); }
+    .md-preview th { background: var(--soft); }
+    footer { margin-top: 74px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--faint); font-size: 11px; }
+    @media (max-width: 1180px) { .shell { grid-template-columns: 220px minmax(0,1fr); } .right { display: none; } }
+    @media (max-width: 840px) { .shell { display: block; } .left { display: none; } main { padding: 36px 18px 70px; } .hero, .cards, .split { grid-template-columns: 1fr; } .map { grid-template-columns: 1fr; } .node:not(:last-child)::after { content: "↓"; top: auto; right: 50%; bottom: -14px; transform: translateX(50%); } .pipeline { grid-template-columns: repeat(2, 1fr); } .stage-detail { grid-template-columns: 48px 1fr; } .stage-tag { display: none; } .role { grid-template-columns: 1fr; } .role p { border-left: 0; border-top: 1px solid var(--line); } .md-layout, .md-editor { grid-template-columns: 1fr; } .md-library { border-right: 0; border-bottom: 1px solid var(--line); } .md-pane + .md-pane { border-left: 0; border-top: 1px solid var(--line); } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><div class="mark">L</div><div><strong>Fashion Lovart Nano Batch</strong><small>Codex 编排 · Lovart 批量白底试穿</small></div></div>
+    <span class="pill">仓库随附 Skill</span>
+  </header>
+  <div class="shell">
+    <aside class="left">
+      <p class="rail-label">指南</p>
+      <nav class="nav" id="sideNav">
+        <a href="#overview" class="active"><span>概览</span><span>01</span></a>
+        <a href="#architecture"><span>整体框架</span><span>02</span></a>
+        <a href="#roles"><span>输入与交接</span><span>03</span></a>
+        <a href="#workflow"><span>完整执行流程</span><span>04</span></a>
+        <a href="#gates"><span>质量门禁</span><span>05</span></a>
+        <a href="#nano"><span>Lovart 执行合同</span><span>06</span></a>
+        <a href="#usage"><span>安装与调用</span><span>07</span></a>
+        <a href="#mistakes"><span>阻塞与恢复</span><span>08</span></a>
+        <a href="#markdown"><span>Markdown 原文</span><span>09</span></a>
+        <a href="#completion"><span>完成标准</span><span>10</span></a>
+      </nav>
+    </aside>
+    <main>
+      <div class="content">
+        <section id="overview">
+          <span class="kicker">01 / OVERVIEW</span>
+          <h1>Codex 先做线稿，Lovart 再做<span>白底图</span></h1>
+          <p class="lede">`fashion-lovart-nano-batch` 是完整的日期文件夹批处理智能体：逐个扫描 SPU、在 Codex 侧生成并验收黑白线稿、把合格素材按固定角色交给 Lovart Nano Banana Pro、逐张复核 10 个独立候选图，并整理到月度画布中。</p>
+          <div class="hero">
+            <div class="hero-card"><b>10</b><p>每个合格 SPU 要有 10 张逐张复核通过的独立候选图。生成数量不等于合格数量。</p></div>
+            <div class="metrics">
+              <div class="metric accent"><b>2</b><span>线稿准备与 Lovart 最终试穿两个硬阶段</span></div>
+              <div class="metric"><b>9</b><span>最多 8 张产品/搭配图 + 1 张姿势线稿</span></div>
+              <div class="metric"><b>1</b><span>每月一个 Lovart 项目，按日期分区</span></div>
+              <div class="metric"><b>0</b><span>不使用 Nano Banana 2，不消耗加速点数</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="architecture">
+          <span class="kicker">02 / ARCHITECTURE</span>
+          <h2>完整智能体的职责边界</h2>
+          <p>正式规则放在 `skill/`，HTML 是给新人阅读和培训的手册。这个智能体调用 `fashion-nano-tryon` 处理单款的线稿与 Prompt；自己负责整批 SPU 的调度、Lovart、质检和画布整理。</p>
+          <div class="map">
+            <div class="node"><small>INPUT</small><h3>日期文件夹</h3><p>发现所有含产品图的 SPU，预检缺失素材与可写路径。</p></div>
+            <div class="node"><small>PHASE 1</small><h3>Codex 线稿准备</h3><p>调用单款流程，生成并验收 `黑白线稿图`。</p></div>
+            <div class="node core"><small>CORE</small><h3>Batch 编排</h3><p>按 SPU 记录状态，准备上传包，跳过阻塞项而不中断全批。</p></div>
+            <div class="node"><small>PHASE 2</small><h3>Lovart 生成</h3><p>使用 Nano Banana Pro，严格上传顺序，生成独立候选图。</p></div>
+            <div class="node"><small>OUTPUT</small><h3>月度画布</h3><p>每个 SPU 10 张合格图；最终由人工审核与下载。</p></div>
+          </div>
+        </section>
+
+        <section id="roles">
+          <span class="kicker">03 / SOURCE ROLES</span>
+          <h2>文件、上传包和结果各有固定位置</h2>
+          <p>批处理不会依赖 Lovart 的全局图片编号。每个 SPU 都先建立本地记录和 ASCII 上传包，最后一张始终是姿势线稿。</p>
+          <div class="roles">
+            <div class="role"><code>产品图/</code><p>必填</p><p>主商品唯一来源；按数字顺序复制为 `product_##`。</p></div>
+            <div class="role"><code>搭配图/</code><p>可选</p><p>逐图分类为配饰、下装或不使用，不能改写主商品。</p></div>
+            <div class="role"><code>对标图</code><p>仅线稿阶段</p><p>用于提取外观锁与姿势；禁止进入 Lovart 最终上传包。</p></div>
+            <div class="role"><code>黑白线稿图</code><p>最终上传最后一张</p><p>复制为 `pose_lock_reference`，只锁姿势、裁切与人体比例。</p></div>
+            <div class="role"><code>_codex_outputs/</code><p>本地证据</p><p>保存线稿 Prompt、最终 Prompt、运行日志与阻塞原因。</p></div>
+            <div class="role"><code>Lovart 月项目</code><p>人工复核与下载</p><p>同月共用一个项目，日期分区，SPU 参考图在上、结果在下。</p></div>
+          </div>
+        </section>
+
+        <section id="workflow">
+          <span class="kicker">04 / WORKFLOW</span>
+          <h2>批处理的每个 SPU 都要走完这条链</h2>
+          <p>点击步骤查看交付物。任何一个 SPU 失败都只记录并跳过该款，不能让整批工作停在一处。</p>
+          <div class="pipeline" id="pipeline"></div>
+          <div class="stage-detail">
+            <div class="stage-no" id="stageNo">1</div>
+            <div><h3 id="stageTitle">扫描与预检</h3><p id="stageText">发现有效 SPU，检查产品图、对标图/线稿、搭配图和可写路径。</p></div>
+            <span class="stage-tag" id="stageTag">建立清单</span>
+          </div>
+        </section>
+
+        <section id="gates">
+          <span class="kicker">05 / GATES</span>
+          <h2>门禁通过才允许进入 Lovart</h2>
+          <div class="cards">
+            <div class="card warn"><h3>Gate 1：线稿合格</h3><p>没有经过 Codex 侧 AI 线稿生成与视觉检查的 `黑白线稿图`，不能上传 Lovart。</p></div>
+            <div class="card warn"><h3>Gate 2：模型合格</h3><p>右侧 Agent 面板必须明确选择 Nano Banana Pro；其他模型一律阻塞。</p></div>
+            <div class="card warn"><h3>Gate 3：逐张候选合格</h3><p>每张图都要对照姿势线稿复核；只有 `qualified_count >= 10` 才完成。</p></div>
+            <div class="card"><h3>队列不是完成</h3><p>队列中或合格数不足 10 的 SPU 状态为 `queued-partial`，记录后再决定是否继续。</p></div>
+          </div>
+        </section>
+
+        <section id="nano">
+          <span class="kicker">06 / NANO PROMPT</span>
+          <h2>Lovart 只接收明确的角色合同</h2>
+          <p>上传顺序与 Prompt 是同一份合同：产品在前、搭配在中、`pose_lock_reference` 最后。右侧面板只使用 Nano Banana Pro 和 `3:4 · 4K`。</p>
+          <div class="codebox"><button class="copy" data-copy="schema">复制</button><span id="schemaText">LOVART EXECUTION INSTRUCTION
+Use the right-side conversation panel in Agent image-generation mode with Nano Banana Pro.
+Output size: 3:4 ratio, 4K resolution, pure white #FFFFFF background.
+Generate exactly 10 separate standalone image outputs for this SPU.
+
+REFERENCE ROLE CONTRACT
+PRODUCT SOURCE: product_## uploaded first.
+STYLING SOURCES: accessory_## and bottoms_## uploaded after products.
+LINE_ART SOURCE: pose_lock_reference uploaded last; mandatory fixed pose skeleton.
+DENIED SOURCES: benchmark photo, line-art garment design, Nano Banana 2, collage, grid, environment.
+
+POSE LOCK
+Reproduce pose_lock_reference 1:1. Do not change crop, camera angle, body angle, hands, bag/phone position, or leg stance.
+
+BATCH QUALITY
+Each output: one adult female model, one outfit, one standalone ecommerce photo. No collage, grid, contact sheet, or multi-person image.</span></div>
+        </section>
+
+        <section id="usage">
+          <span class="kicker">07 / USAGE</span>
+          <h2>安装和调用方式</h2>
+          <div class="split">
+            <div class="card"><h3>安装正式 Skill</h3><div class="codebox">mkdir -p ~/.codex/skills/fashion-lovart-nano-batch
+rsync -a --delete \
+  image-skill/fashion-lovart-nano-batch/skill/ \
+  ~/.codex/skills/fashion-lovart-nano-batch/</div></div>
+            <div class="card"><h3>典型调用</h3><div class="codebox">[$fashion-lovart-nano-batch] /Users/chenyiming/Desktop/Ai生图测试/6月17日</div></div>
+          </div>
+        </section>
+
+        <section id="mistakes">
+          <span class="kicker">08 / COMMON MISTAKES</span>
+          <h2>阻塞时如何恢复，不把全批卡死</h2>
+          <div class="cards">
+            <div class="card danger"><h3>跳过 Codex 线稿</h3><p>不能直接把对标图交给 Lovart；缺少合格线稿的 SPU 必须停在 `LINE_ART_PREP`。</p></div>
+            <div class="card danger"><h3>模型不匹配</h3><p>显示 Nano Banana 2 或其他模型时，记录 `blocked:model-mismatch`，不允许静默降级。</p></div>
+            <div class="card danger"><h3>把 10 张做成拼图</h3><p>结果必须是 10 张独立图片；若出现网格或少图，改为候选编号的单张补图。</p></div>
+            <div class="card danger"><h3>用生成数量冒充完成</h3><p>每张候选都要放大比对线稿。只在 `qualified_count >= 10` 后标记完成。</p></div>
+          </div>
+        </section>
+
+        <section id="markdown">
+          <span class="kicker">09 / MARKDOWN SOURCE CENTER</span>
+          <h2>正式规则原文和本地预览</h2>
+          <p>这里收录 `skill/` 下的正式 Markdown。页面里改动只保存在浏览器本地草稿，不会自动覆盖仓库文件。</p>
+          <div class="md-workbench">
+            <div class="md-head"><div><strong id="mdTitle">智能体主流程</strong><span class="md-path" id="mdPath">SKILL.md</span></div><div class="md-actions"><button class="md-btn" id="mdReset">恢复原文</button><button class="md-btn" id="mdCopy">复制 Markdown</button><button class="md-btn primary" id="mdDownload">下载当前 .md</button></div></div>
+            <div class="md-layout">
+              <aside class="md-library"><input class="md-search" id="mdSearch" type="search" placeholder="搜索文档…" aria-label="搜索 Markdown 文档"><div class="md-doc-list" id="mdDocList"></div></aside>
+              <div class="md-editor"><div class="md-pane"><div class="md-pane-title"><span>MARKDOWN SOURCE</span><span id="mdDraftState">原始版本</span></div><textarea id="markdownInput" spellcheck="false"></textarea></div><div class="md-pane"><div class="md-pane-title"><span>LIVE PREVIEW</span><span>实时预览</span></div><article class="md-preview" id="markdownPreview"></article></div></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="completion">
+          <span class="kicker">10 / DEFINITION OF DONE</span>
+          <h2>什么才算这个智能体完成了</h2>
+          <div class="done">
+            <div><span class="check">✓</span><span>所有有效 SPU 都已扫描，缺失素材和失败原因都记录在本地日志</span><code>preflight</code></div>
+            <div><span class="check">✓</span><span>每个进入 Lovart 的 SPU 都有 Codex 侧验收通过的黑白线稿</span><code>line-art</code></div>
+            <div><span class="check">✓</span><span>Lovart 上传顺序固定，最后一张为 `pose_lock_reference`，模型为 Nano Banana Pro</span><code>handoff</code></div>
+            <div><span class="check">✓</span><span>每款达到 10 张独立、逐张复核通过的白底电商候选图，或明确标记 queued/blocked</span><code>quality</code></div>
+            <div><span class="check">✓</span><span>月项目、日期分区、SPU 块、参考图和结果已整理，图片留给人工审核下载</span><code>canvas</code></div>
+          </div>
+        </section>
+        <footer>正式行为以 <code>skill/SKILL.md</code> 和 <code>skill/references/</code> 为准。HTML 手册用于阅读、培训和本地预览。</footer>
+      </div>
+    </main>
+    <aside class="right">
+      <div class="context"><h3>运行规格</h3><div class="spec"><div><span>模型</span><strong>Nano Banana Pro</strong></div><div><span>比例</span><strong>3:4</strong></div><div><span>像素</span><strong>4K</strong></div><div><span>背景</span><strong>#FFFFFF</strong></div></div></div>
+      <div class="context"><h3>一句话理解</h3><p>Codex 先锁线稿，Lovart 再生图；一款一包，一张一验，整批不中断。</p></div>
+      <div class="context"><h3>真源提醒</h3><p>安装到 Codex 的目录只需要复制 <code>skill/</code> 内容。</p></div>
+    </aside>
+  </div>
+  <script>
+    const markdownDocuments = [{"id":"skill","title":"智能体主流程","relativePath":"SKILL.md","fileName":"SKILL.md","content":"---\nname: fashion-lovart-nano-batch\ndescription: \"Use when the user wants to batch-process a dated first-level fashion folder for Lovart using Nano Banana Pro inside one monthly Lovart project: scan all SPU subfolders containing 产品图/, optional 搭配图/, and 对标图; first use the fashion-nano-tryon workflow in Codex to generate each SPU's black-and-white line-art prompt and save the resulting line-art image as 黑白线稿图 in the SPU root; then upload up to 8 separate full-detail product/styling references plus 1 line-art reference to Lovart right-side conversation panel in strict order; generate 10 separate single-person 3:4 4K white-background images per SPU; arrange references and results into date sections and clean SPU blocks; do not auto-download final results; and skip/log blocked SPUs instead of stopping the batch.\"\n---\n\n# Fashion Lovart Nano Batch\n\n## Purpose\n\nRun the user's Codex + Lovart + Nano Banana Pro batch workflow for fashion ecommerce try-on images. The user provides only a dated first-level folder path or a screenshot. Codex processes every valid SPU subfolder in two strict phases: first prepare and quality-check each SPU's black-and-white pose line art from `对标图.jpg`; only after an approved `黑白线稿图` exists in the SPU root may Codex enter the final Lovart Nano Banana Pro generation phase. Final generation keeps all same-month dated batches in one monthly Lovart project, uploads separate full-detail references to the right-side conversation panel in strict order, generates 10 separate single-person white-background images per SPU, arranges references/results into date sections and clean SPU blocks, records failures, skips blocked SPUs, and continues the batch.\n\nUse the prompt logic from `fashion-nano-tryon` for both the upstream line-art workflow and the final Lovart Nano Banana Pro prompt. Do not use `fashion-line-tryon` for this skill.\n\nDefault conversation language is Chinese.\n\n## Supporting Contracts\n\nRead these files when the relevant stage is active:\n\n- Read [references/batch-run-contract.md](references/batch-run-contract.md) before scanning a date folder or reporting a per-SPU status.\n- Read [references/lovart-handoff-contract.md](references/lovart-handoff-contract.md) before creating the upload package or using the Lovart right-side panel.\n- Read [references/quality-and-recovery.md](references/quality-and-recovery.md) before accepting a line art, candidate, queued state, or blocked SPU.\n- Read [examples/sample-batch.md](examples/sample-batch.md) when the user needs a first-run example.\n\n## User Input\n\nAccept either:\n\n- a first-level folder path, for example `/Users/chenyiming/Desktop/5 月 27 日`\n- a screenshot showing the first-level folder and SPU folders\n\nIf the path cannot be determined from the screenshot, ask for the exact path.\n\n## Automation-Friendly Path Rule\n\nBefore scanning or generating any files, check whether the provided first-level folder is inside a Codex-writable workspace.\n\nPreferred daily-folder location:\n\n```text\n/Users/chenyiming/Desktop/Ai生图测试/<date_folder>\n```\n\nIf the user provides a folder outside the writable workspace, such as:\n\n```text\n/Users/chenyiming/Desktop/5月24日\n```\n\ndo not start the batch immediately. Explain that Codex will repeatedly ask for permission when writing `黑白线稿图.<ext>`, `_codex_outputs/`, logs, and temporary upload files. Recommend moving or copying the whole date folder into:\n\n```text\n/Users/chenyiming/Desktop/Ai生图测试/\n```\n\nThen ask the user to rerun the skill with the new path, for example:\n\n```text\n[$fashion-lovart-nano-batch] /Users/chenyiming/Desktop/Ai生图测试/5月24日\n```\n\nIf the user explicitly chooses to continue with the external folder anyway, proceed, but warn once that Codex permission confirmations may appear during local file writes. Do not keep repeating the warning.\n\n## Folder Contract\n\nExpected structure:\n\n```text\n当天一级文件夹/\n├── spu_code/\n│   ├── 产品图/\n│   │   ├── 1.jpg\n│   │   ├── 2.jpg\n│   │   └── ...\n│   ├── 搭配图/\n│   │   ├── 1.jpg\n│   │   ├── 2.jpg\n│   │   └── ...\n│   ├── 对标图.jpg\n│   └── 黑白线稿图.jpg\n```\n\nRules:\n\n- `产品图/` is required and contains all product/garment sources.\n- `搭配图/` is optional and may contain accessories, bottoms, shoes, bags, jewelry, or other styling references.\n- `对标图.jpg` is the benchmark pose source used to create the SPU's line-art pose reference. It is required when `黑白线稿图` does not already exist.\n- Every SPU must pass through the Codex-side `fashion-nano-tryon` line-art stage in the current run: generate/update the line-art prompt, create or refresh the black-and-white line-art image, save it in the SPU root, and name it `黑白线稿图.<ext>`.\n- Final generation must use the SPU-root `黑白线稿图.<ext>` as the single approved black-and-white line-art pose image.\n- Never use local edge detection, thresholding, contour extraction, posterization, halftone, dotted-mask, or other non-AI image-processing shortcuts as a substitute for the required line-art image. A low-quality algorithmic edge map is worse than a skipped SPU because it breaks Lovart pose control.\n- Do not upload `对标图.jpg` for final Nano Banana Pro generation. The benchmark photo may only be used before Lovart final generation to produce the local `黑白线稿图`.\n- The final Lovart reference set is capped at 9 images total: up to 8 product/styling images plus exactly 1 line-art image.\n- The final Lovart upload order is mandatory: upload all product images first, then all styling images, and upload the single black-and-white line-art image last.\n- Supported image extensions: `.jpg`, `.jpeg`, `.png`, `.webp`.\n- Do not assume `搭配图/1.jpg` has a fixed meaning. Identify each styling image visually.\n\n## Batch Behavior\n\n- Process SPUs one by one.\n- One invalid or failed SPU must not stop the batch.\n- Stop only if the first-level folder is invalid, no valid SPUs exist, Lovart is unavailable/not logged in, or the user explicitly asks to stop.\n- Default confirmations are automatic in batch mode: source mapping, line-art strategy, model appearance lock, line-art result, product extraction, styling classification, and final strategy are all treated as confirmed unless the user asks for manual review.\n- Never mix line-art generation and final try-on generation in the same SPU request. The batch has a hard gate between the two phases.\n- If any SPU is missing a usable `黑白线稿图.<ext>`, run the line-art preprocessing phase first and do not start final Nano Banana Pro generation for that SPU.\n- If the user is testing or if line-art quality has recently failed, prefer a one-SPU line-art validation run before processing the full dated folder.\n- Lovart must not be used to generate `黑白线稿图` under any circumstance. Lovart is reserved for the final white-background model image generation phase only.\n\n## Two-Phase Execution Gate\n\nPhase 1 is `LINE_ART_PREP`.\n\n- Input: `对标图.jpg` only.\n- Output: one approved `黑白线稿图.<ext>` saved in the SPU root, plus `_codex_outputs/02-黑白线稿Prompt.md`.\n- Allowed AI source: Codex-side `fashion-nano-tryon` workflow only. Use the line-art prompt and Codex-side image-generation/editing capability available to the assistant. Do not open Lovart for this phase.\n- Forbidden in this phase: product images, styling images, final try-on prompt, 10-candidate batch instruction, downloads of final try-on images, and any paid/points acceleration.\n- If Codex-side line-art generation is unavailable, fails, or cannot save the image locally, mark the SPU `line-art blocked` and do not proceed to Lovart final generation.\n- If the produced line art fails the quality gate, regenerate once with stricter line-art wording. If it still fails, mark that SPU `line-art blocked` and skip final generation.\n\nPhase 2 is `FINAL_TRYON`.\n\n- Entry condition: the SPU root already contains an approved `黑白线稿图.<ext>`.\n- Input: product images first, styling images second, approved line-art image last.\n- Output: 10 separate single-person `3:4 · 4K · pure white background` Lovart/Nano Banana Pro candidates, left in the Lovart canvas for manual review/download.\n- If the approved line-art file is missing, stale, or visually poor, return to `LINE_ART_PREP`; do not improvise with `对标图.jpg` or a low-quality edge map.\n\n## Output Folders\n\nFor each SPU, create if needed:\n\n```text\nspu_code/\n├── _codex_outputs/\n│   ├── _run_log.md\n│   ├── 01-素材角色与执行记录.md\n│   ├── 02-黑白线稿Prompt.md\n│   └── 03-NanoBananaPro最终白底Prompt.md\n├── 黑白线稿图.<ext>\n└── _lovart_outputs/\n```\n\nThe final response must list completed, skipped, and failed SPUs with log/result paths.\n\nImportant: batch mode does not download generated Lovart images automatically. After all SPUs are generated, the user manually reviews the complete Lovart canvas and downloads only approved images.\n\n## Preflight\n\nBefore opening Lovart:\n\n1. Scan direct children of the first-level folder.\n2. Treat a child as an SPU candidate if it is a directory and not an output/temp/system folder.\n3. For each SPU, check:\n   - `产品图/` exists and contains at least one supported image\n   - `对标图.jpg` exists if the SPU does not already have a usable `黑白线稿图.<ext>`\n   - a black-and-white line-art prompt can be generated from `对标图.jpg` through `fashion-nano-tryon`\n   - a usable `黑白线稿图.<ext>` can be created or refreshed in the SPU root before Lovart final upload\n   - `搭配图/` status and image count\n   - final product/styling image count can be controlled to 8 or fewer\n4. Build a manifest with counts, filenames, and skip reasons.\n5. Skip invalid SPUs and continue.\n\n## Mandatory Codex-Side Line-Art Stage\n\nThis stage runs before any Lovart final-generation work for each SPU.\n\nRules:\n\n- Do not treat a missing line-art image as a reason to go directly into Lovart final generation.\n- Do not create the required line-art image inside Lovart. Do not use Lovart Agent, the Lovart right-side conversation panel, the Lovart bottom image generator, or any Lovart canvas workflow for `LINE_ART_PREP`.\n- Use the `fashion-nano-tryon` workflow to analyze `对标图.jpg`, generate the black-and-white line-art strategy, extract the model appearance lock, and write `02-黑白线稿Prompt.md`.\n- Generate or refresh the actual black-and-white line-art image from `对标图.jpg` and `02-黑白线稿Prompt.md` before Lovart final upload.\n- Save the actual line-art image in the SPU root as `黑白线稿图.<ext>`; prefer `.png` when the generation tool returns PNG.\n- The line-art image must be generated by the AI workflow from `fashion-nano-tryon` or by an equivalent AI image-generation/editing step that follows `02-黑白线稿Prompt.md`. Do not generate it with PIL/OpenCV/ImageMagick/sips edge filters or any local deterministic image-processing fallback.\n- A line-art image generated in Lovart is not valid for this workflow even if it visually passes the quality gate. Quarantine it outside the SPU root and regenerate through Codex-side `fashion-nano-tryon`.\n- In batch mode, the line-art result is automatically treated as confirmed only if it passes the line-art quality gate below.\n- If the line-art image cannot be generated or does not pass the quality gate, mark only that SPU as blocked with the reason `line-art quality failed before Lovart`, log the issue, do not build/upload a Lovart final package for that SPU, and continue with the next SPU.\n- Only after `黑白线稿图.<ext>` exists in the SPU root may Codex build the Lovart upload package for that SPU.\n\n### Line-Art Preprocessing Prompt Requirements\n\nWhen generating line art, use a concise prompt that focuses only on pose extraction:\n\n```text\nGenerate exactly 1 high-quality clean black-and-white pencil line-art pose reference from the uploaded benchmark image.\nPreserve the benchmark pose, crop, body scale, camera angle, torso angle, shoulder slope, arms, elbows, hands, waist/hip position, leg stance if visible, bag/phone/hand relationship if present, and composition as closely as possible.\nUse a pure white or near-white background.\nKeep only simplified body outline, hair/head outline, neck, shoulders, torso, arms, hands, waist/hip, visible leg/crop boundary, and essential object-position cues needed for pose locking.\nRemove all color, garment print, fabric texture, material rendering, lighting, background, logo, watermark, text, and decorative details.\nThis must be a clean pose-control line drawing, not edge detection, not dotted or halftone, not noisy contours, not a black blob, not posterized silhouette, and not a fashion design sketch.\nDo not generate final try-on.\nDo not use paid or points acceleration.\n```\n\nIf the benchmark is cropped, preserve the same crop. Do not expand a half-body benchmark into a full-body sketch unless the user explicitly asks.\n\n### Line-Art Quality Gate\n\nBefore Lovart upload, inspect `黑白线稿图.<ext>` visually or through available image-view tooling. The line art is acceptable only when all of these are true:\n\n- Clean white or near-white background.\n- Clear continuous human silhouette.\n- Head, hair outline, neck, shoulders, torso, arms, elbows, hands, waist/hip, visible legs, and crop boundary are readable.\n- Pose, camera angle, crop/framing, body angle, hand positions, elbow positions, bag/phone position if present, leg stance, and body proportions match `对标图.jpg` closely enough to act as a pose lock.\n- Clothing-body overlap cues are simplified but spatially useful.\n- Product colors, patterns, fabric texture, material rendering, lighting, room/outdoor background, brand marks, and accessory details are removed or reduced.\n\nReject the line art if any of these are true:\n\n- It is a dotted/halftone mask, noisy contour map, edge-detection output, broken skeleton, black blob, posterized silhouette, or texture-heavy extraction.\n- It preserves garment pattern/texture so strongly that Lovart may treat it as product design instead of pose.\n- It loses important pose-control details such as hand height, elbow bend, bag/phone placement, leg stance, head crop, or torso angle.\n- It changes the benchmark pose, crop, body scale, body angle, or camera angle.\n- It looks like a fashion design sketch of a new garment rather than a pose/spatial reference.\n\nIf rejected, do not upload it to Lovart. Regenerate once through `fashion-nano-tryon` if possible. If regeneration still fails, skip that SPU and log the rejected line-art path and reason.\n\nRequired local artifacts per SPU:\n\n```text\nspu_code/\n├── 黑白线稿图.<ext>\n└── _codex_outputs/\n    ├── 02-黑白线稿Prompt.md\n    └── 03-NanoBananaPro最终白底Prompt.md\n```\n\n## Desktop Window Preflight\n\nBefore operating Lovart in Chrome:\n\n- Confirm Chrome/Lovart is the actual foreground window, not Feishu, WeCom/Enterprise WeChat, Finder, Preview, or a full-screen image preview overlay.\n- If a chat app, image viewer, screen-share overlay, or another modal layer is covering Chrome, stop Lovart actions and tell the user exactly what to bring to the front.\n- Do not continue clicking if the visible foreground app is not Lovart; otherwise file uploads and prompts may be sent to the wrong app.\n- Once Lovart is foregrounded, re-check the current canvas/project name before uploading any SPU assets.\n\n## Temporary Upload Package\n\nFor every valid SPU, create an ASCII-only upload package:\n\n```text\n/tmp/lovart_batch/<date_folder_name>/<spu_code>/\n├── product_01.<ext>\n├── product_02.<ext>\n├── styling_01.<ext>\n├── styling_02.<ext>\n├── bottoms_01.<ext>\n├── pose_lock_reference.<ext>\n└── ...\n```\n\nUse this package for Lovart uploads. Build it only after the SPU-root `黑白线稿图.<ext>` exists. Do not upload directly from Chinese folder names or rely on original numeric filenames.\n\nThe package and Lovart upload order are mandatory:\n\n1. Upload all selected `product_##` images first, preserving the numeric product order.\n2. Upload all selected `styling_##`, `accessory_##`, and `bottoms_##` images second, preserving the chosen styling order.\n3. Upload `pose_lock_reference` last as the 9th-or-fewer final reference image.\n\nDo not upload the line-art image before the product/styling references. Do not interleave product images, styling images, and line art.\n\nRole names:\n\n- `product_01`, `product_02`, ...\n- `accessory_01`, `accessory_02`, ...\n- `bottoms_01`, `bottoms_02`, ...\n- `pose_lock_reference` copied from the SPU-root `黑白线稿图.<ext>`\n\nFinal upload package rules:\n\n- Keep product/styling references as separate full-resolution images by default.\n- Do not merge product/styling references into contact sheets or grids by default.\n- Upload no more than 8 product/styling images for final generation.\n- Upload exactly 1 approved black-and-white line-art pose image for final generation, copied from the SPU-root `黑白线稿图.<ext>`.\n- The final upload sequence must be: product references first, styling references second, black-and-white line-art reference last.\n- Do not include `benchmark_pose` in the final Nano Banana Pro upload package.\n\nDo not rely on Lovart global image numbers. Lovart may count previous images in the same canvas.\n\n## Final Reference Upload Policy\n\nDefault Lovart upload mode must be separate full-detail references, not compact boards.\n\nReason:\n\n- Product and styling details are easier for Nano Banana Pro to preserve when each source remains a full-size image.\n- Contact sheets and grids can cause Lovart/Nano Banana Pro to copy the board structure into the final output.\n- The user's workflow controls product/styling images to 8 or fewer, so the final reference count stays within the expected 9-image limit after adding the line-art reference.\n\nFinal upload package:\n\n```text\n/tmp/lovart_batch/<date_folder_name>/<spu_code>/\n├── product_01.<ext>\n├── product_02.<ext>\n├── ...\n├── styling_01.<ext>\n├── ...\n└── pose_lock_reference.<ext>\n```\n\nRules:\n\n- Upload all product/styling references as separate images when their combined count is 8 or fewer.\n- Upload `pose_lock_reference` copied from `黑白线稿图.<ext>` as the only pose/composition reference for final generation.\n- Upload order is strict: first all `product_##`, then all `styling/accessory/bottoms_##`, and finally `pose_lock_reference` as the last image.\n- Do not upload `对标图.jpg` or `benchmark_pose` during final generation. If the line-art file is missing, stop that SPU's Lovart final stage, create `黑白线稿图.<ext>` locally first, then rebuild the upload package.\n- If Lovart keeps the submit button disabled with 9 images, reduce only the lowest-value styling image first; keep core product images and line art.\n- Use a contact sheet only as an emergency fallback after logging the blocker. When a fallback board is used, the prompt must state that board layout must never be copied.\n\n## Styling Classification\n\nAnalyze every image in `搭配图/` before final prompting and classify it as one of:\n\n- `ACCESSORY SOURCES`: jewelry, handbag, belt, hat, scarf, glasses, shoes, or other non-bottom styling item\n- `BOTTOMS SOURCE`: jeans, trousers, skirt, shorts, leggings, or other lower-body garment\n- `UNUSED / BLOCKED`: unclear item, incompatible item, or item outside locked crop\n\nFor each styling source, record:\n\n- category\n- color/material/texture\n- likely wearing or carrying position\n- whether it fits within the locked line-art crop\n\nIf an accessory or bottom conflicts with the locked pose/crop, preserve the line-art pose and crop first. Include only the visible compatible part, or omit and log why.\n\n## Lovart Monthly Project Policy\n\nUse one Lovart canvas/project for the whole month, not one project per dated first-level folder.\n\nRecommended:\n\n- Derive the month from the provided first-level folder name or path.\n  - `5月23日`, `5 月 23 日`, and `2026年5月23日` all map to the May Lovart project.\n  - Prefer a concise project name such as `5月`.\n  - If the year is needed to avoid ambiguity, use `2026年5月`.\n- If a matching monthly Lovart project is already open or available, use it.\n- If not, create/open a new monthly project and label/name it with the month when possible.\n- Never hard-code Lovart `projectId`; find or create the current monthly project dynamically.\n- Do not create a new Lovart project just because the date folder changed from `5月23日` to `5月24日`.\n\nWithin the same monthly canvas:\n\n- Create or preserve a visible date section for each dated first-level folder, for example `5月23日` and `5月24日`.\n- Place all SPU blocks for the same date under that date section.\n- Start a new date section when processing a different first-level folder in the same monthly project.\n- Isolate each SPU operationally with a fresh prompt sequence and visually separate block.\n- Prefix prompts with `SPU <spu_code> - Nano Banana Pro controlled try-on`.\n- Keep per-SPU logs and output folders separate on disk.\n- Use temporary role names, not Lovart image numbers.\n- If the monthly canvas becomes too crowded or Lovart performance noticeably degrades, continue in a second monthly project named with a part suffix, for example `5月-Part2`, and log the project split.\n\n## Lovart Entry Point Policy\n\nFor final image generation, use the Lovart right-side conversation panel (`对话`) in Agent image-generation mode as the fixed default path. Do not use the canvas bottom image generator for normal batch execution.\n\nReason:\n\n- The bottom image generator reference upload works, but configured-generator duplication is not reliable enough for batch work.\n- In observed Lovart UI states, `Cmd+C` / `Cmd+V` did not duplicate a configured generator; it pasted clipboard text as a canvas text object.\n- The user has verified that Lovart's right-side Agent mode can generate 10 images from one request. This is now the preferred throughput path for batch production.\n- The right-side conversation panel is more stable for attaching references, pasting long prompts, selecting Agent/image mode/model, and asking for 10 separate outputs in one instruction.\n- Do not use the Lovart right-side conversation panel to create the required `黑白线稿图`; line art must already exist locally before Lovart final generation.\n- Before committing to a batch, verify that the right-side panel is in Agent image-generation mode, supports local/reference upload, uses **Nano Banana Pro only**, and displays or accepts the required `3:4 · 4K` settings.\n- Do not submit final Lovart generation if the visible model label is `Nano Banana 2`, `Nano Banana`, or anything other than `Nano Banana Pro`.\n- If the right-side panel defaults to `Nano Banana 2`, switch it to `Nano Banana Pro` before uploading/submitting. If Codex cannot find or select `Nano Banana Pro`, stop that SPU, mark it `blocked:model-mismatch`, and ask for user confirmation. Never silently downgrade to `Nano Banana 2`.\n- Upload final references to the right-side panel in strict sequence: all product images first, all styling images second, and the single `pose_lock_reference` image last.\n- The last uploaded image must be treated as `pose_lock_reference`, the mandatory fixed pose skeleton, not as a styling/product image.\n- Do not use the global bottom toolbar upload icon for final references unless the user explicitly wants standalone canvas reference objects; it creates canvas images rather than right-panel generation references.\n\nFallback:\n\n- If the right-side panel cannot upload references, cannot use Agent image mode, cannot use Nano Banana Pro, or cannot accept the prompt, mark that SPU as blocked/partial and log the blocker. Do not silently switch to `Nano Banana 2` or the bottom canvas image generator.\n- Use the bottom canvas image generator only when the user explicitly asks to test or use it.\n- Log which entry point was used for each SPU.\n- Do not keep retrying a blocked entry point once the blocker is confirmed in a run.\n- If the right-side Agent mode accepts the request but returns fewer than 10 standalone outputs, fall back to candidate-indexed one-image submissions in the same right-side panel and log the throughput blocker.\n- If Lovart accepts the job only into a long free queue, do not click `立即生成` or spend credits unless the user explicitly approves. Log the queue estimate and mark the SPU as queued/partial until the user asks to wait or continue.\n- If one SPU is still queued or partially generated, do not claim the dated folder batch is complete. Report that SPU as `queued-partial` with accepted/visible image count and queue status, then continue only when it is operationally safe to do so. If the Lovart UI is blocked by the active queue and cannot accept the next SPU, stop and report the queue blocker instead of silently leaving later SPUs unprocessed.\n\n## Canvas Layout Policy\n\nThe final Lovart canvas must be organized for manual review, not just generation.\n\nDate section layout:\n\n- Each dated first-level folder gets one visible date section inside the monthly project.\n- The date section label should match the local folder name, for example `5月23日`.\n- Keep date sections separated with clear vertical spacing.\n- Do not mix SPU blocks from different dates in the same visual row unless the user explicitly asks for a compact layout.\n\nSPU block layout:\n\n- Each SPU gets one visible block.\n- Top row of the block: reference materials in this order when available:\n  `product_01...product_##`, `styling_01...styling_##`, `accessory_01...accessory_##`, `bottoms_01...bottoms_##`, `pose_lock_reference`.\n- Bottom row of the block: exactly 10 generated result images, each a separate single-person image.\n- Keep image sizes visually consistent inside the same row.\n- Leave clear horizontal/vertical spacing between reference row and result row.\n- Add or preserve the SPU code as the block label when Lovart supports text labels.\n\nBatch grid layout:\n\n- Place SPU blocks left to right.\n- One canvas row may contain up to 10 SPU blocks.\n- The 11th SPU starts a second row, left-aligned with the first row.\n- Keep second and later rows aligned to the same block width and spacing as the first row.\n- Do not leave generated images scattered in the canvas. After each SPU completes, arrange its references and 10 results before moving to the next SPU when possible.\n\n## Generation Workflow Per SPU\n\n1. Read and classify local files.\n2. Run the mandatory Codex-side `fashion-nano-tryon` line-art stage before Lovart final generation.\n3. Analyze `benchmark_pose`/`对标图.jpg` for:\n   - pose, crop, body scale, body angle\n   - body proportions\n   - hand and leg positions\n   - model appearance lock: skin tone consistency, hair color, hairstyle, basic visible appearance\n4. Generate and save the black-and-white line-art prompt as `_codex_outputs/02-黑白线稿Prompt.md`.\n5. Generate or refresh the actual black-and-white line-art image from `对标图.jpg` before Lovart work starts.\n6. Save the generated line-art image in the SPU root as `黑白线稿图.<ext>`.\n7. Run the line-art quality gate. Treat line art as confirmed by default only when it is a high-quality AI line drawing. Reject noisy local edge maps, dotted/halftone masks, texture-heavy contours, broken silhouettes, or any line art that changes the benchmark pose/crop.\n8. Analyze all `product_##` sources for garment identity and construction.\n9. Classify all `搭配图/` images into `styling_##`, `accessory_##`, `bottoms_##`, or unused.\n10. Generate and save the final Nano Banana Pro structured prompt.\n11. Create the temporary upload package.\n12. Create the final separate-reference Lovart upload package: up to 8 product/styling images plus 1 `pose_lock_reference` copied from the SPU-root `黑白线稿图.<ext>`.\n13. Open or switch to the monthly Lovart project for the folder's month, then create/find the visible date section for the current first-level folder.\n14. Open the Lovart right-side conversation panel (`对话`) and set it to Agent image-generation mode.\n15. Upload the separate reference images to the right-side panel in strict order: all product images first, all styling images second, and the single black-and-white line-art image last. Do not upload contact sheets or grids.\n16. Select/use Lovart Nano Banana Pro with 3:4 ratio and 4K output. This is a hard requirement: do not continue if the visible model selector or generated task label shows `Nano Banana 2` or any non-Pro model.\n17. Paste the final Nano Banana Pro prompt plus the right-side Agent batch instruction requesting exactly 10 separate standalone outputs.\n18. Submit once in right-side Agent mode and ask Lovart to generate 10 separate single-image outputs, not one grid/contact sheet.\n19. After submission, immediately verify the generated task label. If Lovart starts the job under `Nano Banana 2` or any non-Pro label, stop treating that SPU as valid, log `blocked:model-mismatch`, and do not count those outputs as accepted.\n20. If the right-side panel produces fewer than 10 standalone outputs, continue with candidate-indexed one-image submissions in the same panel until 10 accepted candidates are visible or a blocker is logged.\n21. Do not use the bottom image generator or bottom-generator duplication unless the user explicitly asks to test it again.\n22. After candidates complete, verify that each visible result is one standalone image, one model, one outfit, not a collage/grid/contact sheet, and was generated with `Nano Banana Pro`.\n23. Number and review every generated image individually against the active SPU's own `pose_lock_reference`. Codex itself must open or enlarge each candidate and perform the visual comparison; never delegate this decision to Lovart Agent, Lovart image analysis, or Lovart's written self-check. Check head/neck direction, shoulder line, exposed shoulder/waist/navel requirements, body angle and scale, left/right hand height and placement, phone/bag/cup relationship, waist/hip alignment, visible shorts/legs, camera angle, crop boundary, product identity, white background, and 4K size.\n24. If any result is a collage, grid, multi-person image, multi-panel image, wrong product, wrong background, non-Pro output, or has any material pose/composition drift, mark that candidate `rejected` and do not count it toward completion. Generate a single replacement candidate in the same Agent conversation with stricter pose-lock wording, then review the replacement again. Repeat as many times as needed; do not stop after one retry.\n25. Completion is based on `qualified_count >= 10`, not `generated_count >= 10`. The total number generated may exceed 10. Do not start the next SPU while the current SPU has fewer than 10 individually reviewed qualified images.\n26. Arrange the SPU block under the current date section: keep the 10 base images on their horizontal row when possible; keep replacement images in the same SPU's continuous canvas area. Rejected images may remain visible but must not be counted as qualified.\n27. Do not download generated results during batch execution.\n28. Log the Lovart monthly project, date section, entry point used, actual model label, right-panel multi-output status, generated count, individually reviewed qualified count, rejected candidate numbers/reasons, replacement count, queued candidate count, queued/partial status, and visible arrangement status as `pending manual review/download`. For every qualified candidate, record explicit Codex visual-review evidence such as candidate number plus the checked pose/crop/hand/object criteria. A Lovart-written pass list is not valid evidence.\n\n## Line-Art Prompt Rules\n\nThe line-art prompt must be produced through `fashion-nano-tryon` and must instruct the line-art generation tool to:\n\n- convert `benchmark_pose` into a clean black-and-white pencil line-art pose reference\n- preserve shooting distance, crop, body scale, body angle, hand positions, leg pose, and composition\n- preserve body proportions: shoulder width, neck-to-shoulder relationship, torso length, chest/waist/hip relationship, waist position, hip/waistband height, arm length, elbow position, hand size, visible leg proportion\n- keep simplified clothing-body overlap and wearing-behavior cues only as spatial guidance\n- reduce color, material, lighting, background, brand text, logos, patterns, fabric texture, jewelry detail, and accessory detail\n- forbid detailed fashion design sketch, photorealistic rendering, random text, watermark, or logo-like marks\n\n## Final Nano Banana Pro Prompt Rules\n\nUse the `fashion-nano-tryon` final prompt structure. The final executable prompt must be English and structured with these blocks:\n\n```text\nFINAL OUTPUT\nREFERENCE ROLE CONTRACT\nREFERENCE PRIORITY\nGARMENT HARD LOCK\nPOSE AND BODY HARD LOCK\nMODEL APPEARANCE HARD LOCK\nACCESSORIES AND BOTTOMS\nLIGHTING AND FINISH\nDO NOT INCLUDE\n```\n\nRequired output defaults:\n\n- 10 accepted standalone studio ecommerce candidate photos per SPU\n- `3:4 ratio, 4K output`\n- pure white `#FFFFFF` background\n- Nano Banana Pro model in Lovart\n\nLovart executable prompt rule:\n\n- Prefer a concise Lovart-submittable prompt using separate reference role names.\n- Keep the critical constraints: 10 separate standalone image outputs, role-based source mapping, product identity lock, pose/crop/body lock from line art, model appearance lock if available, styling lock, pure white background, `4K · 3:4`, and negative rules.\n- If the full structured prompt causes Lovart's submit button to remain disabled, replace it with a compressed prompt under roughly 2,000 characters and log that fallback.\n- For Lovart right-panel use, append the right-panel batch instruction from this skill after the main prompt.\n\nRight-panel batch instruction:\n\n```text\nLOVART EXECUTION INSTRUCTION\nUse the right-side conversation panel in Agent image-generation mode with Nano Banana Pro.\nDo not use Nano Banana 2 or any non-Pro model. If Nano Banana Pro is unavailable, stop and report that the model is unavailable instead of generating.\nOutput size: 3:4 ratio, 4K resolution.\nGenerate exactly 10 separate standalone image outputs for this SPU in this one request.\nStart 10 independent image-generation tasks immediately. Do not wait for one candidate to finish before starting the next candidate. If the system limits free concurrency, start the maximum free parallel batch first, then continue the remaining candidates until 10 outputs exist.\nDo not use paid/points acceleration. Do not click or require `立即生成`.\nEach output must be a single image containing exactly one adult female model, exactly one outfit, and no multi-image layout.\nDo not create a collage, grid, contact sheet, 2x5 layout, 3x3 layout, side-by-side comparison, thumbnail board, product board, or one image containing multiple variants.\nDo not return one combined image containing 10 variants. Return 10 individual images.\n\nREFERENCE ORDER LOCK\nThe uploaded references are ordered as product images first, styling images second, and the final uploaded image is pose_lock_reference.\nPOSE LOCK IS MANDATORY: the final uploaded image `pose_lock_reference` is the fixed pose skeleton and the highest-priority composition reference.\nReproduce the pose 1:1, including the same torso angle, shoulder tilt, neck/head crop, arm bend, elbow position, hand height, phone-hand position, bag-hand position, leg stance, hip/waist alignment, body proportions, shooting distance, crop boundary, and camera angle.\nAll 10 outputs must use the same locked pose and same camera composition. Variation is allowed only in micro rendering details such as fabric realism, hair strand placement, facial naturalness, lighting softness, and accessory visibility within the locked crop.\nDo not invent a new pose. Do not change the gesture. Do not change the camera angle. Do not change crop/framing. Do not change hand placement, bag placement, leg placement, or body angle.\nDo not treat the final uploaded line-art image as a garment design, color source, background source, or styling source.\n\nBACKGROUND HARD LOCK\nAll 10 outputs must be pure white #FFFFFF studio ecommerce background only.\nNo outdoor scene, no street, no garden, no cafe, no patio, no window, no furniture, no plants, no room, no lifestyle background, no environmental props, no shadows suggesting a real location.\nOnly subtle studio contact shadows are allowed.\n\nBATCH REVIEW RULE\nIf any output violates the standalone-image rule, pure-white-background rule, single-model rule, product identity, or mandatory pose lock, treat only that output as failed and regenerate that candidate with stricter negative wording. Do not restart the whole SPU unless all outputs fail.\nPose drift means any clear change to hand height, phone-hand position, bag-hand position, leg stance, body angle, camera angle, crop boundary, or head/face crop compared with `pose_lock_reference`.\n```\n\nCandidate count rules:\n\n- Lovart's own completion text, image-analysis result, self-check conclusion, `Specifications Met` checklist, task labels, or a full-row thumbnail overview are not pose-review evidence and must never be copied into `qualified_count`. Codex must open or zoom every candidate and visually compare it against the active SPU's `pose_lock_reference` before marking it qualified.\n- Maintain explicit counters: `generated_count`, `qualified_count`, `rejected_count`, and `replacement_count`. `generated_count >= 10` never implies completion; only `qualified_count >= 10` does.\n- In the right-side Agent panel, ask for 10 outputs in one request when the instruction explicitly says `exactly 10 separate standalone image outputs` and forbids collage/grid/contact-sheet layouts.\n- Prefer parallel throughput wording: ask Lovart to start 10 independent image-generation tasks immediately. If Lovart limits concurrency, ask it to run the maximum free parallel batch first, then continue the remaining candidates. Never use paid/points acceleration.\n- If the first right-panel request produces a collage, grid, contact sheet, multi-panel image, or fewer than 10 standalone outputs, do not repeat the same 10-output request. Switch to candidate-indexed one-image submissions.\n- Use candidate-index wording for fallback one-image submissions, for example: `Generate candidate 03 of 10: exactly one standalone single-person ecommerce try-on image for SPU <spu_code>. Use the same uploaded references and the same locks.`\n- Continue single-candidate replacement generation and candidate-level visual review until at least 10 qualified standalone images exist for the SPU or until a genuine blocker is logged and the SPU is marked partial. A rejected replacement does not consume the retry loop; generate another replacement.\n- If Lovart queues candidate generation for several minutes and the user has not approved waiting indefinitely, mark the SPU as `queued-partial` with the current accepted count and queue estimate. Do not click `立即生成`, do not spend credits, and do not report the SPU as completed.\n- Do not download intermediate or final candidates during batch execution.\n- Every candidate must preserve the same locked product identity, `pose_lock_reference` pose/crop/body proportions/camera angle, model appearance lock, accessory rules, bottoms rules, and white ecommerce background.\n- Candidate variation is allowed only in subtle natural rendering details such as fabric drape, micro-expression, hair strand placement, lighting nuance, and accessory visibility within the locked crop.\n- Do not create different outfits, different poses, different models, different crops, different backgrounds, different hand placements, different bag placements, different leg stances, different body angles, or random styling across the 10 candidates.\n\nSingle-image negative rules:\n\n- No collage.\n- No grid.\n- No contact sheet.\n- No moodboard.\n- No side-by-side comparison.\n- No multiple panels.\n- No multiple people.\n- No repeated copies of the same model inside one image.\n- No reference-board layout reproduction.\n- No product catalog sheet.\n- No thumbnails inside the final image.\n\nSeparate-reference handling:\n\n- Keep all product/styling references separate by default.\n- Do not create or upload contact sheets, grids, or reference boards unless Lovart blocks the normal 9-image package.\n- The model must create one natural ecommerce photo, not a board, grid, or multi-image page.\n- If an emergency fallback board is used and Lovart visually reproduces the board layout, reject that candidate and regenerate with stronger negative wording.\n\nRole contract requirements:\n\n- `PRODUCT SOURCE`: `product_##`; only source for final garment identity and details\n- `STYLING SOURCES`: `styling_##`, `accessory_##`, `bottoms_##`; only source for compatible accessories and bottoms\n- `LINE_ART SOURCE`: `pose_lock_reference`; the last uploaded image and mandatory pose skeleton/blueprint; only source for pose, body proportions, crop, shooting distance, camera angle, hand positions, arm bend, bag placement, leg pose, body angle, composition, spatial relationship, and compatible wearing behavior\n- `MODEL APPEARANCE LOCK`: text lock from the upstream benchmark analysis when available; source for skin tone and hair, but do not upload the benchmark photo during final generation\n- `ACCESSORY SOURCES`: `accessory_##`; only source for listed accessories\n- `BOTTOMS SOURCE`: `bottoms_##`; only source for listed bottoms\n- `DENIED SOURCES`: benchmark outfit design, line-art outfit design, mannequin body proportions, unlisted accessories, random styling, random skin tone, random model identity, text, logos, watermarks, background elements, outdoor scenes, lifestyle scenes, rooms, cafes, patios, gardens, furniture, windows, plants, street backgrounds, and environmental props\n\nControl rules:\n\n- Treat each source as a separate locked role, not a moodboard.\n- Use direct wording: `copy`, `preserve exactly`, `must match`, `do not borrow`, `ignore`.\n- Use direct Lovart wording for line-art control: `The last uploaded image is pose_lock_reference and is the mandatory fixed pose skeleton. Reproduce its pose, crop, camera angle, hand positions, bag position, leg stance, and body angle 1:1. Do not create pose variations across the 10 outputs.`\n- Use direct Lovart wording for background control: `Pure white #FFFFFF ecommerce studio background only. No outdoor, lifestyle, room, plant, furniture, cafe, patio, street, or environmental background.`\n- Do not infer skin tone from black-and-white line art.\n- Do not alter body proportions to match mannequin, product flat-lay, or product-only references.\n- No handbag unless a handbag is explicitly classified as `ACCESSORY SOURCES`.\n- If a styling source is missing, omit that category instead of inventing it.\n- Preserve line-art crop/pose first; do not change framing to fit accessories unless the user explicitly approves.\n\n## Failure Handling\n\nLog and skip the current SPU if:\n\n- required local files are missing\n- Lovart upload fails repeatedly\n- line-art generation fails or is unusable\n- line-art was produced by local edge/threshold/contour processing instead of the required AI line-art workflow\n- line-art quality gate fails after one allowed AI regeneration attempt\n- final Nano Banana Pro generation fails repeatedly\n- browser or file-picker blocker cannot be resolved after reasonable retries\n\nDo not fail or skip an SPU because generated images were not downloaded. Downloading is intentionally deferred to manual review after the whole dated folder batch finishes.\n\nContinue with the next SPU.\n\nUse `queued-partial`, not `completed`, when:\n\n- Lovart has accepted the SPU but fewer than 10 accepted standalone images are visible.\n- Lovart is still generating or queued in the free queue.\n- The current accepted candidate count is known, but later candidates are pending.\n- The browser/UI blocks moving to the next SPU while a queue is active.\n\nFor every queued/partial SPU, log:\n\n- accepted visible candidate count\n- queued candidate count if known\n- current queue estimate if shown\n- whether any `立即生成`/points button was shown\n- confirmation that no points were spent\n\n## Final Response\n\nKeep the final response concise. Include:\n\n- batch folder path\n- Lovart monthly project used\n- date section used inside the monthly project\n- completed SPU count\n- queued/partial SPUs with accepted image count and queue reason\n- skipped/failed SPUs with reasons\n- paths to logs and local output folders\n- clear note that generated Lovart images were left in the canvas for manual review/download\n"},{"id":"contract","title":"批处理运行合同","relativePath":"references/batch-run-contract.md","fileName":"batch-run-contract.md","content":"# Batch Run Contract\n\n## 输入\n\n用户提供日期一级文件夹。每个有效 SPU 必须包含 `产品图/`，并包含可用的 `对标图.<ext>` 或已批准的 `黑白线稿图.<ext>`。\n\n## 两阶段状态\n\n| 阶段 | 输入 | 合格输出 | 不合格处理 |\n| --- | --- | --- | --- |\n| `LINE_ART_PREP` | `对标图.<ext>` | `黑白线稿图.<ext>`、线稿 Prompt | 记录 `line-art blocked`，跳过该 SPU |\n| `FINAL_TRYON` | 最多 8 张产品/搭配图 + 1 张线稿 | 10 张独立合格候选图留在 Lovart 画布 | 记录 `queued-partial` 或 `blocked` |\n\n## 单 SPU 本地记录\n\n```text\nspu_code/\n├── 黑白线稿图.<ext>\n├── _codex_outputs/\n│   ├── _run_log.md\n│   ├── 01-素材角色与执行记录.md\n│   ├── 02-黑白线稿Prompt.md\n│   └── 03-NanoBananaPro最终白底Prompt.md\n└── _lovart_outputs/\n```\n\n## 完成规则\n\n`generated_count >= 10` 不代表完成。只有 Codex 逐张复核后 `qualified_count >= 10` 才是 `completed`。所有 Lovart 候选图保留在画布中，等待人工下载。\n"},{"id":"handoff","title":"Lovart 交接合同","relativePath":"references/lovart-handoff-contract.md","fileName":"lovart-handoff-contract.md","content":"# Lovart Handoff Contract\n\n## 上传包\n\n为每个有效 SPU 建立 ASCII 临时上传目录。总计不超过 9 张：最多 8 张产品/搭配参考图，最后一张必须是 `pose_lock_reference`。\n\n```text\n/tmp/lovart_batch/<date>/<spu>/\n├── product_01.<ext>\n├── accessory_01.<ext>\n├── bottoms_01.<ext>\n└── pose_lock_reference.<ext>\n```\n\n## 固定顺序\n\n1. 所有 `product_##`。\n2. 所有 `styling_##`、`accessory_##`、`bottoms_##`。\n3. 最后一张 `pose_lock_reference`，它只能控制姿势、构图、裁切与人体比例。\n\n不得上传 `对标图.jpg`，不得使用拼图或参考板作为默认上传方式。\n\n## Lovart 设置\n\n- 使用当月项目与当天日期分区。\n- 只使用右侧对话面板的 Agent 生图模式。\n- 模型必须显示 `Nano Banana Pro`；若显示 `Nano Banana 2` 或其他模型，标记 `blocked:model-mismatch`。\n- 输出为 `3:4`、`4K`、纯白 `#FFFFFF`。\n- 一次请求 10 张独立单人图；若少于 10 张或输出拼图，切换为候选编号的单张补图。\n\n## 交接记录\n\n记录月项目、日期区、入口、实际模型标签、上传包、生成数量、合格数量、拒绝原因、替换数量、队列状态和画布整理状态。\n"},{"id":"quality","title":"质检与恢复","relativePath":"references/quality-and-recovery.md","fileName":"quality-and-recovery.md","content":"# Quality And Recovery\n\n## 线稿门禁\n\n线稿必须是干净黑白铅笔线稿：背景白净、轮廓连续、头颈肩躯干手腿和裁切边界可读，并忠实保留对标图的姿势、构图和比例。拒绝边缘检测、点阵、黑块、断裂骨架、材质重的轮廓图和重新设计的服装草图。\n\n线稿不合格时，只允许通过 Codex 侧 AI 线稿流程重做一次；仍不合格则该 SPU 标记 `line-art blocked`。\n\n## 候选图门禁\n\n逐张打开候选图，确认：\n\n- 一张图中仅一位成人女性模特、一套穿搭，没有拼图、网格或多人。\n- 产品、下装和配饰与活动 SPU 的来源一致。\n- 姿势、手位、腿位、身体角度、镜头距离与裁切符合 `pose_lock_reference`。\n- 实际模型为 Nano Banana Pro，背景为纯白 `#FFFFFF`。\n\n不合格候选仅替换该候选，不重启整个 SPU。`qualified_count` 只计入已逐张复核的合格图。\n\n## 阻塞与队列\n\n遇到缺文件、模型不匹配、Lovart 入口不可用、线稿失败或真实浏览器阻塞时，记录原因并继续下一个 SPU。\n\n若队列中仍有候选，或合格数不足 10，状态为 `queued-partial`，不得报告整个批次完成。不得点击 `立即生成`，不得消耗加速点数。\n"},{"id":"example","title":"示例批处理","relativePath":"examples/sample-batch.md","fileName":"sample-batch.md","content":"# 示例批处理\n\n## 调用\n\n```text\n[$fashion-lovart-nano-batch] /Users/chenyiming/Desktop/Ai生图测试/6月17日\n```\n\n## 正确行为\n\n1. 扫描一级目录的直接 SPU 子文件夹，跳过输出目录和无效文件夹。\n2. 对每个 SPU 先执行 `LINE_ART_PREP`，保存并质检 `黑白线稿图.<ext>`。\n3. 只为通过线稿门禁的 SPU 生成 Lovart 上传包与 Nano Banana Pro Prompt。\n4. 在同一个月度 Lovart 项目内，按日期区和 SPU 块整理参考图与结果。\n5. 逐张复核候选图；达到 10 张合格独立图才记录完成。\n6. 输出完成、阻塞、队列中的 SPU 清单及本地日志路径；不自动下载候选图。\n\n## 不正确行为\n\n- 缺少线稿时直接把 `对标图.jpg` 上传给 Lovart。\n- 用 Nano Banana 2 代替 Nano Banana Pro。\n- 把 10 个结果做成一张网格图。\n- 以生成数量代替逐张合格数量。\n"}];
+    const stages = [
+      ['1', '扫描与预检', '扫描日期文件夹，建立 SPU 清单，验证素材、路径和输出目录。', '建立清单'],
+      ['2', 'LINE_ART_PREP', '调用 fashion-nano-tryon，生成、保存并检查黑白线稿；失败只阻塞当前 SPU。', '硬门禁'],
+      ['3', '素材分类与 Prompt', '拆解产品，分类搭配图，写入最终 Nano Banana Pro Prompt 和上传包。', '本地交付'],
+      ['4', 'Lovart 上传', '进入月度项目的当天分区，产品在前、搭配在中、pose_lock_reference 最后。', '顺序硬锁'],
+      ['5', '10 张候选图', '右侧 Agent 面板使用 Nano Banana Pro 生成独立候选；不使用加速点数。', '生成'],
+      ['6', '逐张复核与整理', '逐张对照线稿，补齐 qualified_count >= 10，整理 SPU 块并记录队列/阻塞。', '完成或交接'],
+    ];
+    const pipeline = document.getElementById('pipeline');
+    const stageNo = document.getElementById('stageNo');
+    const stageTitle = document.getElementById('stageTitle');
+    const stageText = document.getElementById('stageText');
+    const stageTag = document.getElementById('stageTag');
+    function setStage(index) {
+      [...pipeline.children].forEach((button, i) => button.classList.toggle('active', i === index));
+      const [no, title, text, tag] = stages[index];
+      stageNo.textContent = no; stageTitle.textContent = title; stageText.textContent = text; stageTag.textContent = tag;
+    }
+    stages.forEach((stage, index) => {
+      const button = document.createElement('button');
+      button.className = 'stage' + (index === 0 ? ' active' : '');
+      button.innerHTML = '<small>STAGE ' + stage[0] + '</small><strong>' + stage[1] + '</strong>';
+      button.onclick = () => setStage(index);
+      pipeline.appendChild(button);
+    });
+    document.querySelectorAll('[data-copy]').forEach(button => {
+      button.onclick = async () => {
+        const text = document.getElementById('schemaText').textContent;
+        try { await navigator.clipboard.writeText(text); } catch {}
+        const old = button.textContent; button.textContent = '已复制'; setTimeout(() => button.textContent = old, 1000);
+      };
+    });
+    const escapeMd = value => value.replace(/[&<>"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
+    function inlineMarkdown(value) {
+      return escapeMd(value)
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\x60([^\x60]+)\x60/g, '<code>$1</code>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+    }
+    function renderMarkdown(source) {
+      const lines = source.replace(/\r/g, '').split('\n');
+      let output = '', inCode = false, code = [], list = null, table = [];
+      const closeList = () => { if (list) { output += '</' + list + '>'; list = null; } };
+      const flushTable = () => {
+        if (!table.length) return;
+        const rows = table.map(row => row.split('|').slice(1, -1).map(cell => cell.trim()));
+        if (rows.length > 1 && rows[1].every(cell => /^:?-{3,}:?$/.test(cell))) {
+          output += '<table><thead><tr>' + rows[0].map(cell => '<th>' + inlineMarkdown(cell) + '</th>').join('') + '</tr></thead><tbody>' + rows.slice(2).map(row => '<tr>' + row.map(cell => '<td>' + inlineMarkdown(cell) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+        } else output += table.map(row => '<p>' + inlineMarkdown(row) + '</p>').join('');
+        table = [];
+      };
+      for (const line of lines) {
+        if (line.startsWith('\x60\x60\x60')) {
+          closeList(); flushTable();
+          if (inCode) { output += '<pre><code>' + escapeMd(code.join('\n')) + '</code></pre>'; code = []; }
+          inCode = !inCode; continue;
+        }
+        if (inCode) { code.push(line); continue; }
+        if (/^\|.*\|$/.test(line)) { closeList(); table.push(line); continue; }
+        flushTable();
+        if (!line.trim()) { closeList(); continue; }
+        const heading = line.match(/^(#{1,4})\s+(.*)$/);
+        if (heading) { closeList(); const level = heading[1].length; output += '<h' + level + '>' + inlineMarkdown(heading[2]) + '</h' + level + '>'; continue; }
+        const unordered = line.match(/^\s*[-*]\s+(.*)$/);
+        if (unordered) { if (list !== 'ul') { closeList(); list = 'ul'; output += '<ul>'; } output += '<li>' + inlineMarkdown(unordered[1]) + '</li>'; continue; }
+        const ordered = line.match(/^\s*\d+\.\s+(.*)$/);
+        if (ordered) { if (list !== 'ol') { closeList(); list = 'ol'; output += '<ol>'; } output += '<li>' + inlineMarkdown(ordered[1]) + '</li>'; continue; }
+        closeList();
+        if (line === '---') output += '<hr>';
+        else if (line.startsWith('> ')) output += '<blockquote>' + inlineMarkdown(line.slice(2)) + '</blockquote>';
+        else output += '<p>' + inlineMarkdown(line) + '</p>';
+      }
+      closeList(); flushTable();
+      return output;
+    }
+    const state = { active: markdownDocuments[0].id };
+    const mdList = document.getElementById('mdDocList'), mdInput = document.getElementById('markdownInput'), mdPreview = document.getElementById('markdownPreview');
+    const mdTitle = document.getElementById('mdTitle'), mdPath = document.getElementById('mdPath'), mdDraftState = document.getElementById('mdDraftState');
+    const storageKey = id => 'fashion-lovart-nano-batch-md-draft:' + id;
+    const activeDocument = () => markdownDocuments.find(doc => doc.id === state.active);
+    const currentValue = doc => localStorage.getItem(storageKey(doc.id)) ?? doc.content;
+    function renderDocList(query = '') {
+      const term = query.trim().toLowerCase();
+      mdList.innerHTML = '';
+      markdownDocuments.filter(doc => !term || doc.title.toLowerCase().includes(term) || doc.relativePath.toLowerCase().includes(term)).forEach(doc => {
+        const button = document.createElement('button');
+        button.className = 'md-doc' + (doc.id === state.active ? ' active' : '');
+        button.innerHTML = '<strong>' + doc.title + '</strong><small>' + doc.relativePath + '</small>';
+        button.onclick = () => loadMarkdownDocument(doc.id);
+        mdList.appendChild(button);
+      });
+    }
+    function loadMarkdownDocument(id) {
+      state.active = id;
+      const doc = activeDocument();
+      mdTitle.textContent = doc.title; mdPath.textContent = doc.relativePath;
+      mdInput.value = currentValue(doc); mdPreview.innerHTML = renderMarkdown(mdInput.value);
+      mdDraftState.textContent = localStorage.getItem(storageKey(doc.id)) === null ? '原始版本' : '本地草稿已保存';
+      renderDocList(document.getElementById('mdSearch').value);
+    }
+    let timer;
+    mdInput.addEventListener('input', () => {
+      const doc = activeDocument();
+      mdPreview.innerHTML = renderMarkdown(mdInput.value);
+      mdDraftState.textContent = '正在保存…';
+      clearTimeout(timer);
+      timer = setTimeout(() => { localStorage.setItem(storageKey(doc.id), mdInput.value); mdDraftState.textContent = '本地草稿已保存'; }, 250);
+    });
+    document.getElementById('mdSearch').addEventListener('input', event => renderDocList(event.target.value));
+    document.getElementById('mdReset').onclick = () => {
+      const doc = activeDocument();
+      if (!confirm('恢复“' + doc.title + '”的原始 Markdown？当前浏览器草稿将被清除。')) return;
+      localStorage.removeItem(storageKey(doc.id)); loadMarkdownDocument(doc.id);
+    };
+    document.getElementById('mdCopy').onclick = async event => {
+      try { await navigator.clipboard.writeText(mdInput.value); } catch { mdInput.select(); document.execCommand('copy'); }
+      const old = event.currentTarget.textContent; event.currentTarget.textContent = '已复制'; setTimeout(() => event.currentTarget.textContent = old, 1000);
+    };
+    document.getElementById('mdDownload').onclick = () => {
+      const doc = activeDocument();
+      const blob = new Blob([mdInput.value], {type:'text/markdown;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a'); link.href = url; link.download = doc.fileName; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 500);
+    };
+    const sections = [...document.querySelectorAll('main section[id]')];
+    const navLinks = [...document.querySelectorAll('#sideNav a')];
+    addEventListener('scroll', () => {
+      const current = sections.reduce((picked, section) => section.getBoundingClientRect().top < 120 ? section : picked, sections[0]);
+      navLinks.forEach(link => link.classList.toggle('active', link.getAttribute('href') === '#' + current.id));
+    }, {passive: true});
+    renderDocList(); loadMarkdownDocument(markdownDocuments[0].id);
+  </script>
+</body>
+</html>

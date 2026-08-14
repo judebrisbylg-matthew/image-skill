@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fashion Lovart Nano Batch"
+  short_description: "按日期文件夹批量完成线稿、Lovart Nano Banana Pro 生图、质检与画布整理"
+  default_prompt: "Use $fashion-lovart-nano-batch to process a dated fashion folder. Prepare approved black-and-white line art for every valid SPU, generate 10 qualified Nano Banana Pro white-background try-on candidates in Lovart, and log completed, blocked, and queued SPUs."

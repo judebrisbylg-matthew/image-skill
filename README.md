@@ -4,19 +4,25 @@
 
 > 🌐 **新手入口：** [点击打开《SKC 四视角 Lovart 延展·可视化工作手册》](https://judebrisbylg-matthew.github.io/image-skill/)
 > 👗 **Nano 试穿入口：** [点击打开《Fashion Nano Tryon·可视化工作手册》](https://judebrisbylg-matthew.github.io/image-skill/fashion-nano-tryon/)
+> ✨ **批处理入口：** [点击打开《Fashion Lovart Nano Batch·可视化工作手册》](https://judebrisbylg-matthew.github.io/image-skill/fashion-lovart-nano-batch/)
 
 ## Skill 目录
 
 | Skill | 作用 | 文档 |
 |---|---|---|
 | [`fashion-nano-tryon`](fashion-nano-tryon/) | 用 Nano Banana Pro 完成线稿辅助的白底时装试穿 | [使用说明](fashion-nano-tryon/README.md) · [在线可视化手册](https://judebrisbylg-matthew.github.io/image-skill/fashion-nano-tryon/) · [HTML 源文件](fashion-nano-tryon/docs/handbook.html) |
+| [`fashion-lovart-nano-batch`](fashion-lovart-nano-batch/) | 按日期文件夹批量执行 Codex 线稿、Lovart Nano Banana Pro 生图、逐图质检和月度画布整理 | [使用说明](fashion-lovart-nano-batch/README.md) · [在线可视化手册](https://judebrisbylg-matthew.github.io/image-skill/fashion-lovart-nano-batch/) · [HTML 源文件](fashion-lovart-nano-batch/docs/handbook.html) |
 | [`fashion-lovart-view-extension`](fashion-lovart-view-extension/) | 批量处理 SKC 的正面、侧面、背面、全身延展图，并在 Lovart 中生成、质检和排版 | [使用说明](fashion-lovart-view-extension/README.md) · [在线可视化手册](https://judebrisbylg-matthew.github.io/image-skill/) · [HTML 源文件](fashion-lovart-view-extension/docs/handbook.html) |
 
 ## 仓库、智能体与 Skill 的关系
 
 ```text
 image-skill 仓库
-├── fashion-nano-tryon 线稿辅助 Nano 试穿工作流
+├── fashion-lovart-nano-batch 完整日期文件夹批处理智能体
+│   ├── skill/        Codex 可安装的完整执行规则
+│   ├── docs/         给人阅读的可视化 HTML 手册
+│   └── tools/        从正式 Markdown 重新生成手册的工具
+├── fashion-nano-tryon 单 SPU 的线稿辅助 Nano 试穿子流程
 │   ├── skill/        Codex 可安装的核心能力包
 │   ├── docs/         给人阅读的可视化 HTML 手册
 │   └── tools/        从正式 Markdown 重新生成手册的工具
