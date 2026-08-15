@@ -38,6 +38,17 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn("立即暂停", readme)
         self.assertIn("8% / 8% / 25%", readme)
 
+    def test_execution_contract_blocks_review_and_submission_when_results_are_incomplete(self):
+        skill = SKILL.read_text(encoding="utf-8")
+        reference = LOVART.read_text(encoding="utf-8")
+
+        for document in (skill, reference):
+            self.assertIn("blocked:base-count-incomplete", document)
+            self.assertIn("blocked:result-identity", document)
+            self.assertIn("placement backlog", document)
+            self.assertIn("five identified and verified base results", document)
+            self.assertIn("reserve", document)
+
 
 if __name__ == "__main__":
     unittest.main()

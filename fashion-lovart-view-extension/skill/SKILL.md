@@ -150,9 +150,11 @@ Read `references/lovart-execution.md` completely before browser work. Use the ex
 
 Create or locate the date label and SKC label before generation. A date region must be wide enough for the full 10-cell row plus labels and safety padding. Place a new date strictly to the right of the previous date region's actual rightmost object plus a visible safety gap. Place a new SKC for an existing date strictly below that date region's previous SKC actual bottom edge plus a gap approximately 25% of one displayed image height. Never place two different SKCs from the same date side by side, and never estimate the next region from only the first five base images.
 
+Before the first submission, reserve and visually verify the complete destination block: one date label, one SKC label, four labeled rows, and 10 cells per row. Record it with `update_run_state.py reserve-layout`. Submission is forbidden until the month project and layout reservation are both verified. Keep the placement backlog at zero: whenever a result appears, identify it from its exact task label and artifact, record `generated`, place and verify it, then submit the next task. If the task label or artifact cannot be matched, record `blocked:result-identity`; if any generated result remains unplaced, stop new submissions with `blocked:canvas-placement`.
+
 Use one Chrome tab and a separate Lovart conversation for every action. Upload that action's view package, submit exactly one task, wait until Lovart visibly accepts or queues it, then switch to a new conversation without opening another browser tab. Do not submit a second task in the same conversation while the first is unfinished: Lovart cancels the earlier free-queue task. Select Nano Banana Pro, 4K, 2:3. Treat 10 accepted unfinished tasks as Lovart's hard global concurrency window: count `submitted`, `queued`, and visibly generating actions across all views and SKCs, fill the window up to 10 even when early tasks show a free-queue estimate, never submit an 11th, and fill every released slot immediately with the next pending action. For a fresh four-view SKC, submit front `FR01`–`FR05` and side `SI01`–`SI05` as the first 10-task wave unless existing unfinished tasks already occupy slots. As soon as any slot is released, continue with back and then full-body actions; do not wait for a whole wave to finish.
 
-Use a two-phase quality order for each SKC: first submit and wait for all 20 base actions (four views times five actions) to finish; only then begin the unified visual review. Do not interrupt base generation with quality retries. After all 20 base results exist, review them one by one, then use released slots for evidence-based retries.
+Use a two-phase quality order for each SKC: first submit and wait for all 20 base actions (four views times five actions) to finish; only then begin the unified visual review. Do not interrupt base generation with quality retries. Run `update_run_state.py review-gate` before review. Every view must contain five identified and verified base results in action slots `01`–`05`. If any view has fewer than five, record `blocked:base-count-incomplete`; do not review or submit corrections until the missing base actions finish and are placed. After the gate passes, review the 20 base results one by one, then use released slots for evidence-based retries.
 
 Apply a hard generation cap independently to every view. Front, side, back, and full may each produce at most 10 candidate images total: five base candidates plus no more than five correction candidates. Count a candidate only after Lovart visibly returns an image; count rejected images and replacement images, but do not count pending, submitted, queued, cancelled, or failed requests that return no image. Before submitting, reserve capacity for all unfinished requests in that view so accepted work cannot exceed the 10-image cap. Give every rejected action one correction opportunity before assigning another correction to an action that has already received one. Stop the view immediately after it has five qualified actions or reaches 10 generated candidates. At the cap, mark every unresolved action `blocked:quality-cap` and continue other views or SKCs.
 
@@ -160,10 +162,10 @@ Canvas placement is **not** deferred to either phase. The moment any task finish
 
 Never click `立即生成`, use points, pay for acceleration, silently select Nano Banana 2, combine actions into a grid request, or upload references to the wrong view conversation.
 
-Update state after every observable task change:
+Update state after every observable task change. Use `generated` only after the exact Lovart task label and artifact identity are confirmed:
 
 ```bash
-python3 scripts/update_run_state.py transition <state> <view> <action-id> <status> [--reason ...] [--task-label ...]
+python3 scripts/update_run_state.py transition <state> <view> <action-id> <status> [--reason ...] [--task-label ...] [--artifact-id ...]
 ```
 
 ### 8. Review candidates
@@ -202,6 +204,8 @@ A visible multi-minute free-queue estimate is not itself a stop condition. Mark 
 - Exceeding 10 generated candidates in a view. Five base images plus five correction images is the absolute row limit.
 - Reusing one Lovart conversation for multiple unfinished actions. Lovart cancels the earlier free-queue task; use one conversation per action while keeping one browser tab.
 - Deferring layout until all results finish. Place and verify every completed result immediately; late bulk layout is fragile and can exceed the browser-control window.
+- Starting review when a view has fewer than five identified and verified base results. The 20-image base-count gate must pass first.
+- Continuing submission with a non-zero placement backlog or guessing an action from completion order. Stop and resolve the exact task label and artifact identity.
 - Arranging SKCs from the same date side by side. Dates advance horizontally; SKCs within one date advance vertically.
 - Starting the next date after only the five-cell primary strip. Reserve the full 10-cell row width and a safety gap so later corrections cannot collide with the next date.
 - Spending points to clear a queue. This workflow is free-queue only.

@@ -9,8 +9,9 @@
 5. If the name mismatches or cannot be read, do not upload references and do not submit tasks. Record `blocked:month-project-mismatch` and immediately send the generated feedback containing source path, expected project, current project, and correction instruction.
 6. After the user replies `已修正`, re-read the visible project name and verify it again. Do not resume from the user's statement alone.
 7. When verification passes, locate/create the correct date region, then the SKC area inside it, then the active view row. Dates run left-to-right; SKCs within the same date run top-to-bottom.
-8. Start a fresh conversation for the action. Keep all actions in one Chrome tab, but never reuse a conversation for another unfinished action.
-9. Confirm the visible model is Nano Banana Pro, output is 4K, ratio is 2:3, and no points acceleration is enabled.
+8. Before upload, reserve the entire V2 destination: visible date/SKC labels, four view rows, and 10 cells per row. Record the verified reservation. Do not submit into an improvised or partially measured area.
+9. Start a fresh conversation for the action. Keep all actions in one Chrome tab, but never reuse a conversation for another unfinished action.
+10. Confirm the visible model is Nano Banana Pro, output is 4K, ratio is 2:3, and no points acceleration is enabled.
 
 Project verification is a hard gate. No reference upload, prompt submission, or concurrency-slot reservation may occur while it is pending or blocked.
 
@@ -22,6 +23,14 @@ Project verification is a hard gate. No reference upload, prompt submission, or 
 - Never request five variants in one combined image. Never use a collage, contact sheet, grid, or multiple people.
 - If a button offers `立即生成` or points acceleration, do not click it. Record queue state and mark the accepted task `queued`.
 - Record every visible free-queue estimate but continue submitting until 10 unfinished tasks are accepted. Fill a released slot immediately with the next pending back/full action. For each SKC, finish all 20 base generations before visual review or retry submissions. Finalize Chrome as a handoff only when the 10-task window is full or Lovart explicitly refuses an additional free submission. Do not block one tool call indefinitely.
+- A completed result creates a placement backlog. Resolve its exact task label and artifact identity, move it to the correct slot, verify persistence, and update state before using the released concurrency slot. The placement backlog must remain zero before every new submission. Unknown identity is `blocked:result-identity`; an unverified move is `blocked:canvas-placement`.
+
+## Base-count review gate
+
+- Unified review and correction generation are forbidden until every view has five identified and verified base results in action slots `01`–`05`.
+- Run the deterministic review gate after base generation. A missing result produces `blocked:base-count-incomplete` with the missing count for front, side, back, and full.
+- “Submitted”, “queued”, a Lovart text response, or an unidentified canvas image is not a base result. Only a returned image with matching task label, artifact identity, and verified primary placement counts.
+- When the gate reports fewer than five for any view, finish those missing base actions first. Do not start quality review and do not generate corrections.
 
 ## Per-view generation cap
 

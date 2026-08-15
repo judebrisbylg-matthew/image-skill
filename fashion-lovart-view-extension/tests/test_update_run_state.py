@@ -1,4 +1,7 @@
 import importlib.util
+import json
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -20,6 +23,37 @@ def ready_state(module):
     )
 
 
+def verified_execution_context():
+    return {
+        "source_path": "/Users/chenyiming/Desktop/8月/8月14日",
+        "expected_month_project": "8月",
+        "date_region": "8月14日",
+        "verified_month_project": "8月",
+        "project_verification_status": "verified",
+        "blocker": None,
+        "feedback_required": False,
+        "feedback_message": None,
+        "feedback_sent_at": None,
+    }
+
+
+def gated_state(module, views=("front",)):
+    state = module.initialize_state(
+        {
+            "skc_id": "ds-test",
+            "views": {view: {"status": "ready"} for view in views},
+        },
+        verified_execution_context(),
+    )
+    module.record_layout_reservation(
+        state,
+        date_region="8月14日",
+        skc_label="ds-test · V2测试",
+        verified=True,
+    )
+    return state
+
+
 def ready_submitted_state(module):
     state = ready_state(module)
     module.transition_action(state, "front", "FR01", "submitted")
@@ -27,6 +61,159 @@ def ready_submitted_state(module):
 
 
 class RunStateTests(unittest.TestCase):
+    def test_cli_reserves_layout_and_blocks_review_before_base_twenty(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            manifest = temp / "manifest.json"
+            context = temp / "context.json"
+            state = temp / "state.json"
+            manifest.write_text(
+                json.dumps({
+                    "skc_id": "ds-test",
+                    "views": {
+                        view: {"status": "ready"}
+                        for view in ("front", "side", "back", "full")
+                    },
+                }),
+                encoding="utf-8",
+            )
+            context.write_text(json.dumps(verified_execution_context()), encoding="utf-8")
+            subprocess.run(
+                ["python3", str(SCRIPT), "init", str(manifest), str(state),
+                 "--execution-context", str(context)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                ["python3", str(SCRIPT), "reserve-layout", str(state),
+                 "--date-region", "8月14日", "--skc-label", "ds-test · V2测试",
+                 "--verified"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            reviewed = subprocess.run(
+                ["python3", str(SCRIPT), "review-gate", str(state)],
+                capture_output=True,
+                text=True,
+            )
+            payload = json.loads(state.read_text(encoding="utf-8"))
+            self.assertEqual(reviewed.returncode, 4)
+            self.assertEqual(payload["layout_reservation"]["status"], "verified")
+            self.assertEqual(
+                payload["review_gate"]["status"], "blocked:base-count-incomplete"
+            )
+
+    def test_submission_requires_verified_project_and_reserved_layout(self):
+        module = load_module()
+        state = module.initialize_state(
+            {"skc_id": "ds-test", "views": {"front": {"status": "ready"}}},
+            verified_execution_context(),
+        )
+
+        with self.assertRaisesRegex(ValueError, "layout reservation is not verified"):
+            module.transition_action(state, "front", "FR01", "submitted")
+
+        module.record_layout_reservation(
+            state,
+            date_region="8月14日",
+            skc_label="ds-test · V2测试",
+            verified=True,
+        )
+        module.transition_action(
+            state,
+            "front",
+            "FR01",
+            "submitted",
+            task_label="SKC ds-test | VIEW front | ACTION FR01 | ATTEMPT 1",
+        )
+        self.assertEqual(state["views"]["front"]["actions"]["FR01"]["status"], "submitted")
+
+    def test_generated_result_requires_identity_and_blocks_next_submission_until_placed(self):
+        module = load_module()
+        state = gated_state(module)
+        label = "SKC ds-test | VIEW front | ACTION FR01 | ATTEMPT 1"
+        module.transition_action(
+            state, "front", "FR01", "submitted", task_label=label
+        )
+
+        with self.assertRaisesRegex(ValueError, "artifact identity is required"):
+            module.transition_action(state, "front", "FR01", "generated")
+
+        module.transition_action(
+            state,
+            "front",
+            "FR01",
+            "generated",
+            task_label=label,
+            artifact_id="artifact-fr01",
+        )
+        with self.assertRaisesRegex(ValueError, "placement backlog must be zero"):
+            module.transition_action(
+                state,
+                "front",
+                "FR02",
+                "submitted",
+                task_label="SKC ds-test | VIEW front | ACTION FR02 | ATTEMPT 1",
+            )
+
+        module.place_attempt(
+            state, "front", "FR01", 1, area="primary", slot=1, verified=True
+        )
+        module.transition_action(
+            state,
+            "front",
+            "FR02",
+            "submitted",
+            task_label="SKC ds-test | VIEW front | ACTION FR02 | ATTEMPT 1",
+        )
+        self.assertEqual(state["views"]["front"]["actions"]["FR02"]["status"], "submitted")
+
+    def test_review_gate_requires_five_identified_and_placed_base_results_per_view(self):
+        module = load_module()
+        state = gated_state(module, views=("front", "side", "back", "full"))
+
+        initial = module.evaluate_review_gate(state)
+        self.assertEqual(initial["status"], "blocked:base-count-incomplete")
+        self.assertEqual(initial["missing_base_results"], {
+            "front": 5,
+            "side": 5,
+            "back": 5,
+            "full": 5,
+        })
+
+        for view, prefix in module.PREFIXES.items():
+            for index in range(1, 6):
+                action_id = f"{prefix}{index:02d}"
+                label = (
+                    f"SKC ds-test | VIEW {view} | ACTION {action_id} | ATTEMPT 1"
+                )
+                module.transition_action(
+                    state, view, action_id, "submitted", task_label=label
+                )
+                module.transition_action(
+                    state,
+                    view,
+                    action_id,
+                    "generated",
+                    task_label=label,
+                    artifact_id=f"artifact-{action_id.lower()}",
+                )
+                module.place_attempt(
+                    state,
+                    view,
+                    action_id,
+                    1,
+                    area="primary",
+                    slot=index,
+                    verified=True,
+                )
+
+        ready = module.evaluate_review_gate(state)
+        self.assertEqual(ready["status"], "ready")
+        self.assertTrue(ready["review_allowed"])
+
     def test_initializes_five_pending_actions_and_generation_cap(self):
         module = load_module()
         state = ready_state(module)
@@ -54,7 +241,7 @@ class RunStateTests(unittest.TestCase):
             context,
         )
 
-        self.assertEqual(state["schema_version"], 4)
+        self.assertEqual(state["schema_version"], 5)
         self.assertEqual(state["execution_context"]["expected_month_project"], "8月")
         self.assertEqual(state["execution_context"]["date_region"], "8月15日")
 

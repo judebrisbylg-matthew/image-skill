@@ -19,8 +19,9 @@ VERTICAL_GAP_RATIO = 0.08
 SKC_GAP_RATIO = 0.25
 TRANSITIONS = {
     "pending": {"submitted", "blocked"},
-    "submitted": {"queued", "qualified", "rejected", "blocked"},
-    "queued": {"qualified", "rejected", "blocked"},
+    "submitted": {"queued", "generated", "qualified", "rejected", "blocked"},
+    "queued": {"generated", "qualified", "rejected", "blocked"},
+    "generated": {"qualified", "rejected", "blocked"},
     "rejected": {"submitted", "blocked"},
     "qualified": set(),
     "blocked": set(),
@@ -65,14 +66,147 @@ def initialize_state(manifest: dict, execution_context: dict | None = None) -> d
             "actions": actions,
         }
     return {
-        "schema_version": 4,
+        "schema_version": 5,
         "skc_id": manifest["skc_id"],
         "status": "pending",
         "updated_at": now_iso(),
         "execution_blocker": None,
         "execution_context": deepcopy(execution_context),
+        "layout_reservation": {
+            "status": "pending",
+            "date_region": None,
+            "skc_label": None,
+            "verified_at": None,
+        },
         "views": views,
     }
+
+
+def record_layout_reservation(
+    state: dict,
+    *,
+    date_region: str,
+    skc_label: str,
+    verified: bool,
+) -> dict:
+    """Record the preallocated ten-cell-by-four-row destination block."""
+    if not date_region or not skc_label:
+        raise ValueError("date_region and skc_label are required")
+    state["layout_reservation"] = {
+        "status": "verified" if verified else "blocked:canvas-reservation",
+        "date_region": date_region,
+        "skc_label": skc_label,
+        "verified_at": now_iso() if verified else None,
+    }
+    state["schema_version"] = max(5, state.get("schema_version", 1))
+    state["updated_at"] = now_iso()
+    return state
+
+
+def _verified_placements(action: dict) -> set[int]:
+    return {
+        int(item["attempt"])
+        for item in action.get("canvas", {}).get("placements", [])
+        if item.get("verified")
+    }
+
+
+def placement_backlog(state: dict) -> list[dict]:
+    """Return generated artifacts that do not yet have verified canvas placement."""
+    backlog = []
+    for view_key, view in state.get("views", {}).items():
+        for action_id, action in view.get("actions", {}).items():
+            placed = _verified_placements(action)
+            for attempt in action.get("attempt_history", []):
+                if attempt.get("result_recorded_at") and attempt["attempt"] not in placed:
+                    backlog.append(
+                        {
+                            "view": view_key,
+                            "action_id": action_id,
+                            "attempt": attempt["attempt"],
+                            "artifact_id": attempt.get("artifact_id"),
+                        }
+                    )
+    return backlog
+
+
+def _assert_submission_gate(state: dict, task_label: str | None) -> None:
+    """Reject browser submissions while deterministic preconditions are unmet."""
+    context = state.get("execution_context")
+    if context is None:
+        return
+    if context.get("project_verification_status") != "verified":
+        raise ValueError("month project is not verified")
+    if state.get("layout_reservation", {}).get("status") != "verified":
+        raise ValueError("layout reservation is not verified")
+    if placement_backlog(state):
+        raise ValueError("placement backlog must be zero before submission")
+    if not task_label:
+        raise ValueError("exact Lovart task label is required")
+
+
+def evaluate_review_gate(state: dict) -> dict:
+    """Allow unified review only after 5 identified, placed base results per view."""
+    missing = {}
+    identity_missing = []
+    for view_key, view in state.get("views", {}).items():
+        actions = view.get("actions", {})
+        if not actions:
+            continue
+        base_count = 0
+        for action_id, action in actions.items():
+            first = next(
+                (
+                    attempt
+                    for attempt in action.get("attempt_history", [])
+                    if attempt.get("attempt") == 1 and attempt.get("result_recorded_at")
+                ),
+                None,
+            )
+            if first is None:
+                continue
+            if not first.get("artifact_id") or not first.get("task_label"):
+                identity_missing.append(f"{view_key}/{action_id}/1")
+                continue
+            base_count += 1
+        if base_count < 5:
+            missing[view_key] = 5 - base_count
+
+    if missing:
+        result = {
+            "status": "blocked:base-count-incomplete",
+            "review_allowed": False,
+            "missing_base_results": missing,
+            "identity_missing": identity_missing,
+            "placement_backlog": placement_backlog(state),
+        }
+    elif identity_missing:
+        result = {
+            "status": "blocked:result-identity",
+            "review_allowed": False,
+            "missing_base_results": {},
+            "identity_missing": identity_missing,
+            "placement_backlog": placement_backlog(state),
+        }
+    elif placement_backlog(state):
+        result = {
+            "status": "blocked:canvas-placement",
+            "review_allowed": False,
+            "missing_base_results": {},
+            "identity_missing": [],
+            "placement_backlog": placement_backlog(state),
+        }
+    else:
+        result = {
+            "status": "ready",
+            "review_allowed": True,
+            "missing_base_results": {},
+            "identity_missing": [],
+            "placement_backlog": [],
+        }
+    state["review_gate"] = deepcopy(result)
+    state["updated_at"] = now_iso()
+    return result
 
 
 def record_project_verification(state: dict, context: dict) -> dict:
@@ -86,7 +220,7 @@ def record_project_verification(state: dict, context: dict) -> dict:
         state["execution_blocker"] = blocker
     elif context.get("project_verification_status") == "verified":
         state["execution_blocker"] = None
-    state["schema_version"] = max(4, state.get("schema_version", 1))
+    state["schema_version"] = max(5, state.get("schema_version", 1))
     state["updated_at"] = now_iso()
     _recompute_state(state)
     return state
@@ -99,7 +233,7 @@ def mark_project_feedback_sent(state: dict) -> dict:
         raise ValueError("no pending project feedback")
     context["feedback_required"] = False
     context["feedback_sent_at"] = now_iso()
-    state["schema_version"] = max(4, state.get("schema_version", 1))
+    state["schema_version"] = max(5, state.get("schema_version", 1))
     state["updated_at"] = now_iso()
     return state
 
@@ -161,7 +295,7 @@ def place_attempt(
     elif canvas.get("current_attempt") == attempt:
         canvas["current_attempt"] = None
     action["updated_at"] = now_iso()
-    state["schema_version"] = max(4, state.get("schema_version", 1))
+    state["schema_version"] = max(5, state.get("schema_version", 1))
     state["updated_at"] = now_iso()
     return state
 
@@ -220,7 +354,16 @@ def _block_view_at_generation_cap(view: dict) -> None:
             action["updated_at"] = now_iso()
 
 
-def transition_action(state: dict, view_key: str, action_id: str, new_status: str, *, reason: str | None = None, task_label: str | None = None) -> dict:
+def transition_action(
+    state: dict,
+    view_key: str,
+    action_id: str,
+    new_status: str,
+    *,
+    reason: str | None = None,
+    task_label: str | None = None,
+    artifact_id: str | None = None,
+) -> dict:
     try:
         view = state["views"][view_key]
         _upgrade_view_state(view)
@@ -232,6 +375,7 @@ def transition_action(state: dict, view_key: str, action_id: str, new_status: st
         raise ValueError(f"invalid transition: {old_status} -> {new_status}")
 
     if new_status == "submitted":
+        _assert_submission_gate(state, task_label)
         generated = int(view.get("generated_count", 0))
         reserved = _reserved_candidate_count(view)
         generation_limit = int(view.get("generation_limit", VIEW_GENERATION_LIMIT))
@@ -246,12 +390,20 @@ def transition_action(state: dict, view_key: str, action_id: str, new_status: st
                 "attempt": action["attempts"],
                 "submitted_at": action["submitted_at"],
                 "task_label": task_label,
+                "artifact_id": None,
                 "rejection_reason": None,
                 "result_recorded_at": None,
                 "result_status": None,
             }
         )
-    if new_status in {"qualified", "rejected"}:
+    if new_status == "generated":
+        expected_label = action.get("lovart_task_label")
+        if not artifact_id or not task_label or task_label != expected_label:
+            action["blocker"] = "blocked:result-identity"
+            raise ValueError("artifact identity is required and must match the task label")
+        _record_generated_candidate(view, action, "generated")
+        action["attempt_history"][-1]["artifact_id"] = artifact_id
+    if new_status in {"qualified", "rejected"} and old_status != "generated":
         _record_generated_candidate(view, action, new_status)
     if new_status == "rejected":
         if not reason:
@@ -265,7 +417,7 @@ def transition_action(state: dict, view_key: str, action_id: str, new_status: st
     action["status"] = new_status
     action["updated_at"] = now_iso()
     _block_view_at_generation_cap(view)
-    state["schema_version"] = max(4, state.get("schema_version", 1))
+    state["schema_version"] = max(5, state.get("schema_version", 1))
     state["updated_at"] = now_iso()
     _recompute_state(state)
     return state
@@ -316,6 +468,7 @@ def main() -> int:
     update.add_argument("status", choices=tuple(TRANSITIONS))
     update.add_argument("--reason")
     update.add_argument("--task-label")
+    update.add_argument("--artifact-id")
     place = sub.add_parser("place")
     place.add_argument("state", type=Path)
     place.add_argument("view", choices=tuple(PREFIXES))
@@ -329,6 +482,13 @@ def main() -> int:
     project.add_argument("context", type=Path)
     feedback = sub.add_parser("feedback-sent")
     feedback.add_argument("state", type=Path)
+    reserve_layout = sub.add_parser("reserve-layout")
+    reserve_layout.add_argument("state", type=Path)
+    reserve_layout.add_argument("--date-region", required=True)
+    reserve_layout.add_argument("--skc-label", required=True)
+    reserve_layout.add_argument("--verified", action="store_true")
+    review_gate = sub.add_parser("review-gate")
+    review_gate.add_argument("state", type=Path)
     args = parser.parse_args()
 
     if args.command == "init":
@@ -345,7 +505,15 @@ def main() -> int:
     elif args.command == "transition":
         destination = args.state
         payload = json.loads(destination.read_text(encoding="utf-8"))
-        transition_action(payload, args.view, args.action_id, args.status, reason=args.reason, task_label=args.task_label)
+        transition_action(
+            payload,
+            args.view,
+            args.action_id,
+            args.status,
+            reason=args.reason,
+            task_label=args.task_label,
+            artifact_id=args.artifact_id,
+        )
     elif args.command == "place":
         destination = args.state
         payload = json.loads(destination.read_text(encoding="utf-8"))
@@ -363,13 +531,29 @@ def main() -> int:
         payload = json.loads(destination.read_text(encoding="utf-8"))
         context = json.loads(args.context.read_text(encoding="utf-8"))
         record_project_verification(payload, context)
-    else:
+    elif args.command == "feedback-sent":
         destination = args.state
         payload = json.loads(destination.read_text(encoding="utf-8"))
         mark_project_feedback_sent(payload)
+    elif args.command == "reserve-layout":
+        destination = args.state
+        payload = json.loads(destination.read_text(encoding="utf-8"))
+        record_layout_reservation(
+            payload,
+            date_region=args.date_region,
+            skc_label=args.skc_label,
+            verified=args.verified,
+        )
+    else:
+        destination = args.state
+        payload = json.loads(destination.read_text(encoding="utf-8"))
+        gate = evaluate_review_gate(payload)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(destination)
+    if args.command == "review-gate" and not gate["review_allowed"]:
+        print(json.dumps(gate, ensure_ascii=False))
+        return 4
     return 0
 
 
