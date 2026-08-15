@@ -1,3 +1,4 @@
+import copy
 import importlib.util
 import json
 import subprocess
@@ -19,7 +20,8 @@ def load_module():
 
 def ready_state(module):
     state = module.initialize_state(
-        {"skc_id": "ds-test", "views": {"front": {"status": "ready"}}}
+        {"skc_id": "ds-test", "views": {"front": {"status": "ready"}}},
+        verified_execution_context(),
     )
     module.record_layout_reservation(
         state,
@@ -28,6 +30,21 @@ def ready_state(module):
         verified=True,
     )
     return state
+
+
+def task_label(view, action_id, attempt=1):
+    return f"SKC ds-test | VIEW {view} | ACTION {action_id} | ATTEMPT {attempt}"
+
+
+def submit_action(module, state, view, action_id):
+    attempt = state["views"][view]["actions"][action_id]["attempts"] + 1
+    return module.transition_action(
+        state,
+        view,
+        action_id,
+        "submitted",
+        task_label=task_label(view, action_id, attempt),
+    )
 
 
 def verified_execution_context():
@@ -63,7 +80,7 @@ def gated_state(module, views=("front",)):
 
 def ready_submitted_state(module):
     state = ready_state(module)
-    module.transition_action(state, "front", "FR01", "submitted")
+    submit_action(module, state, "front", "FR01")
     return state
 
 
@@ -120,7 +137,7 @@ class RunStateTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ValueError, "layout reservation is not verified"):
-            module.transition_action(state, "front", "FR01", "submitted")
+            submit_action(module, state, "front", "FR01")
 
         module.record_layout_reservation(
             state,
@@ -221,7 +238,7 @@ class RunStateTests(unittest.TestCase):
     def test_rejected_identity_drift_requires_structured_reason_code(self):
         module = load_module()
         state = ready_state(module)
-        module.transition_action(state, "front", "FR01", "submitted")
+        submit_action(module, state, "front", "FR01")
 
         module.transition_action(
             state,
@@ -247,7 +264,7 @@ class RunStateTests(unittest.TestCase):
         )
 
         for action_id, reason_code in cases:
-            module.transition_action(state, "front", action_id, "submitted")
+            submit_action(module, state, "front", action_id)
             module.transition_action(
                 state,
                 "front",
@@ -260,8 +277,17 @@ class RunStateTests(unittest.TestCase):
                 "attempt_history"
             ][-1]
             self.assertEqual(history["rejection_reason_code"], reason_code)
+            module.place_attempt(
+                state,
+                "front",
+                action_id,
+                history["attempt"],
+                area="primary",
+                slot=int(action_id[-2:]),
+                verified=True,
+            )
 
-        module.transition_action(state, "front", "FR04", "submitted")
+        submit_action(module, state, "front", "FR04")
         with self.assertRaisesRegex(ValueError, "unknown quality reason code"):
             module.transition_action(
                 state,
@@ -303,7 +329,7 @@ class RunStateTests(unittest.TestCase):
         for reason in ("   ", 123):
             with self.subTest(reason=reason):
                 state = ready_state(module)
-                module.transition_action(state, "front", "FR01", "submitted")
+                submit_action(module, state, "front", "FR01")
 
                 with self.assertRaisesRegex(
                     ValueError, "rejected transition requires a non-empty string reason"
@@ -434,6 +460,121 @@ class RunStateTests(unittest.TestCase):
         self.assertEqual(ready["status"], "ready")
         self.assertTrue(ready["review_allowed"])
 
+    def test_initialization_without_execution_context_cannot_bypass_submission_gates(self):
+        module = load_module()
+        state = module.initialize_state(
+            {"skc_id": "ds-test", "views": {"front": {"status": "ready"}}}
+        )
+        module.record_layout_reservation(
+            state,
+            date_region="8月14日",
+            skc_label="ds-test · V2测试",
+            verified=True,
+        )
+
+        with self.assertRaisesRegex(ValueError, "month project is not verified"):
+            module.transition_action(
+                state,
+                "front",
+                "FR01",
+                "submitted",
+                task_label=task_label("front", "FR01"),
+            )
+
+    def test_global_unfinished_limit_rejects_the_eleventh_submission_across_views(self):
+        module = load_module()
+        state = gated_state(module, views=("front", "side", "back", "full"))
+        first_wave = [
+            (view, f"{module.PREFIXES[view]}{index:02d}")
+            for view in ("front", "side")
+            for index in range(1, 6)
+        ]
+        for view, action_id in first_wave:
+            submit_action(module, state, view, action_id)
+
+        with self.assertRaisesRegex(ValueError, "global unfinished limit"):
+            submit_action(module, state, "back", "BA01")
+
+    def test_review_gate_requires_exact_base_identity_and_verified_primary_slots(self):
+        module = load_module()
+        state = gated_state(module, views=("front", "side", "back", "full"))
+        for view, prefix in module.PREFIXES.items():
+            for index in range(1, 6):
+                action_id = f"{prefix}{index:02d}"
+                label = task_label(view, action_id)
+                module.transition_action(
+                    state, view, action_id, "submitted", task_label=label
+                )
+                module.transition_action(
+                    state,
+                    view,
+                    action_id,
+                    "generated",
+                    task_label=label,
+                    artifact_id=f"artifact-{action_id.lower()}",
+                )
+                module.place_attempt(
+                    state,
+                    view,
+                    action_id,
+                    1,
+                    area="primary",
+                    slot=index,
+                    verified=True,
+                )
+        self.assertTrue(module.evaluate_review_gate(state)["review_allowed"])
+
+        def missing_view(candidate):
+            candidate["views"].pop("full")
+
+        def ghost_view(candidate):
+            candidate["views"]["ghost"] = {"status": "pending", "actions": {}}
+
+        def missing_action(candidate):
+            candidate["views"]["front"]["actions"].pop("FR05")
+
+        def wrong_label(candidate):
+            candidate["views"]["front"]["actions"]["FR01"]["attempt_history"][0][
+                "task_label"
+            ] = "wrong label"
+
+        def boolean_artifact(candidate):
+            candidate["views"]["front"]["actions"]["FR01"]["attempt_history"][0][
+                "artifact_id"
+            ] = True
+
+        def supplemental_only(candidate):
+            placement = candidate["views"]["front"]["actions"]["FR01"]["canvas"][
+                "placements"
+            ][0]
+            placement.update(area="supplemental", slot=1, row_slot=1)
+
+        def wrong_primary_slot(candidate):
+            placement = candidate["views"]["front"]["actions"]["FR01"]["canvas"][
+                "placements"
+            ][0]
+            placement.update(slot=2, row_slot=2)
+
+        def malformed_canvas(candidate):
+            candidate["views"]["front"]["actions"]["FR01"]["canvas"] = "broken"
+
+        for defect, mutate in {
+            "missing view": missing_view,
+            "ghost view": ghost_view,
+            "missing action": missing_action,
+            "wrong task label": wrong_label,
+            "boolean artifact": boolean_artifact,
+            "supplemental-only placement": supplemental_only,
+            "wrong primary slot": wrong_primary_slot,
+            "malformed canvas": malformed_canvas,
+        }.items():
+            with self.subTest(defect=defect):
+                candidate = copy.deepcopy(state)
+                mutate(candidate)
+                self.assertFalse(
+                    module.evaluate_review_gate(candidate)["review_allowed"], defect
+                )
+
     def test_initializes_five_pending_actions_and_generation_cap(self):
         module = load_module()
         state = ready_state(module)
@@ -552,13 +693,22 @@ class RunStateTests(unittest.TestCase):
         state = ready_state(module)
         for index in range(10):
             action_id = f"FR{index % 5 + 1:02d}"
-            module.transition_action(state, "front", action_id, "submitted")
+            submit_action(module, state, "front", action_id)
             module.transition_action(
                 state,
                 "front",
                 action_id,
                 "rejected",
                 reason=f"quality drift {index + 1}",
+            )
+            module.place_attempt(
+                state,
+                "front",
+                action_id,
+                state["views"]["front"]["actions"][action_id]["attempts"],
+                area="primary",
+                slot=int(action_id[-2:]),
+                verified=True,
             )
 
         view = state["views"]["front"]

@@ -42,6 +42,23 @@ IDENTITY_FIELDS = (
 )
 
 
+def representative_view(view):
+    folder = {"front": "正面", "side": "侧面", "back": "背面", "full": "全身"}[view]
+    paths = [f"{folder}/{index}.jpg" for index in range(1, 4)]
+    return {
+        "status": "ready",
+        "files": [{"relative_path": path} for path in paths],
+        "roles": {
+            "model_source": [paths[0]],
+            "product_source": [paths[1]],
+            "scene_source": [paths[2]],
+            "composition_source": [paths[0]],
+            "accessory_source": [],
+            "unused": [],
+        },
+    }
+
+
 def representative_manifest(head_visibility, *, long_dress):
     return {
         "schema_version": 2,
@@ -64,7 +81,10 @@ def representative_manifest(head_visibility, *, long_dress):
             "requires_full_garment_frame": long_dress,
             "reason": "Visible product evidence",
         },
-        "views": {"front": {"status": "blocked:missing-view", "roles": {}}},
+        "views": {
+            view: representative_view(view)
+            for view in ("front", "side", "back", "full")
+        },
     }
 
 
@@ -136,7 +156,9 @@ def render_template_prompt(view, manifest):
                 "title": f"Documented {view} action {index}",
                 "prompt_en": (
                     f"SKC {manifest['skc_id']} | VIEW {view} | ACTION {action_id} | "
-                    f"ATTEMPT 1 Nano Banana Pro, 4K, 2:3. {rendered}"
+                    f"ATTEMPT 1 "
+                    f"{'Nano Banana Pro, 4K, 2:3. ' if view != 'full' else ''}"
+                    f"{rendered}"
                 ),
                 "negative_prompt": "Do not alter the product.",
             }
@@ -462,6 +484,58 @@ class DocumentationContractTests(unittest.TestCase):
                 self.assertEqual(
                     validate_manifest.validate_prompt_data(prompt, manifest), []
                 )
+
+    def test_retry_docs_rebuild_terminal_contract_after_inserting_correction(self):
+        ordered_steps = (
+            "Remove the existing terminal block from FINAL CONTRACT OVERRIDE through the end of the prompt.",
+            "Insert the evidence-based correction into the action prose before the terminal block.",
+            "Rebuild and append the entire manifest-derived terminal block",
+            "Validate the rebuilt prompt; never append correction text after the terminal block.",
+        )
+        for document in (SKILL, LOVART):
+            with self.subTest(document=document.name):
+                source = document.read_text(encoding="utf-8")
+                for step in ordered_steps:
+                    self.assertIn(step, source)
+                positions = [source.index(step) for step in ordered_steps]
+                self.assertEqual(positions, sorted(positions))
+
+    def test_full_literal_actions_place_generation_settings_before_terminal_suffix(self):
+        source = TEMPLATES["full"].read_text(encoding="utf-8")
+        self.assertNotIn(
+            "Output parameters: 4K resolution, 2:3 aspect ratio, model: nano banana pro",
+            source,
+        )
+        for index, action in enumerate(template_action_texts("full"), start=1):
+            with self.subTest(action=index):
+                lowered = action.casefold()
+                suffix_start = lowered.index("final contract override:")
+                literal_prefix = lowered[:suffix_start]
+                for setting in ("nano banana pro", "4k", "2:3"):
+                    self.assertIn(setting, literal_prefix)
+
+        negative_prompt = source.split(
+            "## 二、通用负面提示词（Negative Prompt，全方案共用）", 1
+        )[1].split("`", 2)[1]
+        manifest = representative_manifest("partial", long_dress=True)
+        prompt = render_template_prompt("full", manifest)
+        for action in prompt["actions"]:
+            action["negative_prompt"] = negative_prompt
+        self.assertEqual(validate_manifest.validate_prompt_data(prompt, manifest), [])
+
+    def test_handbook_names_the_sole_identity_filename_exception_and_denies_generic_models(self):
+        required = (
+            "正面/1.jpg is the sole filename-based exception.",
+            (
+                "A generic model_source or local pose/composition source must never "
+                "supply canonical identity or body_profile."
+            ),
+        )
+        for artifact in (SKILL, HANDBOOK, SITE_INDEX):
+            with self.subTest(artifact=artifact.name):
+                source = artifact.read_text(encoding="utf-8")
+                for statement in required:
+                    self.assertIn(statement, source)
 
     def test_noncanonical_local_models_never_control_body_profile(self):
         required_guard = (

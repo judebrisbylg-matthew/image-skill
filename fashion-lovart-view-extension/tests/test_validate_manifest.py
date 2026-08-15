@@ -17,6 +17,23 @@ SPEC.loader.exec_module(validate_manifest)
 CANONICAL_SOURCE = {"relative_path": "正面/1.jpg", "sha256": "a" * 64}
 
 
+def valid_view(view):
+    folder = {"front": "正面", "side": "侧面", "back": "背面", "full": "全身"}[view]
+    paths = [f"{folder}/{index}.jpg" for index in range(1, 4)]
+    return {
+        "status": "ready",
+        "files": [{"relative_path": path} for path in paths],
+        "roles": {
+            "model_source": [paths[0]],
+            "product_source": [paths[1]],
+            "scene_source": [paths[2]],
+            "composition_source": [paths[0]],
+            "accessory_source": [],
+            "unused": [],
+        },
+    }
+
+
 def valid_manifest():
     return {
         "schema_version": 2,
@@ -39,7 +56,9 @@ def valid_manifest():
             "requires_full_garment_frame": True,
             "reason": "Hem is below knee",
         },
-        "views": {"front": {"status": "blocked:missing-view", "roles": {}}},
+        "views": {
+            view: valid_view(view) for view in ("front", "side", "back", "full")
+        },
     }
 
 
@@ -216,6 +235,34 @@ class ManifestSchemaTwoTests(unittest.TestCase):
         self.assertIn("skc_id must be a canonical nonblank string", manifest_errors)
         self.assertIn("skc_id must be a canonical nonblank string", prompt_errors)
 
+    def test_manifest_requires_exact_views_files_and_resolvable_role_lists(self):
+        mutations = {
+            "missing view": lambda manifest: manifest["views"].pop("full"),
+            "ghost view": lambda manifest: manifest["views"].update(
+                ghost=valid_view("front")
+            ),
+            "files must be a list": lambda manifest: manifest["views"]["front"].update(
+                files="正面/1.jpg"
+            ),
+            "file relative_path must be canonical": lambda manifest: manifest["views"][
+                "front"
+            ]["files"][0].update(relative_path=" 正面/1.jpg "),
+            "role values must be lists": lambda manifest: manifest["views"]["front"][
+                "roles"
+            ].update(model_source="x"),
+            "role path must exist in files": lambda manifest: manifest["views"]["front"][
+                "roles"
+            ].update(model_source=["正面/ghost.jpg"]),
+        }
+
+        for defect, mutate in mutations.items():
+            with self.subTest(defect=defect):
+                manifest = valid_manifest()
+                mutate(manifest)
+                self.assertTrue(
+                    validate_manifest.validate_manifest_data(manifest), defect
+                )
+
 
 class PromptSubmissionGateTests(unittest.TestCase):
     def test_accepts_valid_schema_two_prompt(self):
@@ -224,6 +271,69 @@ class PromptSubmissionGateTests(unittest.TestCase):
             validate_manifest.validate_prompt_data(valid_prompt(manifest=manifest), manifest),
             [],
         )
+
+    def test_prompt_view_must_be_a_ready_view_in_the_active_manifest(self):
+        cases = ("ghost", True, "blocked", "missing", "string manifest views")
+        for defect in cases:
+            with self.subTest(defect=defect):
+                manifest = valid_manifest()
+                prompt = valid_prompt("side", manifest)
+                if defect == "ghost":
+                    prompt["view"] = "ghost"
+                elif defect is True:
+                    prompt["view"] = True
+                elif defect == "blocked":
+                    manifest["views"]["side"]["status"] = "blocked:missing-view"
+                elif defect == "string manifest views":
+                    manifest["views"] = "side"
+                else:
+                    del manifest["views"]["side"]
+
+                self.assertTrue(
+                    validate_manifest.validate_prompt_data(prompt, manifest), defect
+                )
+
+    def test_prompt_text_fields_are_real_strings_and_negative_prompt_cannot_negate_locks(self):
+        scalar_mutations = (
+            ("analysis_markdown", None, True),
+            ("title", 0, True),
+            ("negative_prompt", 0, True),
+        )
+        for field, action_index, value in scalar_mutations:
+            with self.subTest(field=field):
+                manifest = valid_manifest()
+                prompt = valid_prompt(manifest=manifest)
+                target = prompt if action_index is None else prompt["actions"][action_index]
+                target[field] = value
+                self.assertTrue(
+                    validate_manifest.validate_prompt_data(prompt, manifest), field
+                )
+
+        forbidden = (
+            "Do not preserve canonical identity.",
+            "Allow identity drift.",
+            "No complete head.",
+            "No half head.",
+            "Without at least half of the model's head.",
+            "No full-body framing.",
+            "Crop below the half-head boundary.",
+            "Do not keep the full garment visible.",
+            "Ignore the IDENTITY LOCK.",
+        )
+        for negative_prompt in forbidden:
+            with self.subTest(negative_prompt=negative_prompt):
+                manifest = valid_manifest()
+                prompt = valid_prompt(manifest=manifest)
+                prompt["actions"][0]["negative_prompt"] = negative_prompt
+                self.assertTrue(
+                    validate_manifest.validate_prompt_data(prompt, manifest),
+                    negative_prompt,
+                )
+
+        manifest = valid_manifest()
+        prompt = valid_prompt("full", manifest)
+        prompt["actions"][0]["negative_prompt"] = "Do not show shoes or soles."
+        self.assertTrue(validate_manifest.validate_prompt_data(prompt, manifest))
 
     def test_prompt_must_end_with_manifest_derived_final_contract_override(self):
         manifest = valid_manifest()

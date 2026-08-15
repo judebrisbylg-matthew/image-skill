@@ -231,11 +231,17 @@ def apply_role_assignments(inventory: dict, assignments: dict) -> dict:
             if role not in ROLES:
                 raise ValueError(f"invalid role {role!r} for {item['relative_path']}")
             confidence = assignment.get("confidence")
-            if not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
+            if (
+                isinstance(confidence, bool)
+                or not isinstance(confidence, (int, float))
+                or not math.isfinite(confidence)
+                or not 0 <= confidence <= 1
+            ):
                 raise ValueError(f"invalid confidence for {item['relative_path']}")
-            reason = str(assignment.get("reason", "")).strip()
-            if not reason:
+            reason = assignment.get("reason")
+            if type(reason) is not str or not reason.strip():
                 raise ValueError(f"missing visual reason for {item['relative_path']}")
+            reason = reason.strip()
             item.update(role=role, confidence=float(confidence), reason=reason)
             view["roles"][role].append(item["relative_path"])
 

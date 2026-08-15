@@ -138,13 +138,20 @@ Use the prompt prefix as the search label. Record the visible task label when Lo
 
 ## Correction format
 
-Keep the original prompt and append only evidence-based corrections:
+Rebuild a correction prompt in this exact order:
+
+1. Remove the existing terminal block from FINAL CONTRACT OVERRIDE through the end of the prompt.
+2. Insert the evidence-based correction into the action prose before the terminal block.
+3. Rebuild and append the entire manifest-derived terminal block from the active manifest.
+4. Validate the rebuilt prompt; never append correction text after the terminal block.
+
+Use only an evidence-based correction in the pre-contract action prose:
 
 ```text
 CORRECTION FOR ATTEMPT <n>: Preserve all original reference roles and constraints. Fix only: <specific observed defects>. Do not change: <already-correct product, pose, crop, and scene elements>.
 ```
 
-Append the exact submitted correction and Lovart task label to `run-log.md`. Do not overwrite the base prompt JSON.
+Append the exact submitted rebuilt prompt and Lovart task label to `run-log.md`. Do not overwrite the base prompt JSON.
 
 ## Canvas organization
 

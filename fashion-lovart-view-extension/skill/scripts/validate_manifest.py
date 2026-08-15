@@ -354,6 +354,41 @@ def _strict_json_equal(left: object, right: object) -> bool:
     return left == right
 
 
+def _negative_prompt_conflicts(
+    negative_prompt: str, *, view: object, require_full_garment_frame: bool
+) -> bool:
+    lowered = " ".join(negative_prompt.casefold().split())
+    patterns = [
+        r"\b(?:no|without)\s+(?:canonical\s+)?identity\b",
+        r"\b(?:allow|permit)\s+(?:canonical\s+)?identity\s+drift\b",
+        r"\bdo not\s+(?:preserve|match|keep|use)\s+(?:the\s+)?(?:canonical\s+)?identity\b",
+        r"\b(?:no|without)\s+(?:the\s+)?(?:final contract override|identity lock|head crop floor|full-body head completion|garment frame lock|full-body framing|head-to-toe framing)\b",
+        r"\b(?:ignore|disable|negate|override)\s+(?:the\s+)?(?:final contract override|identity lock|head crop floor|full-body head completion|garment frame lock)\b",
+        r"\b(?:no|without)\s+(?:a\s+)?(?:complete|full|half)\s+head\b",
+        r"\bwithout\s+at\s+least\s+half\s+(?:of\s+)?(?:the\s+model(?:'s)?\s+)?head\b",
+        r"\bcrop\s+below\s+the\s+half-head\s+boundary\b",
+        r"\b(?:hide|omit|remove|crop)\s+(?:the\s+)?(?:complete|full|half)?\s*head\b",
+        r"\bdo not\s+(?:retain|keep|show|reconstruct)\s+(?:at least\s+half|a\s+complete|the\s+full)?\s*(?:of\s+the\s+model(?:'s)?\s+)?head\b",
+    ]
+    if require_full_garment_frame:
+        patterns.extend(
+            (
+                r"\b(?:no|without)\s+(?:the\s+)?full\s+(?:garment|dress)\b",
+                r"\b(?:hide|omit|remove|crop)\s+(?:the\s+)?(?:garment|dress|hem)\b",
+                r"\bdo not\s+(?:keep|show|preserve)\s+(?:the\s+)?full\s+(?:garment|dress)\b",
+            )
+        )
+    if view == "full":
+        patterns.extend(
+            (
+                r"\b(?:no|without)\s+(?:the\s+)?(?:shoes?|soles?)\b",
+                r"\b(?:hide|omit|remove|crop)\s+(?:the\s+)?(?:shoes?|soles?)\b",
+                r"\bdo not\s+(?:show|include|keep)\s+(?:the\s+)?(?:shoes?|soles?)\b",
+            )
+        )
+    return any(re.search(pattern, lowered) for pattern in patterns)
+
+
 def validate_manifest_data(data: object) -> list[str]:
     if not isinstance(data, dict):
         return ["manifest must be an object"]
@@ -372,8 +407,10 @@ def validate_manifest_data(data: object) -> list[str]:
     garment_profile = data.get("garment_profile")
     errors.extend(_validate_garment_profile(garment_profile, "garment_profile"))
     views = data.get("views")
-    if not isinstance(views, dict) or not views:
-        return errors + ["views must be a non-empty object"]
+    if type(views) is not dict:
+        return errors + ["views must be an object containing exactly front, side, back, and full"]
+    if set(views) != VIEW_KEYS:
+        errors.append("views must contain exactly front, side, back, and full")
     for view_key, view in views.items():
         if view_key not in VIEW_KEYS:
             errors.append(f"unknown view: {view_key}")
@@ -381,17 +418,53 @@ def validate_manifest_data(data: object) -> list[str]:
         if not isinstance(view, dict):
             errors.append(f"{view_key}: view must be an object")
             continue
+        files = view.get("files")
+        file_paths = set()
+        if type(files) is not list:
+            errors.append(f"{view_key}: files must be a list")
+        else:
+            for index, item in enumerate(files, start=1):
+                if type(item) is not dict:
+                    errors.append(f"{view_key}: file {index} must be an object")
+                    continue
+                relative_path = item.get("relative_path")
+                if not _is_canonical_nonblank_string(relative_path):
+                    errors.append(
+                        f"{view_key}: file {index} relative_path must be a canonical nonblank string"
+                    )
+                    continue
+                if relative_path in file_paths:
+                    errors.append(f"{view_key}: duplicate file relative_path {relative_path}")
+                file_paths.add(relative_path)
         roles = view.get("roles")
-        if not isinstance(roles, dict):
+        if type(roles) is not dict:
             errors.append(f"{view_key}: roles must be an object")
             continue
         unknown_roles = set(roles) - ROLE_KEYS
         if unknown_roles:
             errors.append(f"{view_key}: unknown roles: {', '.join(sorted(unknown_roles))}")
+        valid_roles = True
+        for role, values in roles.items():
+            if type(values) is not list:
+                errors.append(f"{view_key}: role {role} must be a list")
+                valid_roles = False
+                continue
+            for path in values:
+                if not _is_canonical_nonblank_string(path):
+                    errors.append(
+                        f"{view_key}: role {role} paths must be canonical nonblank strings"
+                    )
+                elif path not in file_paths:
+                    errors.append(
+                        f"{view_key}: role {role} path {path} must exist in files"
+                    )
         if view.get("status") == "ready":
             for role in REQUIRED_ROLES:
                 values = roles.get(role, [])
-                if not values:
+                if type(values) is not list:
+                    if valid_roles:
+                        errors.append(f"{view_key}: role {role} must be a list")
+                elif not values:
                     errors.append(f"{view_key}: missing required role {role}")
                 elif len(values) != 1:
                     errors.append(f"{view_key}: required role {role} must contain exactly one source")
@@ -417,8 +490,16 @@ def validate_prompt_data(data: object, active_manifest: object) -> list[str]:
         errors.append("skc_id must be a canonical nonblank string")
     elif prompt_skc_id != active_manifest.get("skc_id"):
         errors.append("skc_id must match the active manifest exactly")
-    if data.get("view") not in VIEW_KEYS:
+    prompt_view = data.get("view")
+    if type(prompt_view) is not str or prompt_view not in VIEW_KEYS:
         errors.append("view must be front, side, back, or full")
+    else:
+        manifest_views = active_manifest.get("views")
+        manifest_view = (
+            manifest_views.get(prompt_view) if isinstance(manifest_views, dict) else None
+        )
+        if not isinstance(manifest_view, dict) or manifest_view.get("status") != "ready":
+            errors.append("view must exist and be ready in the active manifest")
     generation = data.get("generation", {})
     if not isinstance(generation, dict):
         errors.append("generation must be an object")
@@ -427,8 +508,8 @@ def validate_prompt_data(data: object, active_manifest: object) -> list[str]:
     for key, value in expected.items():
         if generation.get(key) != value:
             errors.append(f"generation.{key} must be {value}")
-    if not str(data.get("analysis_markdown", "")).strip():
-        errors.append("analysis_markdown is required")
+    if type(data.get("analysis_markdown")) is not str or not data["analysis_markdown"].strip():
+        errors.append("analysis_markdown must be a nonblank string")
     identity_contract = data.get("identity_contract")
     if not isinstance(identity_contract, dict):
         errors.append("identity_contract must be an object")
@@ -468,9 +549,23 @@ def validate_prompt_data(data: object, active_manifest: object) -> list[str]:
         action_id = str(action.get("action_id", "")).strip()
         ids.append(action_id)
         for field in ("action_id", "title", "prompt_en", "negative_prompt"):
-            if not str(action.get(field, "")).strip():
+            value = action.get(field)
+            if type(value) is not str or not value.strip():
                 errors.append(f"action {index}: {field} is required")
         prompt = str(action.get("prompt_en", ""))
+        negative_prompt = action.get("negative_prompt")
+        if type(negative_prompt) is str and negative_prompt.strip():
+            garment_profile = active_manifest.get("garment_profile")
+            full_garment = (
+                isinstance(garment_profile, dict)
+                and garment_profile.get("requires_full_garment_frame") is True
+            )
+            if _negative_prompt_conflicts(
+                negative_prompt, view=view, require_full_garment_frame=full_garment
+            ):
+                errors.append(
+                    f"action {index}: negative_prompt must not negate active hard locks"
+                )
         if prompt and not any(ch.isascii() and ch.isalpha() for ch in prompt):
             errors.append(f"action {index}: prompt_en must contain English text")
         if action_id and view in ACTION_PREFIXES:

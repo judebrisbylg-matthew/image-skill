@@ -13,6 +13,8 @@ from pathlib import Path
 PREFIXES = {"front": "FR", "side": "SI", "back": "BA", "full": "FU"}
 VIEW_GENERATION_LIMIT = 10
 VIEW_SUPPLEMENTAL_LIMIT = 5
+GLOBAL_UNFINISHED_LIMIT = 10
+GLOBAL_UNFINISHED_STATUSES = {"submitted", "queued", "generating", "in_progress"}
 DISPLAY_WIDTH_UNIT = 1.0
 HORIZONTAL_GAP_RATIO = 0.08
 VERTICAL_GAP_RATIO = 0.08
@@ -135,11 +137,21 @@ def record_layout_reservation(
     return state
 
 
+def _placement_records(action: dict) -> list:
+    canvas = action.get("canvas")
+    if not isinstance(canvas, dict):
+        return []
+    placements = canvas.get("placements")
+    return placements if isinstance(placements, list) else []
+
+
 def _verified_placements(action: dict) -> set[int]:
     return {
-        int(item["attempt"])
-        for item in action.get("canvas", {}).get("placements", [])
-        if item.get("verified")
+        item["attempt"]
+        for item in _placement_records(action)
+        if isinstance(item, dict)
+        and type(item.get("attempt")) is int
+        and item.get("verified") is True
     }
 
 
@@ -237,13 +249,11 @@ def _assert_submission_gate(state: dict, task_label: str | None) -> None:
             + "; ".join(layout_errors)
         )
     context = state.get("execution_context")
-    if context is None:
-        return
-    if context.get("project_verification_status") != "verified":
+    if not isinstance(context, dict) or context.get("project_verification_status") != "verified":
         raise ValueError("month project is not verified")
     if placement_backlog(state):
         raise ValueError("placement backlog must be zero before submission")
-    if not task_label:
+    if not isinstance(task_label, str) or not task_label.strip():
         raise ValueError("exact Lovart task label is required")
 
 
@@ -251,26 +261,70 @@ def evaluate_review_gate(state: dict) -> dict:
     """Allow unified review only after 5 identified, placed base results per view."""
     missing = {}
     identity_missing = []
-    for view_key, view in state.get("views", {}).items():
-        actions = view.get("actions", {})
-        if not actions:
+    placement_issues = placement_backlog(state)
+    views = state.get("views")
+    if type(views) is not dict or set(views) != set(PREFIXES):
+        identity_missing.append("views: expected exactly front, side, back, full")
+    if type(views) is not dict:
+        views = {}
+    for view_key, prefix in PREFIXES.items():
+        view = views.get(view_key)
+        if not isinstance(view, dict):
+            missing[view_key] = 5
             continue
+        actions = view.get("actions")
+        expected_action_ids = {f"{prefix}{index:02d}" for index in range(1, 6)}
+        if type(actions) is not dict:
+            missing[view_key] = 5
+            continue
+        if set(actions) != expected_action_ids:
+            identity_missing.append(f"{view_key}: expected exactly actions 01 through 05")
         base_count = 0
-        for action_id, action in actions.items():
-            first = next(
-                (
-                    attempt
-                    for attempt in action.get("attempt_history", [])
-                    if attempt.get("attempt") == 1 and attempt.get("result_recorded_at")
-                ),
-                None,
-            )
-            if first is None:
+        for index in range(1, 6):
+            action_id = f"{prefix}{index:02d}"
+            action = actions.get(action_id)
+            if not isinstance(action, dict):
                 continue
-            if not first.get("artifact_id") or not first.get("task_label"):
+            first_attempts = [
+                attempt
+                for attempt in action.get("attempt_history", [])
+                if type(attempt) is dict
+                and type(attempt.get("attempt")) is int
+                and attempt.get("attempt") == 1
+                and _has_aware_iso_timestamp(attempt.get("result_recorded_at"))
+            ]
+            if len(first_attempts) != 1:
+                continue
+            first = first_attempts[0]
+            expected_label = (
+                f"SKC {state.get('skc_id')} | VIEW {view_key} | ACTION {action_id} | ATTEMPT 1"
+            )
+            if (
+                not isinstance(first.get("artifact_id"), str)
+                or not first["artifact_id"].strip()
+                or first.get("task_label") != expected_label
+            ):
                 identity_missing.append(f"{view_key}/{action_id}/1")
                 continue
             base_count += 1
+            placements = _placement_records(action)
+            valid_primary = any(
+                type(item) is dict
+                and type(item.get("attempt")) is int
+                and item.get("attempt") == 1
+                and item.get("area") == "primary"
+                and type(item.get("slot")) is int
+                and item.get("slot") == index
+                and type(item.get("row_slot")) is int
+                and item.get("row_slot") == index
+                and item.get("verified") is True
+                and item.get("placement_status") == "verified"
+                for item in placements
+            )
+            if not valid_primary:
+                placement_issues.append(
+                    {"view": view_key, "action_id": action_id, "attempt": 1}
+                )
         if base_count < 5:
             missing[view_key] = 5 - base_count
 
@@ -280,7 +334,7 @@ def evaluate_review_gate(state: dict) -> dict:
             "review_allowed": False,
             "missing_base_results": missing,
             "identity_missing": identity_missing,
-            "placement_backlog": placement_backlog(state),
+            "placement_backlog": placement_issues,
         }
     elif identity_missing:
         result = {
@@ -288,15 +342,15 @@ def evaluate_review_gate(state: dict) -> dict:
             "review_allowed": False,
             "missing_base_results": {},
             "identity_missing": identity_missing,
-            "placement_backlog": placement_backlog(state),
+            "placement_backlog": placement_issues,
         }
-    elif placement_backlog(state):
+    elif placement_issues:
         result = {
             "status": "blocked:canvas-placement",
             "review_allowed": False,
             "missing_base_results": {},
             "identity_missing": [],
-            "placement_backlog": placement_backlog(state),
+            "placement_backlog": placement_issues,
         }
     else:
         result = {
@@ -421,6 +475,17 @@ def _reserved_candidate_count(view: dict) -> int:
     )
 
 
+def _global_unfinished_candidate_count(state: dict) -> int:
+    return sum(
+        1
+        for view in state.get("views", {}).values()
+        if isinstance(view, dict)
+        for action in view.get("actions", {}).values()
+        if isinstance(action, dict)
+        and action.get("status") in GLOBAL_UNFINISHED_STATUSES
+    )
+
+
 def _upgrade_view_state(view: dict) -> None:
     view.setdefault("generation_limit", VIEW_GENERATION_LIMIT)
     view.setdefault("supplemental_limit", VIEW_SUPPLEMENTAL_LIMIT)
@@ -487,6 +552,8 @@ def transition_action(
 
     if new_status == "submitted":
         _assert_submission_gate(state, task_label)
+        if _global_unfinished_candidate_count(state) >= GLOBAL_UNFINISHED_LIMIT:
+            raise ValueError("global unfinished limit reached")
         generated = int(view.get("generated_count", 0))
         reserved = _reserved_candidate_count(view)
         generation_limit = int(view.get("generation_limit", VIEW_GENERATION_LIMIT))

@@ -103,6 +103,28 @@ class ScanSkcVisualContractTests(unittest.TestCase):
                 {"unclassified"},
             )
 
+    def test_role_assignments_reject_boolean_confidence_and_non_string_reason(self):
+        def inventory_with_one_file():
+            inventory = valid_inventory()
+            inventory["views"] = {
+                view: {"files": [], "roles": {}, "status": "blocked:missing-view"}
+                for view in scan_skc.VIEW_ORDER
+            }
+            inventory["views"]["front"]["files"] = [
+                {"relative_path": "正面/1.jpg"}
+            ]
+            return inventory
+
+        for assignment in (
+            {"role": "model_source", "confidence": True, "reason": "visible"},
+            {"role": "model_source", "confidence": 0.9, "reason": 123},
+        ):
+            with self.subTest(assignment=assignment):
+                with self.assertRaises(ValueError):
+                    scan_skc.apply_role_assignments(
+                        inventory_with_one_file(), {"正面/1.jpg": assignment}
+                    )
+
     def test_attaches_partial_head_identity_and_below_knee_dress_contracts(self):
         inventory = {
             "canonical_identity_source": {

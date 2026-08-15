@@ -60,6 +60,8 @@ Open every unique image with image-view tooling. Assign each path exactly one ro
 
 Each assignment contains `role`, numeric `confidence` from 0 to 1, and a concrete visual `reason`. Follow the schema in `references/folder-contract.md`. Do not infer ordinary roles from filenames. The only filename-based exception is `正面/1.jpg`: treat it as the canonical **IDENTITY MODEL SOURCE** for identity only, then inspect it visually before deriving any identity evidence.
 
+正面/1.jpg is the sole filename-based exception. A generic model_source or local pose/composition source must never supply canonical identity or body_profile.
+
 Apply these rules:
 
 - Each ready view has exactly one model, product, and scene source.
@@ -260,7 +262,14 @@ A candidate qualifies only when all are true:
 - When the manifest visually confirms a below-knee dress and requires a full garment frame, keep it continuously visible from the shoulder/neckline through the lowest hem point, leave visible safety margin below the hem, require that the hem must not touch or cross an image edge, keep the major hem silhouette unobscured, and keep the apparent garment length unchanged. Reject any violation with `long-dress-hem-cropped`.
 - For every full-body action, the frame contains the complete model continuously from the very top of the hair/head to the bottom of both feet, including the complete face, both shoes, toes, and soles. Leave visible safety margin above the hair and below the footwear; no part of the head, chin, ankles, feet, or shoes may touch or cross the image edge. Reject an incomplete reconstructed head with `full-head-incomplete`.
 
-On failure, record a specific reason and resubmit the same action with a concise correction only when the view still has generation capacity. Append each exact correction prompt and visible Lovart label to `run-log.md`; `run-state.json` retains structured attempt and rejection history plus the view-level generated count. There is no per-action three-attempt rule. The view stops at five qualified actions or 10 generated candidates; unresolved actions then become `blocked:quality-cap`.
+On failure, record a specific reason and resubmit the same action with a concise correction only when the view still has generation capacity. Rebuild every retry prompt in this exact order:
+
+1. Remove the existing terminal block from FINAL CONTRACT OVERRIDE through the end of the prompt.
+2. Insert the evidence-based correction into the action prose before the terminal block.
+3. Rebuild and append the entire manifest-derived terminal block from the active manifest.
+4. Validate the rebuilt prompt; never append correction text after the terminal block.
+
+Append each exact correction prompt and visible Lovart label to `run-log.md`; `run-state.json` retains structured attempt and rejection history plus the view-level generated count. There is no per-action three-attempt rule. The view stops at five qualified actions or 10 generated candidates; unresolved actions then become `blocked:quality-cap`.
 
 Maintain the canvas continuously inside the assigned date/SKC region as four horizontal lanes: row 1 `正面`, row 2 `侧面`, row 3 `背面`, row 4 `全身`. Give every image the same displayed width while preserving its original aspect ratio. Align the tops of images within a row and the left edges of all four rows. Use a horizontal gap approximately 8% of the displayed image width and a vertical row gap approximately 8% of the displayed image height. These ratios are visual targets with small operational tolerance; visible uneven gaps, large empty spaces, or overlap fail placement verification. The left side of every row is a fixed five-cell primary strip ordered action `01` through `05`. The next five continuous positions are supplemental cells, so each row can contain at most 10 generated images. Place every base result immediately in its action's primary cell. When a retry finishes, first move the displaced/rejected candidate into the same row's next supplemental cell, then put the new candidate into the original primary cell. Keep supplemental candidates grouped by action and attempt number. Never move supplemental images to another row, another SKC/date region, or a detached vertical pile.
 
