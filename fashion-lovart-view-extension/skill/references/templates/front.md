@@ -6,14 +6,17 @@
 
 > The Feishu 图1/图2/图3/图4 labels below are logical role labels, not Lovart upload index values. In every ASCII package, `identity_model_01` (`正面/1.jpg`) is physically first; a separate local pose/composition source follows only when its hash differs.
 
-- 图1：模特人物图。
+- `IDENTITY MODEL SOURCE = 正面/1.jpg`：唯一身份依据，只提取 `identity_profile`。
+- 图1：本视角人物姿势参考，作为 `POSE/COMPOSITION SOURCE`，仅提供姿势、裁切、身体方向和构图。
 - 图2：产品正面款式图。
 - 图3：场景参考图。
 - 图4：人物构图参考图；与图1重复时使用逻辑角色，不重复上传。
 
+IDENTITY MODEL SOURCE = 正面/1.jpg，仅控制身份；本视角 POSE/COMPOSITION SOURCE 仅控制姿势、裁切、身体方向和构图，不得覆盖身份。
+
 ## 图像综合分析
 
-填写：模特人物特征、穿搭基底、原图背景；产品完整保留项、展示价值、面料质感；场景提取、光影、剔除元素；构图裁切、主体占比与目的；受光方向、环境反射、真实投影、统一色调与空间纵深。
+填写：canonical IDENTITY MODEL SOURCE 的可见身份特征；本视角 POSE/COMPOSITION SOURCE 的姿势、裁切、身体方向、主体占比与构图目的；产品完整保留项、展示价值、面料质感；场景提取、光影、剔除元素；受光方向、环境反射、真实投影、统一色调与空间纵深。
 
 场景只做同一背景的多角度延伸。核心背景要素保持一致，仅根据机位远近、左右偏移调整可见范围与透视。
 
@@ -25,7 +28,7 @@
 4. **正面稍远角度，不拿包**：展示整体穿搭比例；不携带任何包，双手均不垂下。`IDENTITY LOCK:` Preserve the identity_profile from the canonical IDENTITY MODEL SOURCE 正面/1.jpg; a local pose model controls pose/composition only. `HEAD CROP FLOOR:` The final image must retain at least half of the model's head. A complete head is allowed. Never crop below the half-head boundary. `GARMENT FRAME LOCK:` Activate only for a visually confirmed below-knee dress; when active, keep the complete neckline-to-hem garment inside the frame.
 5. **正面低机位角度，不拿包**：突出下摆垂坠与整体气场；不携带任何包，双手均不垂下。`IDENTITY LOCK:` Preserve the identity_profile from the canonical IDENTITY MODEL SOURCE 正面/1.jpg; a local pose model controls pose/composition only. `HEAD CROP FLOOR:` The final image must retain at least half of the model's head. A complete head is allowed. Never crop below the half-head boundary. `GARMENT FRAME LOCK:` Activate only for a visually confirmed below-knee dress; when active, keep the complete neckline-to-hem garment inside the frame.
 
-每个动作均需明确图1人物、图2正面产品、图3场景、图4构图的融合关系，并输出完整中文分析和完整英文执行提示词。
+每个动作的中文融合说明必须明确：IDENTITY MODEL SOURCE = 正面/1.jpg，仅控制身份；本视角 POSE/COMPOSITION SOURCE 仅控制姿势、裁切、身体方向和构图，不得覆盖身份。另行说明图2正面产品、图3场景与图4构图的融合关系，并输出完整中文分析和完整英文执行提示词。
 
 ## 通用负面提示词
 

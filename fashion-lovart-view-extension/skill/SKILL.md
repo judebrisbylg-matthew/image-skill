@@ -68,7 +68,7 @@ Apply these rules:
 - If composition is absent and the model source clearly controls crop, reuse the model source as composition fallback.
 - Accessories are optional. In the full-body workflow, shoes are normally an accessory source.
 - Each path has one primary role. The only multi-role rule is the explicit unique-model-to-composition fallback. Images with identical hashes upload only once.
-- Confidence below 0.7, unclassified images, or multiple candidates for a required role produce `blocked:role-ambiguous` for that view only.
+- Confidence below 0.7 for a required role assignment, unclassified images, or multiple candidates for a required role produce `blocked:role-ambiguous` for that view only. The canonical identity file may legitimately expose less than a complete head: head_visibility of `partial` or `absent` alone never lowers a view's ready status and never triggers `blocked:role-ambiguous`.
 
 Apply assignments using `apply_role_assignments()` from `scripts/scan_skc.py`, save the resulting single-SKC object as `_codex/manifest.json`, then validate:
 
@@ -172,6 +172,18 @@ Update state after every observable task change. Use `generated` only after the 
 ```bash
 python3 scripts/update_run_state.py transition <state> <view> <action-id> <status> [--reason ...] [--task-label ...] [--artifact-id ...]
 ```
+
+For every quality rejection, connect the observed evidence to the structured reason code in the command itself:
+
+```bash
+python3 scripts/update_run_state.py transition <state> <view> <action-id> rejected \
+  --reason "<observed defect>" --reason-code <code>
+```
+
+- `identity-drift` — canonical identity mismatch
+- `head-crop-below-minimum` — front/side/back crop below the half-head floor
+- `full-head-incomplete` — full-body head or hair crown incomplete
+- `long-dress-hem-cropped` — confirmed below-knee dress hem cropped
 
 ### 8. Review candidates
 

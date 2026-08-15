@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -65,6 +66,17 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn("identity_model_01", skill)
         self.assertIn("full-head-incomplete", skill)
 
+    def test_partial_or_absent_head_visibility_never_blocks_an_otherwise_ready_view(self):
+        skill = SKILL.read_text(encoding="utf-8")
+        folder = FOLDER.read_text(encoding="utf-8")
+        rule = (
+            "head_visibility of `partial` or `absent` alone never lowers a view's "
+            "ready status and never triggers `blocked:role-ambiguous`"
+        )
+
+        for document in (skill, folder):
+            self.assertIn(rule, document)
+
     def test_folder_contract_keeps_identity_source_first_without_duplicate_upload(self):
         folder = FOLDER.read_text(encoding="utf-8")
 
@@ -87,6 +99,25 @@ class DocumentationContractTests(unittest.TestCase):
             self.assertIn("identity", document.lower())
             self.assertIn("crop", document.lower())
 
+    def test_rejection_docs_connect_reason_codes_to_the_transition_cli(self):
+        skill = SKILL.read_text(encoding="utf-8")
+        reference = LOVART.read_text(encoding="utf-8")
+        command = re.compile(
+            r"update_run_state\.py transition <state> <view> <action-id> rejected \\\n"
+            r"\s+--reason \"<observed defect>\" --reason-code <code>"
+        )
+        mappings = (
+            "`identity-drift` — canonical identity mismatch",
+            "`head-crop-below-minimum` — front/side/back crop below the half-head floor",
+            "`full-head-incomplete` — full-body head or hair crown incomplete",
+            "`long-dress-hem-cropped` — confirmed below-knee dress hem cropped",
+        )
+
+        for document in (skill, reference):
+            self.assertRegex(document, command)
+            for mapping in mappings:
+                self.assertIn(mapping, document)
+
     def test_every_template_action_carries_identity_and_conditional_garment_locks(self):
         for view, path in TEMPLATES.items():
             with self.subTest(view=view):
@@ -102,6 +133,18 @@ class DocumentationContractTests(unittest.TestCase):
                 self.assertIn("identity_model_01", template)
                 self.assertIn("logical role", template)
                 self.assertIn("upload index", template)
+
+    def test_templates_split_canonical_identity_from_local_pose_in_chinese_contracts(self):
+        source_rule = (
+            "IDENTITY MODEL SOURCE = 正面/1.jpg，仅控制身份；本视角 "
+            "POSE/COMPOSITION SOURCE 仅控制姿势、裁切、身体方向和构图，不得覆盖身份"
+        )
+        for view, path in TEMPLATES.items():
+            with self.subTest(view=view):
+                template = path.read_text(encoding="utf-8")
+                self.assertGreaterEqual(template.count(source_rule), 2)
+                self.assertNotIn("图1（模特人物图）", template)
+                self.assertNotIn("人物身份、体态、肤色、发型、气质和可复用配饰取自图1", template)
 
     def test_partial_view_templates_set_head_floor_without_banning_complete_heads(self):
         for view in ("front", "side", "back"):

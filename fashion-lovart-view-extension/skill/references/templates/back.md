@@ -6,13 +6,18 @@
 
 > The Feishu 图1/图2/图3 labels below are logical role labels, not Lovart upload index values. In every ASCII package, `identity_model_01` (`正面/1.jpg`) is physically first; a separate local back pose/composition source follows only when its hash differs.
 
-- 图1：模特、身形、肤色、基础服装色彩、下装、首饰、包袋和构图。
+- `IDENTITY MODEL SOURCE = 正面/1.jpg`：唯一身份依据，只提取 `identity_profile`。
+- 图1：本视角背面人物参考，作为 `POSE/COMPOSITION SOURCE`，仅提供姿势、裁切、身体方向和构图。
 - 图2：服装背面参考，是背面剪裁、后领、袖型、下摆和面料结构的唯一标准。
 - 图3：场景背景参考。
 
+IDENTITY MODEL SOURCE = 正面/1.jpg，仅控制身份；本视角 POSE/COMPOSITION SOURCE 仅控制姿势、裁切、身体方向和构图，不得覆盖身份。
+
 ## 图像综合分析
 
-填写图1模特复用项、服装基础款式和构图；图2背面核心版型；图3环境固定元素、实际光影方向和场景延展逻辑。清除场景里的文字、店铺招牌和品牌标识；包不得放在地面。
+填写 canonical identity 的可见身份特征、本视角 POSE/COMPOSITION SOURCE 的姿势与构图、图2背面核心版型，以及图3环境固定元素、实际光影方向和场景延展逻辑。清除场景里的文字、店铺招牌和品牌标识；包不得放在地面。
+
+每个动作的中文融合说明必须明确：IDENTITY MODEL SOURCE = 正面/1.jpg，仅控制身份；本视角 POSE/COMPOSITION SOURCE 仅控制姿势、裁切、身体方向和构图，不得覆盖身份。图2继续作为背面服装唯一标准，图3继续控制场景与光影。
 
 五段提示词对应同一场景的近景、中景、纵深、街角和入口等机位变化。核心建筑、道具、路面、植被保持一致。光影描述必须从实际图3提取，不把示例场景的法式街头设定硬套到其他素材。
 

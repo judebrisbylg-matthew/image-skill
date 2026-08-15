@@ -6,13 +6,18 @@
 
 > The Feishu 图1/图2/图3 labels below are logical role labels, not Lovart upload index values. In every ASCII package, `identity_model_01` (`正面/1.jpg`) is physically first; a separate local side pose/composition source follows only when its hash differs.
 
-- 图1：模特人物图，同时控制构图裁切。
+- `IDENTITY MODEL SOURCE = 正面/1.jpg`：唯一身份依据，只提取 `identity_profile`。
+- 图1：本视角侧面人物参考，作为 `POSE/COMPOSITION SOURCE`，仅提供姿势、裁切、身体方向和构图。
 - 图2：产品侧面款式图，是侧面版型唯一标准。
 - 图3：场景参考图。
 
+IDENTITY MODEL SOURCE = 正面/1.jpg，仅控制身份；本视角 POSE/COMPOSITION SOURCE 仅控制姿势、裁切、身体方向和构图，不得覆盖身份。
+
 ## 图像综合分析
 
-填写模特、产品侧面、场景、构图和光影。侧面产品分析必须覆盖侧面廓形厚度、袖管侧面形态、裙摆侧面垂坠和面料。构图以图1为准，必须明确半身或全身以及截头边界。
+填写 canonical identity、产品侧面、场景、构图和光影。侧面产品分析必须覆盖侧面廓形厚度、袖管侧面形态、裙摆侧面垂坠和面料。本视角 POSE/COMPOSITION SOURCE 控制构图，必须明确半身或全身以及截头边界。
+
+每个动作的中文融合说明必须明确：IDENTITY MODEL SOURCE = 正面/1.jpg，仅控制身份；本视角 POSE/COMPOSITION SOURCE 仅控制姿势、裁切、身体方向和构图，不得覆盖身份。图2继续作为侧面服装唯一标准，图3继续控制场景与光影。
 
 五张图保持同一背景核心要素，仅根据左右侧、机位远近与前后偏移调整透视。所有人物侧转角度不超过30度。
 
