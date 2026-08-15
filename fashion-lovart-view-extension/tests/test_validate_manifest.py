@@ -62,19 +62,28 @@ def valid_prompt(view="front", manifest=None):
     manifest = manifest or valid_manifest()
     prefix = {"front": "FR", "side": "SI", "back": "BA", "full": "FU"}[view]
     head_lock = (
-        "FULL-BODY HEAD COMPLETION: complete the canonical head."
+        "FULL-BODY HEAD COMPLETION: Even when 正面/1.jpg shows a partial head or "
+        "no head, reconstruct a natural complete head using only the visible skin "
+        "tone, ancestry cues, partial facial evidence, hair evidence, age impression, "
+        "neck/shoulder evidence, and body profile. Do not change the model's visible "
+        "identity characteristics."
         if view == "full"
-        else "HEAD CROP FLOOR: retain at least half the head."
+        else (
+            "HEAD CROP FLOOR: The final image must retain at least half of the "
+            "model's head. A complete head is allowed. Never crop below the "
+            "half-head boundary."
+        )
     )
     markers = [
         identity_lock_text(manifest),
         head_lock,
         (
-            "GARMENT FRAME LOCK: keep the below-knee dress continuously visible "
-            "from the shoulder/neckline through the lowest hem point; leave visible "
-            "safety margin below the hem; the hem must not touch or cross an image "
-            "edge; keep the major hem silhouette unobscured; keep the apparent "
-            "garment length unchanged."
+            "GARMENT FRAME LOCK: Activate only for a visually confirmed below-knee "
+            "dress; when active, keep the dress continuously visible from the "
+            "shoulder/neckline through the lowest hem point; leave visible safety "
+            "margin below the hem; the hem must not touch or cross an image edge; "
+            "keep the major hem silhouette unobscured; keep the apparent garment "
+            "length unchanged."
         ),
     ]
     return {
@@ -179,6 +188,11 @@ class ManifestSchemaTwoTests(unittest.TestCase):
 
         self.assertTrue(any("below_knee" in error and "dress" in error for error in errors))
 
+    def test_non_object_manifest_root_is_rejected_cleanly(self):
+        errors = validate_manifest.validate_manifest_data([])
+
+        self.assertEqual(errors, ["manifest must be an object"])
+
 
 class PromptSubmissionGateTests(unittest.TestCase):
     def test_accepts_valid_schema_two_prompt(self):
@@ -227,6 +241,42 @@ class PromptSubmissionGateTests(unittest.TestCase):
                     + " Preserve framing. "
                     + original[end:]
                 )
+
+                errors = validate_manifest.validate_prompt_data(prompt, manifest)
+
+                self.assertTrue(any("actionable" in error for error in errors))
+
+    def test_rejects_negated_hard_lock_clauses(self):
+        mutations = (
+            (
+                "front",
+                "The final image must retain at least half of the model's head.",
+                "Do not retain at least half of the model's head.",
+            ),
+            (
+                "full",
+                (
+                    "reconstruct a natural complete head using only the visible skin "
+                    "tone"
+                ),
+                (
+                    "do not reconstruct a natural complete head using only the "
+                    "visible skin tone"
+                ),
+            ),
+            (
+                "front",
+                "keep the major hem silhouette unobscured",
+                "do not keep the major hem silhouette unobscured",
+            ),
+        )
+        for view, positive, negated in mutations:
+            with self.subTest(view=view, positive=positive):
+                manifest = valid_manifest()
+                prompt = valid_prompt(view, manifest)
+                prompt["actions"][0]["prompt_en"] = prompt["actions"][0][
+                    "prompt_en"
+                ].replace(positive, negated, 1)
 
                 errors = validate_manifest.validate_prompt_data(prompt, manifest)
 
@@ -380,6 +430,51 @@ class PromptSubmissionGateTests(unittest.TestCase):
 
                 self.assertTrue(any(field in error for error in errors))
 
+    def test_rejects_prefixed_or_duplicate_identity_assignment_values(self):
+        manifest = valid_manifest()
+        active = "body_profile=slim adult build;"
+        mutations = (
+            "body_profile=slim adult buildx;",
+            (
+                "body_profile=slim adult build; "
+                "body_profile=different adult build;"
+            ),
+        )
+        for replacement in mutations:
+            with self.subTest(replacement=replacement):
+                prompt = valid_prompt(manifest=manifest)
+                prompt["actions"][0]["prompt_en"] = prompt["actions"][0][
+                    "prompt_en"
+                ].replace(active, replacement, 1)
+
+                errors = validate_manifest.validate_prompt_data(prompt, manifest)
+
+                self.assertTrue(
+                    any("identity_profile assignments" in error for error in errors)
+                )
+
+    def test_contract_comparison_rejects_boolean_integer_coercion(self):
+        identity_manifest = valid_manifest()
+        identity_manifest["identity_profile"]["confidence"] = 1
+        identity_prompt = valid_prompt(manifest=identity_manifest)
+        identity_prompt["identity_contract"]["confidence"] = True
+
+        identity_errors = validate_manifest.validate_prompt_data(
+            identity_prompt, identity_manifest
+        )
+
+        self.assertTrue(any("identity_contract" in error for error in identity_errors))
+
+        garment_manifest = valid_manifest()
+        garment_prompt = valid_prompt(manifest=garment_manifest)
+        garment_prompt["garment_contract"]["requires_full_garment_frame"] = 1
+
+        garment_errors = validate_manifest.validate_prompt_data(
+            garment_prompt, garment_manifest
+        )
+
+        self.assertTrue(any("garment_contract" in error for error in garment_errors))
+
     def test_rejects_identity_lock_without_local_body_profile_authority_guard(self):
         manifest = valid_manifest()
         prompt = valid_prompt(manifest=manifest)
@@ -439,6 +534,13 @@ class PromptSubmissionGateTests(unittest.TestCase):
         self.assertNotEqual(missing_manifest.returncode, 0)
         self.assertIn("manifest", (missing_manifest.stdout + missing_manifest.stderr).lower())
         self.assertEqual(with_manifest.returncode, 0, with_manifest.stdout + with_manifest.stderr)
+
+    def test_non_object_prompt_or_active_manifest_is_rejected_cleanly(self):
+        prompt_errors = validate_manifest.validate_prompt_data([], valid_manifest())
+        manifest_errors = validate_manifest.validate_prompt_data(valid_prompt(), [])
+
+        self.assertIn("prompt must be an object", prompt_errors)
+        self.assertIn("active manifest must be an object", manifest_errors)
 
 
 if __name__ == "__main__":

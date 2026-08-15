@@ -306,6 +306,14 @@ class DocumentationContractTests(unittest.TestCase):
                 source = path.read_text(encoding="utf-8")
                 for field in required_fields:
                     self.assertGreaterEqual(source.count(field), 5)
+                self.assertGreaterEqual(
+                    source.count(
+                        "body_profile=<exact active value>; Noncanonical local "
+                        "pose/composition sources must not control or override "
+                        "body_profile."
+                    ),
+                    5,
+                )
                 self.assertNotIn(
                     "`IDENTITY LOCK:` Preserve the identity_profile", source
                 )
@@ -323,6 +331,27 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn("active schema-2 manifest", schema)
         self.assertIn("must match `identity_profile` exactly", schema)
         self.assertIn("must match `garment_profile` exactly", schema)
+
+    def test_skill_and_prompt_schema_publish_exact_positive_lock_syntax(self):
+        required_clauses = (
+            "The final image must retain at least half of the model's head.",
+            "A complete head is allowed.",
+            "Never crop below the half-head boundary.",
+            (
+                "Even when 正面/1.jpg shows a partial head or no head, reconstruct a "
+                "natural complete head using only the visible skin tone, ancestry "
+                "cues, partial facial evidence, hair evidence, age impression, "
+                "neck/shoulder evidence, and body profile."
+            ),
+            "Do not change the model's visible identity characteristics.",
+            "Activate only for a visually confirmed below-knee dress;",
+            "fixed semicolon-delimited order",
+        )
+        for document in (SKILL, PROMPT_SCHEMA):
+            with self.subTest(document=document.name):
+                source = document.read_text(encoding="utf-8")
+                for clause in required_clauses:
+                    self.assertIn(clause, source)
 
     def test_every_long_dress_template_contains_the_complete_hem_safety_contract(self):
         required_clauses = (

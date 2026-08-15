@@ -111,7 +111,21 @@ Fill the template from visual evidence. Save the completed Chinese analysis in `
 SKC <skc_id> | VIEW <view> | ACTION <action_id> | ATTEMPT <n>
 ```
 
-Every standalone action must contain exactly one actionable `IDENTITY LOCK:` section. Copy the active manifest values into that section as `canonical_source=正面/1.jpg`, `head_visibility=...`, `skin_tone_and_visible_ancestry_cues=...`, `visible_face_features=...`, `hair_evidence=...`, `age_impression=...`, and `body_profile=...`. State inside the same lock that noncanonical local pose/composition sources must not control or override `body_profile`. A generic instruction such as “preserve identity,” an empty marker, or values placed elsewhere in the prompt is invalid.
+Every standalone action must contain exactly one actionable `IDENTITY LOCK:` section. Use this fixed semicolon-delimited order and replace each placeholder with the exact active manifest value; prefix matches, duplicate assignments, reordered fields, and conflicting extra assignments are invalid:
+
+```text
+IDENTITY LOCK: canonical_source=正面/1.jpg; head_visibility=<exact active value>; skin_tone_and_visible_ancestry_cues=<exact active value>; visible_face_features=<exact active value>; hair_evidence=<exact active value>; age_impression=<exact active value>; body_profile=<exact active value>; Noncanonical local pose/composition sources must not control or override body_profile.
+```
+
+A generic instruction such as “preserve identity,” an empty marker, or values placed elsewhere in the prompt is invalid. Use the following positive lock clauses verbatim; negated, paraphrased, partial, or duplicated clauses fail validation:
+
+```text
+HEAD CROP FLOOR: The final image must retain at least half of the model's head. A complete head is allowed. Never crop below the half-head boundary.
+
+FULL-BODY HEAD COMPLETION: Even when 正面/1.jpg shows a partial head or no head, reconstruct a natural complete head using only the visible skin tone, ancestry cues, partial facial evidence, hair evidence, age impression, neck/shoulder evidence, and body profile. Do not change the model's visible identity characteristics.
+
+GARMENT FRAME LOCK: Activate only for a visually confirmed below-knee dress; when active, keep the dress continuously visible from the shoulder/neckline through the lowest hem point; leave visible safety margin below the hem; the hem must not touch or cross an image edge; keep the major hem silhouette unobscured; keep the apparent garment length unchanged.
+```
 
 Every front, side, and back action must contain one actionable `HEAD CROP FLOOR:` section and retain at least half the head; a complete head is allowed. Every full action must contain one actionable `FULL-BODY HEAD COMPLETION:` section and reconstruct a natural complete head from the canonical visible evidence when the source head is partial or absent. When `garment_contract.requires_full_garment_frame` is true, every action must contain one actionable `GARMENT FRAME LOCK:` section: keep the below-knee dress continuously visible from the shoulder/neckline through the lowest hem point, leave visible safety margin below the hem, the hem must not touch or cross an image edge, keep the major hem silhouette unobscured, and keep the apparent garment length unchanged. Do not add that lock for any active garment contract that is not a visually confirmed below-knee dress.
 

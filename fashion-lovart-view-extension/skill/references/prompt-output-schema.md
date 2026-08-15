@@ -62,10 +62,25 @@ Write UTF-8 JSON for each view:
 - `skc_id` must match the active manifest. `identity_contract` must match `identity_profile` exactly, including canonical relative path, hash, and every profile value. `garment_contract` must match `garment_profile` exactly. A prompt cannot weaken a below-knee dress by self-declaring a shirt or a false frame lock.
 - Exactly five unique action objects.
 - `prompt_en` is a complete standalone English prompt, not notes or a placeholder.
-- Every action must include exactly one actionable `IDENTITY LOCK:` section. Copy the active values into that section as `canonical_source=正面/1.jpg`, `head_visibility=...`, `skin_tone_and_visible_ancestry_cues=...`, `visible_face_features=...`, `hair_evidence=...`, `age_impression=...`, and `body_profile=...`. Noncanonical local pose/composition sources must not control or override `body_profile`. Empty/generic marker text and concrete values outside the lock section fail validation.
-- Front, side, and back actions must include the exact marker `HEAD CROP FLOOR:`.
-- Full actions must include the exact marker `FULL-BODY HEAD COMPLETION:`.
-- When `garment_contract.requires_full_garment_frame` is `true`, every action must include one actionable `GARMENT FRAME LOCK:` section requiring the below-knee dress from the shoulder/neckline through the lowest hem point, visible safety margin below the hem, that the hem must not touch or cross an image edge, the major hem silhouette unobscured, and the apparent garment length unchanged.
+- Every action must include exactly one actionable `IDENTITY LOCK:` section. Use the fixed semicolon-delimited order below and substitute exact active values. Prefix matches, reordered fields, duplicates, conflicts, empty/generic marker text, and concrete values outside the lock section fail validation.
+
+  ```text
+  IDENTITY LOCK: canonical_source=正面/1.jpg; head_visibility=<exact active value>; skin_tone_and_visible_ancestry_cues=<exact active value>; visible_face_features=<exact active value>; hair_evidence=<exact active value>; age_impression=<exact active value>; body_profile=<exact active value>; Noncanonical local pose/composition sources must not control or override body_profile.
+  ```
+
+  In contract terms, Noncanonical local pose/composition sources must not control or override `body_profile`; the raw prompt sentence above intentionally omits Markdown backticks.
+
+- Use each applicable positive marker body verbatim. Negated, paraphrased, partial, or duplicated clauses fail validation:
+
+  ```text
+  HEAD CROP FLOOR: The final image must retain at least half of the model's head. A complete head is allowed. Never crop below the half-head boundary.
+
+  FULL-BODY HEAD COMPLETION: Even when 正面/1.jpg shows a partial head or no head, reconstruct a natural complete head using only the visible skin tone, ancestry cues, partial facial evidence, hair evidence, age impression, neck/shoulder evidence, and body profile. Do not change the model's visible identity characteristics.
+
+  GARMENT FRAME LOCK: Activate only for a visually confirmed below-knee dress; when active, keep the dress continuously visible from the shoulder/neckline through the lowest hem point; leave visible safety margin below the hem; the hem must not touch or cross an image edge; keep the major hem silhouette unobscured; keep the apparent garment length unchanged.
+  ```
+
+- Front, side, and back actions use `HEAD CROP FLOOR:`; full actions use `FULL-BODY HEAD COMPLETION:`. Add `GARMENT FRAME LOCK:` only when the active manifest's `garment_profile.requires_full_garment_frame` is `true`.
 - `正面/1.jpg` remains the canonical identity source even when a local view model image supplies pose or crop evidence.
 - Preserve the template's action order, bag rules, view limits, crop/head rules, and scene-extension rules.
 - Append Nano Banana Pro, 4K, and 2:3 inside every English prompt even though these settings also exist in `generation`.

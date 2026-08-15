@@ -50,16 +50,35 @@ IDENTITY_PROMPT_FIELDS = (
     "age_impression",
     "body_profile",
 )
+IDENTITY_PROMPT_ASSIGNMENTS = ("canonical_source", *IDENTITY_PROMPT_FIELDS)
 IDENTITY_BODY_PROFILE_GUARD = (
     "noncanonical local pose/composition sources must not control or override "
     "body_profile"
 )
+HEAD_CROP_REQUIREMENTS = (
+    "The final image must retain at least half of the model's head",
+    "A complete head is allowed",
+    "Never crop below the half-head boundary",
+)
+FULL_HEAD_REQUIREMENTS = (
+    (
+        "Even when 正面/1.jpg shows a partial head or no head, reconstruct a natural "
+        "complete head using only the visible skin tone, ancestry cues, partial "
+        "facial evidence, hair evidence, age impression, neck/shoulder evidence, "
+        "and body profile"
+    ),
+    "Do not change the model's visible identity characteristics",
+)
 GARMENT_FRAME_REQUIREMENTS = (
-    "shoulder/neckline through the lowest hem point",
-    "visible safety margin below the hem",
-    "must not touch or cross an image edge",
-    "major hem silhouette unobscured",
-    "apparent garment length unchanged",
+    "Activate only for a visually confirmed below-knee dress",
+    (
+        "when active, keep the dress continuously visible from the "
+        "shoulder/neckline through the lowest hem point"
+    ),
+    "leave visible safety margin below the hem",
+    "the hem must not touch or cross an image edge",
+    "keep the major hem silhouette unobscured",
+    "keep the apparent garment length unchanged",
 )
 PROMPT_MARKERS = (
     IDENTITY_MARKER,
@@ -146,6 +165,46 @@ def _marker_section(prompt: str, marker: str) -> str | None:
     return prompt[start:end].strip()
 
 
+def _parse_identity_assignments(section: str) -> tuple[dict[str, str], str | None]:
+    """Parse the fixed-order identity lock without prefix or duplicate ambiguity."""
+    assignments = {}
+    cursor = 0
+    for index, field in enumerate(IDENTITY_PROMPT_ASSIGNMENTS):
+        prefix = f"{field}="
+        if not section.startswith(prefix, cursor):
+            return {}, f"expected {prefix} in fixed assignment order"
+        value_start = cursor + len(prefix)
+        if index + 1 < len(IDENTITY_PROMPT_ASSIGNMENTS):
+            next_field = IDENTITY_PROMPT_ASSIGNMENTS[index + 1]
+            boundary = re.search(
+                rf";\s*(?={re.escape(next_field)}=)", section[value_start:]
+            )
+            if boundary is None:
+                return {}, f"missing delimiter before {next_field}="
+            value_end = value_start + boundary.start()
+            cursor = value_start + boundary.end()
+        else:
+            guard = re.search(
+                rf";\s*{re.escape(IDENTITY_BODY_PROFILE_GUARD)}\.?\s*$",
+                section[value_start:],
+                flags=re.IGNORECASE,
+            )
+            if guard is None:
+                return {}, (
+                    "missing exact guard: noncanonical local pose/composition sources "
+                    "must not control or override body_profile"
+                )
+            value_end = value_start + guard.start()
+            cursor = len(section)
+        value = section[value_start:value_end].strip()
+        if not value:
+            return {}, f"{field} must have an exact nonblank value"
+        assignments[field] = value
+    if cursor != len(section):
+        return {}, "unexpected text in identity lock"
+    return assignments, None
+
+
 def _validate_identity_lock(prompt: str, profile: object, action_index: int) -> list[str]:
     if prompt.count(IDENTITY_MARKER) != 1:
         return [
@@ -155,25 +214,35 @@ def _validate_identity_lock(prompt: str, profile: object, action_index: int) -> 
     section = _marker_section(prompt, IDENTITY_MARKER) or ""
     if not isinstance(profile, dict):
         return [f"action {action_index}: active identity_profile is unavailable"]
-    expected = {"canonical_source": f"canonical_source={CANONICAL_IDENTITY_PATH}"}
+    expected = {"canonical_source": CANONICAL_IDENTITY_PATH}
     for field in IDENTITY_PROMPT_FIELDS:
-        expected[field] = f"{field}={profile.get(field)}"
-    lowered = section.casefold()
-    missing = [
-        field for field, token in expected.items() if token.casefold() not in lowered
+        expected[field] = str(profile.get(field))
+    assignments, parse_error = _parse_identity_assignments(section)
+    mismatched = [
+        field for field, expected_value in expected.items()
+        if assignments.get(field) != expected_value
     ]
-    errors = []
-    if missing:
-        errors.append(
-            f"action {action_index}: {IDENTITY_MARKER} must contain concrete active "
-            "identity_profile values for " + ", ".join(missing)
-        )
-    if IDENTITY_BODY_PROFILE_GUARD not in lowered:
-        errors.append(
-            f"action {action_index}: {IDENTITY_MARKER} must state that noncanonical "
-            "local pose/composition sources must not control or override body_profile"
-        )
-    return errors
+    if parse_error is None and not mismatched:
+        return []
+    details = []
+    if parse_error:
+        details.append(parse_error)
+    if mismatched:
+        details.append("mismatched fields: " + ", ".join(mismatched))
+    return [
+        f"action {action_index}: {IDENTITY_MARKER} must contain concrete active "
+        "identity_profile assignments in fixed order and match the values exactly; "
+        + "; ".join(details)
+    ]
+
+
+def _normalized_marker_clauses(section: str) -> list[str]:
+    raw_clauses = re.split(r";|\.(?=\s|$)", section)
+    return [
+        " ".join(clause.strip().split()).casefold()
+        for clause in raw_clauses
+        if clause.strip()
+    ]
 
 
 def _validate_actionable_marker(
@@ -187,8 +256,12 @@ def _validate_actionable_marker(
             f"action {action_index}: prompt_en must contain exactly one actionable "
             f"{marker} section"
         ]
-    section = (_marker_section(prompt, marker) or "").casefold()
-    missing = [phrase for phrase in required_phrases if phrase.casefold() not in section]
+    clauses = _normalized_marker_clauses(_marker_section(prompt, marker) or "")
+    missing = [
+        phrase
+        for phrase in required_phrases
+        if clauses.count(" ".join(phrase.split()).casefold()) != 1
+    ]
     if not missing:
         return []
     return [
@@ -197,7 +270,24 @@ def _validate_actionable_marker(
     ]
 
 
-def validate_manifest_data(data: dict) -> list[str]:
+def _strict_json_equal(left: object, right: object) -> bool:
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(
+            _strict_json_equal(left[key], right[key]) for key in left
+        )
+    if isinstance(left, list):
+        return len(left) == len(right) and all(
+            _strict_json_equal(left_item, right_item)
+            for left_item, right_item in zip(left, right)
+        )
+    return left == right
+
+
+def validate_manifest_data(data: object) -> list[str]:
+    if not isinstance(data, dict):
+        return ["manifest must be an object"]
     errors = []
     if data.get("schema_version") != 2:
         errors.append("schema_version must be 2")
@@ -241,9 +331,16 @@ def validate_manifest_data(data: dict) -> list[str]:
     return errors
 
 
-def validate_prompt_data(data: dict, active_manifest: dict) -> list[str]:
-    manifest_errors = validate_manifest_data(active_manifest)
-    errors = [f"active manifest: {error}" for error in manifest_errors]
+def validate_prompt_data(data: object, active_manifest: object) -> list[str]:
+    if not isinstance(active_manifest, dict):
+        errors = ["active manifest must be an object"]
+    else:
+        manifest_errors = validate_manifest_data(active_manifest)
+        errors = [f"active manifest: {error}" for error in manifest_errors]
+    if not isinstance(data, dict):
+        return errors + ["prompt must be an object"]
+    if not isinstance(active_manifest, dict):
+        return errors
     if data.get("schema_version") != 2:
         errors.append("schema_version must be 2")
     if data.get("skc_id") != active_manifest.get("skc_id"):
@@ -251,6 +348,9 @@ def validate_prompt_data(data: dict, active_manifest: dict) -> list[str]:
     if data.get("view") not in VIEW_KEYS:
         errors.append("view must be front, side, back, or full")
     generation = data.get("generation", {})
+    if not isinstance(generation, dict):
+        errors.append("generation must be an object")
+        generation = {}
     expected = {"model": "nano banana pro", "resolution": "4K", "aspect_ratio": "2:3"}
     for key, value in expected.items():
         if generation.get(key) != value:
@@ -260,13 +360,25 @@ def validate_prompt_data(data: dict, active_manifest: dict) -> list[str]:
     identity_contract = data.get("identity_contract")
     if not isinstance(identity_contract, dict):
         errors.append("identity_contract must be an object")
-    elif identity_contract != active_manifest.get("identity_profile"):
-        errors.append("identity_contract must match the active manifest identity_profile exactly")
+    else:
+        errors.extend(_validate_identity_profile(identity_contract, "identity_contract"))
+        if not _strict_json_equal(
+            identity_contract, active_manifest.get("identity_profile")
+        ):
+            errors.append(
+                "identity_contract must match the active manifest identity_profile exactly"
+            )
     garment_contract = data.get("garment_contract")
     if not isinstance(garment_contract, dict):
         errors.append("garment_contract must be an object")
-    elif garment_contract != active_manifest.get("garment_profile"):
-        errors.append("garment_contract must match the active manifest garment_profile exactly")
+    else:
+        errors.extend(_validate_garment_profile(garment_contract, "garment_contract"))
+        if not _strict_json_equal(
+            garment_contract, active_manifest.get("garment_profile")
+        ):
+            errors.append(
+                "garment_contract must match the active manifest garment_profile exactly"
+            )
     actions = data.get("actions")
     if not isinstance(actions, list) or len(actions) != 5:
         return errors + ["actions must contain exactly five items"]
@@ -310,7 +422,7 @@ def validate_prompt_data(data: dict, active_manifest: dict) -> list[str]:
                 _validate_actionable_marker(
                     prompt,
                     HEAD_CROP_MARKER,
-                    ("at least half", "head"),
+                    HEAD_CROP_REQUIREMENTS,
                     index,
                 )
             )
@@ -319,7 +431,7 @@ def validate_prompt_data(data: dict, active_manifest: dict) -> list[str]:
                 _validate_actionable_marker(
                     prompt,
                     FULL_HEAD_MARKER,
-                    ("complete", "head"),
+                    FULL_HEAD_REQUIREMENTS,
                     index,
                 )
             )
