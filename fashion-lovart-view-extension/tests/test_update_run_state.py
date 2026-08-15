@@ -184,6 +184,54 @@ class RunStateTests(unittest.TestCase):
                 reason_code="unknown-quality-failure",
             )
 
+    def test_reason_code_is_validated_and_limited_to_rejected_transitions(self):
+        module = load_module()
+        state = ready_state(module)
+
+        with self.assertRaisesRegex(ValueError, "unknown quality reason code"):
+            module.transition_action(
+                state,
+                "front",
+                "FR01",
+                "submitted",
+                reason_code="unknown-quality-failure",
+            )
+        self.assertEqual(state["views"]["front"]["actions"]["FR01"]["status"], "pending")
+
+        with self.assertRaisesRegex(
+            ValueError, "reason_code is only allowed for rejected transitions"
+        ):
+            module.transition_action(
+                state,
+                "front",
+                "FR01",
+                "submitted",
+                reason_code="identity-drift",
+            )
+
+    def test_rejected_transition_requires_a_nonempty_string_reason(self):
+        module = load_module()
+
+        for reason in ("   ", 123):
+            with self.subTest(reason=reason):
+                state = ready_state(module)
+                module.transition_action(state, "front", "FR01", "submitted")
+
+                with self.assertRaisesRegex(
+                    ValueError, "rejected transition requires a non-empty string reason"
+                ):
+                    module.transition_action(
+                        state,
+                        "front",
+                        "FR01",
+                        "rejected",
+                        reason=reason,
+                    )
+                self.assertEqual(
+                    state["views"]["front"]["actions"]["FR01"]["status"],
+                    "submitted",
+                )
+
     def test_verified_layout_reservation_preserves_four_row_canvas_contract(self):
         module = load_module()
         state = module.initialize_state(

@@ -406,11 +406,14 @@ def transition_action(
     old_status = action["status"]
     if new_status not in TRANSITIONS.get(old_status, set()):
         raise ValueError(f"invalid transition: {old_status} -> {new_status}")
-    if new_status == "rejected":
-        if not reason:
-            raise ValueError("rejected transition requires a reason")
-        if reason_code is not None and reason_code not in QUALITY_REASON_CODES:
+    if reason_code is not None:
+        if reason_code not in QUALITY_REASON_CODES:
             raise ValueError(f"unknown quality reason code: {reason_code}")
+        if new_status != "rejected":
+            raise ValueError("reason_code is only allowed for rejected transitions")
+    if new_status == "rejected":
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("rejected transition requires a non-empty string reason")
 
     if new_status == "submitted":
         _assert_submission_gate(state, task_label)
