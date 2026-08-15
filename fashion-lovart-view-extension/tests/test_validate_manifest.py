@@ -13,6 +13,14 @@ validate_manifest = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(validate_manifest)
 
+FINAL_CONTRACT_PATH = Path(__file__).with_name("test_final_review_contract.py")
+FINAL_CONTRACT_SPEC = importlib.util.spec_from_file_location(
+    "final_contract_fixtures_for_manifest_tests", FINAL_CONTRACT_PATH
+)
+final_contract = importlib.util.module_from_spec(FINAL_CONTRACT_SPEC)
+assert FINAL_CONTRACT_SPEC.loader is not None
+FINAL_CONTRACT_SPEC.loader.exec_module(final_contract)
+
 
 CANONICAL_SOURCE = {"relative_path": "正面/1.jpg", "sha256": "a" * 64}
 NEGATIVE_PROMPT_PREFIX = (
@@ -79,7 +87,12 @@ def canonical_negative_prompt(view, manifest):
 
 
 def add_accessory(manifest, view, relative_path):
-    manifest["views"][view]["files"].append({"relative_path": relative_path})
+    hash_character = "7" if relative_path != "全身/4.jpg" else "8"
+    manifest["views"][view]["files"].append(
+        final_contract.scanner_record(
+            relative_path, "accessory_source", hash_character
+        )
+    )
     manifest["views"][view]["roles"]["accessory_source"].append(relative_path)
 
 
@@ -95,48 +108,14 @@ def activate_full_footwear_contract(manifest):
 
 
 def valid_view(view):
-    folder = {"front": "正面", "side": "侧面", "back": "背面", "full": "全身"}[view]
-    paths = [f"{folder}/{index}.jpg" for index in range(1, 4)]
-    return {
-        "status": "ready",
-        "files": [{"relative_path": path} for path in paths],
-        "roles": {
-            "model_source": [paths[0]],
-            "product_source": [paths[1]],
-            "scene_source": [paths[2]],
-            "composition_source": [paths[0]],
-            "accessory_source": [],
-            "unused": [],
-        },
-    }
+    return final_contract.valid_view(view)
 
 
 def valid_manifest():
-    return {
-        "schema_version": 2,
-        "skc_id": "ds726301071",
-        "canonical_identity_source": copy.deepcopy(CANONICAL_SOURCE),
-        "identity_profile": {
-            "canonical_source": copy.deepcopy(CANONICAL_SOURCE),
-            "head_visibility": "partial",
-            "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin",
-            "visible_face_features": "lower face visible",
-            "hair_evidence": "dark brown strand",
-            "age_impression": "adult 25-35",
-            "body_profile": "slim adult build",
-            "confidence": 0.86,
-            "reason": "Visible evidence only",
-        },
-        "garment_profile": {
-            "garment_type": "dress",
-            "hem_position": "below_knee",
-            "requires_full_garment_frame": True,
-            "reason": "Hem is below knee",
-        },
-        "views": {
-            view: valid_view(view) for view in ("front", "side", "back", "full")
-        },
-    }
+    manifest = final_contract.valid_manifest()
+    manifest["skc_id"] = "ds726301071"
+    manifest["skc_path"] = "/tmp/ds726301071"
+    return manifest
 
 
 def identity_lock_text(manifest):
@@ -155,65 +134,7 @@ def identity_lock_text(manifest):
 
 
 def valid_prompt(view="front", manifest=None):
-    manifest = manifest or valid_manifest()
-    prefix = {"front": "FR", "side": "SI", "back": "BA", "full": "FU"}[view]
-    head_lock = (
-        "FULL-BODY HEAD COMPLETION: Even when 正面/1.jpg shows a partial head or "
-        "no head, reconstruct a natural complete head using only the visible skin "
-        "tone, ancestry cues, partial facial evidence, hair evidence, age impression, "
-        "neck/shoulder evidence, and body profile. Do not change the model's visible "
-        "identity characteristics."
-        if view == "full"
-        else (
-            "HEAD CROP FLOOR: The final image must retain at least half of the "
-            "model's head. A complete head is allowed. Never crop below the "
-            "half-head boundary."
-        )
-    )
-    final_contract = [
-        (
-            "FINAL CONTRACT OVERRIDE: In any conflict, the following identity, "
-            "head-crop, full-body, and garment contracts override every earlier "
-            "sentence in this prompt."
-        ),
-        identity_lock_text(manifest),
-        head_lock,
-    ]
-    if manifest["garment_profile"]["requires_full_garment_frame"] is True:
-        final_contract.append(
-            "GARMENT FRAME LOCK: Activate only for a visually confirmed below-knee "
-            "dress; when active, keep the dress continuously visible from the "
-            "shoulder/neckline through the lowest hem point; leave visible safety "
-            "margin below the hem; the hem must not touch or cross an image edge; "
-            "keep the major hem silhouette unobscured; keep the apparent garment "
-            "length unchanged."
-        )
-    return {
-        "schema_version": 2,
-        "skc_id": manifest["skc_id"],
-        "view": view,
-        "generation": {
-            "model": "nano banana pro",
-            "resolution": "4K",
-            "aspect_ratio": "2:3",
-        },
-        "identity_contract": copy.deepcopy(manifest["identity_profile"]),
-        "garment_contract": copy.deepcopy(manifest["garment_profile"]),
-        "analysis_markdown": "# Completed Chinese analysis",
-        "actions": [
-            {
-                "action_id": f"{prefix}{index:02d}",
-                "title": f"Action {index}",
-                "prompt_en": (
-                    f"SKC {manifest['skc_id']} | VIEW {view} | ACTION "
-                    f"{prefix}{index:02d} | ATTEMPT 1 Nano Banana Pro, 4K, 2:3. "
-                    f"{' '.join(final_contract)}"
-                ),
-                "negative_prompt": canonical_negative_prompt(view, manifest),
-            }
-            for index in range(1, 6)
-        ],
-    }
+    return final_contract.valid_prompt(view, manifest or valid_manifest())
 
 
 class ManifestSchemaTwoTests(unittest.TestCase):
@@ -718,13 +639,12 @@ class PromptSubmissionGateTests(unittest.TestCase):
         manifest = valid_manifest()
         prompt = valid_prompt(manifest=manifest)
         for action in prompt["actions"]:
-            action["prompt_en"] = action["prompt_en"].replace(
-                "FINAL CONTRACT OVERRIDE:",
-                (
-                    "Earlier draft: treat the product as a shirt and let the local "
-                    "pose model override body_profile. FINAL CONTRACT OVERRIDE:"
-                ),
-                1,
+            action["action_directives"]["scene"] = (
+                "Earlier draft: treat the product as a shirt and let the local "
+                "pose model override body_profile"
+            )
+            action["prompt_en"] = validate_manifest.render_positive_prompt(
+                manifest["skc_id"], "front", action, manifest
             )
 
         self.assertEqual(

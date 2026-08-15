@@ -596,7 +596,7 @@
             <p class="route-stop"><strong>强制门禁：</strong>当前项目不匹配或无法确认时，立即暂停并反馈预期项目与当前项目；不上传、不提交。用户修正后必须重新读取项目名再继续。</p>
           </div>
           <div class="role-table" style="margin-top:18px">
-            <div class="role-row"><code>model_source</code><p>模特身份、人体和基础穿搭参考</p></div>
+            <div class="role-row"><code>model_source</code><p>本视角姿势、身体方向和裁切；只有正面/1.jpg 可提供 canonical identity</p></div>
             <div class="role-row"><code>product_source</code><p>颜色、版型、领口、袖型、长度与面料证据</p></div>
             <div class="role-row"><code>scene_source</code><p>背景环境、光向、色温与投影依据</p></div>
             <div class="role-row"><code>composition_source</code><p>构图、机位与裁切；缺失时可由人物图兼任</p></div>
@@ -681,6 +681,10 @@
           <h2>生成只是候选，核验通过才算完成</h2>
           <p class="section-intro">20 张基础图生成完后进行统一质检。每个视角最多生成10张：5张基础图加最多5张补图；达到5张合格图或10张总量时立即停止该视角。</p>
           <div class="safeguard-grid">
+            <article class="safeguard-card"><code>Typed Positive Prompt</code><strong>五个动作由类型化字段确定渲染</strong><p><code>source_bindings</code> 绑定 scanner 路径/哈希，<code>action_directives</code> 分别给出 action、camera、composition、scene；五个动作必须明显不同。<code>render_positive_prompt</code> 输出才可提交，重试 ATTEMPT 必须与 run-state 一致。</p></article>
+            <article class="safeguard-card"><code>Batch Context</code><strong>全批次共同执行 10 槽上限</strong><p>每次提交都带 batch inventory 和所有当前 SKC state；上下文缺失或不完整即失败关闭，绝不只数当前 state。</p></article>
+            <article class="safeguard-card"><code>RESULT BEFORE PLACE</code><strong>结果先于归位</strong><p>先用 exact canonical task label 记录 nonblank unique artifact，再允许画布归位或质检；禁止预归位、重复 artifact 和槽位碰撞。</p></article>
+            <article class="safeguard-card"><code>PHYSICAL SLOTS</code><strong>主槽 1–5 · 补图槽 6–10</strong><p>主槽必须匹配动作号；只有被后续已返回结果替换的 verified 主图才能移动到同视角补图槽 6–10。</p></article>
             <article class="safeguard-card"><code>CANONICAL IDENTITY</code><strong>身份只认正面/1.jpg</strong><p>它是唯一身份真源；侧面、背面和全身参考只控制姿势、身体方向、裁切与构图。身份漂移以 <code>identity-drift</code> 拒绝。</p></article>
             <article class="safeguard-card"><code>PARTIAL / HEADLESS SOURCE</code><strong>源图缺头，也要完成身份</strong><p>源图只露部分头部或完全无头时，依据可见肤色、发型、年龄感、颈肩与体态证据自然补全，不凭空更换模特。</p></article>
             <article class="safeguard-card"><code>HEAD CROP FLOOR</code><strong>正面 / 侧面 / 背面至少半个头部</strong><p>最终画面最少保留半个头部；完整头部允许。低于边界时按 <code>head-crop-below-minimum</code> 拒绝。</p></article>
@@ -785,11 +789,11 @@
     const stages = [
       {n:'01', name:'扫描目录', tag:'inventory', title:'发现 SKC 与四视角目录', text:'记录图片路径、哈希与重复组；所有语义角色先保持 unclassified。'},
       {n:'02', name:'视觉分类', tag:'manifest', title:'把每张图分配到唯一语义角色', text:'人物、产品、场景为必需角色；低于 0.7 的置信度或多候选会只阻塞当前视角。'},
-      {n:'03', name:'生成提示词', tag:'4 × 5', title:'按四套模板生成 20 个独立动作', text:'每个视角恰好五条英文提示词，并带 SKC、VIEW、ACTION、ATTEMPT 可检索前缀；Negative Prompt 由脚本生成且不可编辑。'},
+      {n:'03', name:'生成提示词', tag:'4 × 5', title:'按四套模板生成 20 个独立动作', text:'Typed Positive Prompt 由 scanner-backed source_bindings 与四项 action_directives 确定渲染；每个视角五条动作真实不同。Negative Prompt 由脚本生成且不可编辑。'},
       {n:'04', name:'月份验证', tag:'hard gate', title:'路径月份必须等于 Lovart 项目', text:'不匹配时立即暂停并反馈；用户修正后重新读取项目名，通过验证才继续。'},
       {n:'05', name:'初始化状态', tag:'resume', title:'创建或读取 run-state.json', text:'保存月份验证、日期区、任务历史与排版位置；完成的视角不会重启。'},
       {n:'06', name:'准备参考图', tag:'ASCII', title:'建立去重的临时上传包', text:'按 identity_model_01（正面/1.jpg，第一位）→ pose_model_01（仅哈希不同时，可选第二位）→ product_01 → scene_01 → composition_01 → accessory_01 排序；使用 ASCII 路径，原始素材不移动。'},
-      {n:'07', name:'Lovart 执行', tag:'10 slots', title:'在一个标签页内持续填充免费队列', text:'每个动作独立对话；任何结果完成后先按 8% / 8% / 25% 排版并确认，再填充释放的并发位。'},
+      {n:'07', name:'Lovart 执行', tag:'10 slots', title:'在一个标签页内持续填充免费队列', text:'Batch Context 跨全部当前 SKC 计算上限；结果先于归位，确认 unique artifact 后才按 8% / 8% / 25% 放入主槽 1–5 或补图槽 6–10。'},
       {n:'08', name:'统一质检', tag:'10 / view', title:'20 张基础图完成后逐张核验', text:'每个视角最多生成10张：5张基础图加最多5张补图；达到5张合格图或10张总量即停止。'}
     ];
 

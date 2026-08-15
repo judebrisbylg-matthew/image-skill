@@ -26,8 +26,10 @@ tools/build_handbook.mjs      文档构建器：从 skill/ 重新生成 HTML
 - 支持单个 SKC 和批次根目录。
 - 除唯一身份例外 `正面/1.jpg` 外，不按 `1/2/3/4` 猜图片作用，而是根据画面分配人物、产品、场景、构图和配饰角色；`正面/1.jpg` 必须先目视检查并作为所有视角的 canonical identity source。
 - 正面、侧面、背面、全身各生成 5 个独立动作。
+- 每条动作使用 scanner-backed `source_bindings`、四项 `action_directives` 和确定性 `render_positive_prompt`；五条动作必须真实不同且能独立执行，重试的 `ATTEMPT n` 与 run-state 严格绑定。
 - Nano Banana Pro、4K、2:3。
 - Lovart 最多同时保留 10 个未完成任务，不提交第 11 个。
+- 提交时必须提供 `--batch-inventory`，并为同批其他 SKC 重复提供 `--batch-state`；缺少完整批次上下文会关闭提交闸门，10 个未完成任务按所有当前批次 SKC state 合计。
 - 每张图完成后立即放入对应视角行，不等最后再批量整理。
 - 月度画布使用 `date-skc-four-row-v3`：确认截图按 `date -> SKC -> front/side/back/full -> primary/supplemental` 映射，日期从左到右，同一天的不同 SKC 从上到下，绝不左右并排。
 - 每个 SKC 固定四行；每行预留 5 个主图槽和 5 个补图槽，日期分区按完整 10 槽宽度预留。
@@ -104,6 +106,17 @@ $fashion-lovart-view-extension /path/to/your-skc-id
 ```text
 $fashion-lovart-view-extension /path/to/batch-root
 ```
+
+底层提交接口始终使用 exact canonical task label，并显式加载整批当前状态：
+
+```bash
+python3 skill/scripts/update_run_state.py transition <state> <view> <action-id> submitted \
+  --task-label "SKC <skc-id> | VIEW <view> | ACTION <action-id> | ATTEMPT <n>" \
+  --batch-inventory <temporary-batch-inventory.json> \
+  --batch-state <other-current-skc-state.json>
+```
+
+Lovart 返回图片后，先用同一标签和 nonblank unique artifact 记录 `generated`，再归位；不允许预归位或复用 artifact。主槽只能使用 `1`–`5` 且对应动作号，补图使用 supplemental slots `6`–`10`，任何物理槽位冲突都失败关闭。统一质检和最终完成都要求 review gate 已持久化证明 20 verified primary base results（四视角各 5 张且 artifact 全部唯一）。
 
 推荐直接提供当天目录。路径与 Lovart 位置采用确定映射：
 

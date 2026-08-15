@@ -36,8 +36,22 @@ Write UTF-8 JSON for each view:
   "actions": [
     {
       "action_id": "FR01",
+      "attempt": 1,
       "title": "正面标准角度",
-      "prompt_en": "SKC ... one complete executable English prompt",
+      "source_bindings": {
+        "identity": {"relative_path": "正面/1.jpg", "sha256": "<front scanner hash>"},
+        "product": {"relative_path": "正面/2.jpg", "sha256": "<product scanner hash>"},
+        "scene": {"relative_path": "正面/3.jpg", "sha256": "<scene scanner hash>"},
+        "pose_composition": {"relative_path": "正面/1.jpg", "sha256": "<composition scanner hash>"}
+      },
+      "action_directives": {
+        "action": "Carry the verified bag in the right hand while the left hand shapes the waist",
+        "camera": "Use an eye-level straight-on ecommerce camera",
+        "composition": "Keep a relaxed crossed-leg stance and the complete product visible",
+        "scene": "Extend the bound scene with coherent light and ground shadow"
+      },
+      "correction": null,
+      "prompt_en": "<exact render_positive_prompt output>",
       "negative_prompt": "NEGATIVE PROMPT CONTRACT — reject only these defects: collage/multiple panels; multiple people; text; watermark; logo-like marks; distorted anatomy/hands; pasted-on/cutout/halo/edge glow; mismatched lighting/color temperature/shadows; wrong scene; wrong product identity; wrong garment color/neckline/sleeves/length/material; identity drift; ethnicity/visible-ancestry drift; skin-tone drift; age drift; hair drift; body-profile drift; phone/selfie behavior; bag on ground; military stance; both hands hanging straight down; less than a visible half head; complete loss of the head; wrong requested front view; crop violations for the active front composition contract; cropped/obscured hem; hem touching/crossing an image edge; shortened apparent garment length; interrupted shoulder-to-lowest-hem continuity"
     }
   ]
@@ -53,6 +67,8 @@ Write UTF-8 JSON for each view:
 
 ## Contract
 
+- `schema_version` is the strict JSON integer `2`. The float `2.0`, boolean `true`, string `"2"`, legacy objects, and malformed records fail closed.
+
 - Validate every prompt against its active schema-2 manifest:
 
   ```bash
@@ -60,11 +76,14 @@ Write UTF-8 JSON for each view:
   ```
 
 - `skc_id` in both files must be a nonblank string already equal to its stripped form, and the two strings must match without coercion. Every required identity and garment evidence string in the manifest must also already be stripped. `identity_contract` must match `identity_profile` exactly, including canonical relative path, hash, JSON types, and every profile value. `garment_contract` must match `garment_profile` exactly. A prompt cannot weaken a below-knee dress by self-declaring a shirt or a false frame lock.
-- Exactly five unique action objects.
+- Exactly five unique action objects. Each has strict positive-integer `attempt`, scanner-backed `source_bindings`, exactly four canonical English `action_directives` (`action`, `camera`, `composition`, `scene`), and `correction`. Attempt 1 requires `"correction": null`; a retry requires exactly nonblank English `fix` and `preserve` values.
+- `source_bindings.identity` must equal the canonical `正面/1.jpg` path/hash, and product, scene, pose/composition, plus optional footwear bindings must match the active manifest's scanner records exactly. No free-text source label is evidence.
+- The five `action_directives.action` values must be five distinct, meaningful actions. All five rendered prompts must be independently executable and carry identity, product, scene, pose/composition, action, camera, composition, and scene-extension prose. Lock-only clones are invalid.
 - `analysis_markdown`, every action `title`, and every `negative_prompt` must be real nonblank JSON strings; booleans and numeric coercions are invalid.
 - Negative Prompt is script-generated and immutable. Derive `view_contract` from the active validated manifest with `view_contract_from_manifest(view, manifest["views"][view])`, then call `render_negative_prompt(view_contract, identity_contract, garment_contract)`. The exact prefix is `NEGATIVE PROMPT CONTRACT — reject only these defects: `. Copy the return value without trimming or any other modification into all five actions. Validation computes the same value from the active manifest/view and requires exact string equality; legacy prose, paraphrases, whitespace padding, phrase reordering, additions, omissions, another view's output, and incorrect long-dress or footwear variants fail.
 - Required-footwear defects activate only when the view contains an explicit validated `footwear_contract`: exactly `kind: footwear`, non-empty unique accessory-backed `source_paths`, numeric `confidence` from 0.7 to 1, and a canonical nonblank `reason`. Omit it when footwear is absent or unconfirmed. A generic bag, jewelry, or other non-footwear `accessory_source` never activates footwear, while a malformed explicit contract fails validation. The renderer adds the view's crop contract and adds the four hem defects only for a visually confirmed below-knee dress. Never compose negative prompts in a template or add action-specific prose to them; put action, camera, composition, scene, correction, and generation prose in `prompt_en` before its immutable terminal suffix.
-- `prompt_en` is a complete standalone English prompt, not notes or a placeholder.
+- `prompt_en` is a complete standalone English prompt, not notes or a placeholder. Build it only with `render_positive_prompt(skc_id, view, action, active_manifest)` and require exact string equality with that deterministic renderer. Do not hand-edit the rendered output.
+- `render_positive_prompt` emits a positive `FOOTWEAR SOURCE` block when and only when the active manifest contains a validated `footwear_contract`; otherwise `source_bindings` must omit `footwear` and the positive prompt must omit every positive footwear-source instruction. Generic accessory evidence grants no shoes authority.
 - Put all action-specific, camera, composition, scene, lighting, and generation-setting prose first. Every action must then end with this exact manifest-derived suffix introduction; nothing except trailing whitespace may follow the applicable final lock:
 
   ```text
@@ -93,4 +112,14 @@ Write UTF-8 JSON for each view:
 - `正面/1.jpg` remains the canonical identity source even when a local view model image supplies pose or crop evidence.
 - Preserve the template's action order, bag rules, view limits, crop/head rules, and scene-extension rules.
 - Include Nano Banana Pro, 4K, and 2:3 before the final contract suffix in every English prompt even though these settings also exist in `generation`.
-- Keep the exact same renderer output in all five actions. Action-specific prohibitions belong in `prompt_en` before the immutable final-contract suffix.
+- Render all five actions independently from their distinct typed directives. The shared locks and source bindings remain stable, but the action/camera/composition prose must not collapse into five identical outputs. Action-specific execution belongs in `action_directives`, never in ad hoc `prompt_en` edits or blacklist regex workarounds.
+
+## Retry binding
+
+For `attempt > 1`, validate against the active run-state as the third positional argument:
+
+```bash
+python3 scripts/validate_manifest.py prompt <prompt.json> <manifest.json> <run-state.json>
+```
+
+The prompt `ATTEMPT n`, typed `attempt`, canonical task label, and run-state attempt count/status must agree. A retry is allowed only from the immediately preceding rejected attempt or when that same attempt is already recorded in run-state. `render_positive_prompt` places the typed correction before generation settings and the exact terminal suffix; nothing follows that suffix.

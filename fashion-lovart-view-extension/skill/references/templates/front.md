@@ -16,6 +16,8 @@ IDENTITY MODEL SOURCE = 正面/1.jpg，仅控制身份；本视角 POSE/COMPOSIT
 
 Noncanonical local pose/composition sources must not control or override `body_profile`; copy that value only from the active canonical identity profile.
 
+> **Typed execution contract:** Convert each方案 into scanner-backed `source_bindings` plus exact English `action_directives` for `action`, `camera`, `composition`, and `scene`. The five action directives must be meaningfully distinct. Set strict integer `attempt`, use `correction: null` for attempt 1, then call `render_positive_prompt`; its exact output is the only executable positive prompt. Never hand-edit the rendered source, settings, or terminal-lock prose.
+
 ## 图像综合分析
 
 填写：canonical IDENTITY MODEL SOURCE 的可见身份特征；本视角 POSE/COMPOSITION SOURCE 的姿势、裁切、身体方向、主体占比与构图目的；产品完整保留项、展示价值、面料质感；场景提取、光影、剔除元素；受光方向、环境反射、真实投影、统一色调与空间纵深。

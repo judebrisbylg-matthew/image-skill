@@ -36,7 +36,15 @@ def task_label(view, action_id, attempt=1):
     return f"SKC ds-test | VIEW {view} | ACTION {action_id} | ATTEMPT {attempt}"
 
 
-def submit_action(module, state, view, action_id):
+def batch_context(*states):
+    return {
+        "schema_version": 1,
+        "skc_ids": [state["skc_id"] for state in states],
+        "states": list(states),
+    }
+
+
+def submit_action(module, state, view, action_id, *batch_states):
     attempt = state["views"][view]["actions"][action_id]["attempts"] + 1
     return module.transition_action(
         state,
@@ -44,6 +52,61 @@ def submit_action(module, state, view, action_id):
         action_id,
         "submitted",
         task_label=task_label(view, action_id, attempt),
+        batch_context=batch_context(*(batch_states or (state,))),
+    )
+
+
+def review_ready_state(module):
+    state = gated_state(module, views=("front", "side", "back", "full"))
+    for view, prefix in module.PREFIXES.items():
+        view_state = state["views"][view]
+        view_state["generated_count"] = 5
+        for index in range(1, 6):
+            action_id = f"{prefix}{index:02d}"
+            label = task_label(view, action_id)
+            action = view_state["actions"][action_id]
+            action.update(
+                status="generated",
+                attempts=1,
+                lovart_task_label=label,
+                attempt_history=[
+                    {
+                        "attempt": 1,
+                        "submitted_at": module.now_iso(),
+                        "task_label": label,
+                        "artifact_id": f"review-base-{view}-{index}",
+                        "rejection_reason": None,
+                        "rejection_reason_code": None,
+                        "result_recorded_at": module.now_iso(),
+                        "result_status": "generated",
+                    }
+                ],
+            )
+            action["canvas"]["current_attempt"] = 1
+            action["canvas"]["placements"] = [
+                {
+                    "attempt": 1,
+                    "area": "primary",
+                    "slot": index,
+                    "row_slot": index,
+                    "verified": True,
+                    "placement_status": "verified",
+                }
+            ]
+    assert module.evaluate_review_gate(state)["review_allowed"]
+    return state
+
+
+def generate_action(module, state, view, action_id, artifact_id=None):
+    attempt = state["views"][view]["actions"][action_id]["attempts"]
+    label = task_label(view, action_id, attempt)
+    return module.transition_action(
+        state,
+        view,
+        action_id,
+        "generated",
+        task_label=label,
+        artifact_id=artifact_id or f"artifact-{view}-{action_id.lower()}-{attempt}",
     )
 
 
@@ -78,9 +141,10 @@ def gated_state(module, views=("front",)):
     return state
 
 
-def ready_submitted_state(module):
+def ready_generated_state(module):
     state = ready_state(module)
     submit_action(module, state, "front", "FR01")
+    generate_action(module, state, "front", "FR01")
     return state
 
 
@@ -151,6 +215,7 @@ class RunStateTests(unittest.TestCase):
             "FR01",
             "submitted",
             task_label="SKC ds-test | VIEW front | ACTION FR01 | ATTEMPT 1",
+            batch_context=batch_context(state),
         )
         self.assertEqual(state["views"]["front"]["actions"]["FR01"]["status"], "submitted")
 
@@ -237,8 +302,7 @@ class RunStateTests(unittest.TestCase):
 
     def test_rejected_identity_drift_requires_structured_reason_code(self):
         module = load_module()
-        state = ready_state(module)
-        submit_action(module, state, "front", "FR01")
+        state = review_ready_state(module)
 
         module.transition_action(
             state,
@@ -256,7 +320,7 @@ class RunStateTests(unittest.TestCase):
 
     def test_rejected_quality_failures_accept_only_known_structured_reason_codes(self):
         module = load_module()
-        state = ready_state(module)
+        state = review_ready_state(module)
         cases = (
             ("FR01", "head-crop-below-minimum"),
             ("FR02", "full-head-incomplete"),
@@ -264,7 +328,6 @@ class RunStateTests(unittest.TestCase):
         )
 
         for action_id, reason_code in cases:
-            submit_action(module, state, "front", action_id)
             module.transition_action(
                 state,
                 "front",
@@ -277,17 +340,6 @@ class RunStateTests(unittest.TestCase):
                 "attempt_history"
             ][-1]
             self.assertEqual(history["rejection_reason_code"], reason_code)
-            module.place_attempt(
-                state,
-                "front",
-                action_id,
-                history["attempt"],
-                area="primary",
-                slot=int(action_id[-2:]),
-                verified=True,
-            )
-
-        submit_action(module, state, "front", "FR04")
         with self.assertRaisesRegex(ValueError, "unknown quality reason code"):
             module.transition_action(
                 state,
@@ -328,8 +380,7 @@ class RunStateTests(unittest.TestCase):
 
         for reason in ("   ", 123):
             with self.subTest(reason=reason):
-                state = ready_state(module)
-                submit_action(module, state, "front", "FR01")
+                state = review_ready_state(module)
 
                 with self.assertRaisesRegex(
                     ValueError, "rejected transition requires a non-empty string reason"
@@ -343,7 +394,7 @@ class RunStateTests(unittest.TestCase):
                     )
                 self.assertEqual(
                     state["views"]["front"]["actions"]["FR01"]["status"],
-                    "submitted",
+                    "generated",
                 )
 
     def test_verified_layout_reservation_preserves_four_row_canvas_contract(self):
@@ -381,7 +432,12 @@ class RunStateTests(unittest.TestCase):
         state = gated_state(module)
         label = "SKC ds-test | VIEW front | ACTION FR01 | ATTEMPT 1"
         module.transition_action(
-            state, "front", "FR01", "submitted", task_label=label
+            state,
+            "front",
+            "FR01",
+            "submitted",
+            task_label=label,
+            batch_context=batch_context(state),
         )
 
         with self.assertRaisesRegex(ValueError, "artifact identity is required"):
@@ -402,6 +458,7 @@ class RunStateTests(unittest.TestCase):
                 "FR02",
                 "submitted",
                 task_label="SKC ds-test | VIEW front | ACTION FR02 | ATTEMPT 1",
+                batch_context=batch_context(state),
             )
 
         module.place_attempt(
@@ -413,6 +470,7 @@ class RunStateTests(unittest.TestCase):
             "FR02",
             "submitted",
             task_label="SKC ds-test | VIEW front | ACTION FR02 | ATTEMPT 1",
+            batch_context=batch_context(state),
         )
         self.assertEqual(state["views"]["front"]["actions"]["FR02"]["status"], "submitted")
 
@@ -436,7 +494,12 @@ class RunStateTests(unittest.TestCase):
                     f"SKC ds-test | VIEW {view} | ACTION {action_id} | ATTEMPT 1"
                 )
                 module.transition_action(
-                    state, view, action_id, "submitted", task_label=label
+                    state,
+                    view,
+                    action_id,
+                    "submitted",
+                    task_label=label,
+                    batch_context=batch_context(state),
                 )
                 module.transition_action(
                     state,
@@ -503,7 +566,12 @@ class RunStateTests(unittest.TestCase):
                 action_id = f"{prefix}{index:02d}"
                 label = task_label(view, action_id)
                 module.transition_action(
-                    state, view, action_id, "submitted", task_label=label
+                    state,
+                    view,
+                    action_id,
+                    "submitted",
+                    task_label=label,
+                    batch_context=batch_context(state),
                 )
                 module.transition_action(
                     state,
@@ -547,7 +615,7 @@ class RunStateTests(unittest.TestCase):
             placement = candidate["views"]["front"]["actions"]["FR01"]["canvas"][
                 "placements"
             ][0]
-            placement.update(area="supplemental", slot=1, row_slot=1)
+            placement.update(area="supplemental", slot=6, row_slot=6)
 
         def wrong_primary_slot(candidate):
             placement = candidate["views"]["front"]["actions"]["FR01"]["canvas"][
@@ -648,7 +716,7 @@ class RunStateTests(unittest.TestCase):
 
     def test_verified_placement_records_compact_grid_contract(self):
         module = load_module()
-        state = ready_submitted_state(module)
+        state = ready_generated_state(module)
 
         module.place_attempt(
             state,
@@ -672,7 +740,7 @@ class RunStateTests(unittest.TestCase):
 
     def test_unverified_placement_cannot_complete_an_skc(self):
         module = load_module()
-        state = ready_submitted_state(module)
+        state = ready_generated_state(module)
         module.place_attempt(
             state,
             "front",
@@ -690,10 +758,9 @@ class RunStateTests(unittest.TestCase):
 
     def test_generation_cap_blocks_unresolved_actions_after_ten_results(self):
         module = load_module()
-        state = ready_state(module)
-        for index in range(10):
-            action_id = f"FR{index % 5 + 1:02d}"
-            submit_action(module, state, "front", action_id)
+        state = review_ready_state(module)
+        for index in range(5):
+            action_id = f"FR{index + 1:02d}"
             module.transition_action(
                 state,
                 "front",
@@ -701,14 +768,35 @@ class RunStateTests(unittest.TestCase):
                 "rejected",
                 reason=f"quality drift {index + 1}",
             )
+
+        for index in range(5):
+            action_id = f"FR{index + 1:02d}"
+            submit_action(module, state, "front", action_id)
+            generate_action(module, state, "front", action_id)
             module.place_attempt(
                 state,
                 "front",
                 action_id,
-                state["views"]["front"]["actions"][action_id]["attempts"],
-                area="primary",
-                slot=int(action_id[-2:]),
+                1,
+                area="supplemental",
+                slot=index + 6,
                 verified=True,
+            )
+            module.place_attempt(
+                state,
+                "front",
+                action_id,
+                2,
+                area="primary",
+                slot=index + 1,
+                verified=True,
+            )
+            module.transition_action(
+                state,
+                "front",
+                action_id,
+                "rejected",
+                reason=f"quality drift {index + 6}",
             )
 
         view = state["views"]["front"]

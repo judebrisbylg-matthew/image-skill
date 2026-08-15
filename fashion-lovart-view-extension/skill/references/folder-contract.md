@@ -19,7 +19,11 @@ Assign roles from visual content, with one filename-based exception: `正面/1.j
 - `accessory_source`: shoes, bags, jewelry, or other separately supplied styling.
 - `unused`: irrelevant or conflicting image.
 
-Model, product, and scene must each resolve to exactly one source. Composition may fall back to the unique model source. Accessories are optional and may contain multiple files.
+Model, product, scene, and composition must each resolve to exactly one scanner record in a ready view. Composition may fall back to the unique model source. Accessories are optional and may contain multiple files.
+
+Every persisted `files[]` scanner record is the authoritative evidence object: it carries canonical `relative_path`, lowercase 64-character `sha256`, exact `role`, finite numeric `confidence`, and canonical nonblank visual `reason`. Ready records require confidence at least 0.7. An unclassified record instead keeps `role: unclassified`, `confidence: null`, and `reason: ""`, and cannot appear in a ready view or role list. Role lists must exactly reflect scanner-record roles; the only overlap is the ordered `[model_source, composition_source]` membership under explicit `composition_fallback: model_source`. Legacy path-only files, role-only lists, duplicated paths, missing metadata, or any other overlap fail closed.
+
+`canonical_identity_source` and `identity_profile.canonical_source` must both be the strict scanner path/hash for exactly one `views.front.files` record at `正面/1.jpg`. A detached, stale, differently cased, non-front, missing, or duplicate record is invalid.
 
 An optional per-view `footwear_contract` is the only evidence that activates required-footwear defects:
 

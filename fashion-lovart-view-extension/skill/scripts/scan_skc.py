@@ -165,8 +165,29 @@ def attach_visual_contracts(
     if canonical_source.get("relative_path") != CANONICAL_IDENTITY_PATH:
         raise ValueError("canonical_identity_source.relative_path must be 正面/1.jpg")
     sha256 = canonical_source.get("sha256")
-    if not isinstance(sha256, str) or re.fullmatch(r"[0-9a-fA-F]{64}", sha256) is None:
-        raise ValueError("canonical_identity_source.sha256 must be a 64-character hexadecimal string")
+    if not isinstance(sha256, str) or re.fullmatch(r"[0-9a-f]{64}", sha256) is None:
+        raise ValueError("canonical_identity_source.sha256 must be a canonical lowercase SHA-256 string")
+    views = inventory.get("views")
+    front = views.get("front") if isinstance(views, dict) else None
+    files = front.get("files") if isinstance(front, dict) else None
+    canonical_records = (
+        [
+            item
+            for item in files
+            if isinstance(item, dict)
+            and item.get("relative_path") == CANONICAL_IDENTITY_PATH
+        ]
+        if isinstance(files, list)
+        else []
+    )
+    if len(canonical_records) != 1:
+        raise ValueError(
+            "canonical identity source must resolve to exactly one front scanner record"
+        )
+    if canonical_records[0].get("sha256") != sha256:
+        raise ValueError(
+            "canonical identity source hash must match the front scanner record"
+        )
     if not isinstance(identity_profile, dict):
         raise ValueError("identity_profile must be an object")
     normalized_identity = dict(identity_profile)

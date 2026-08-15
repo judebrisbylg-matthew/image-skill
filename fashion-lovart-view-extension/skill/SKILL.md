@@ -45,7 +45,7 @@ Run:
 python3 scripts/scan_skc.py <input-path> --output <temporary-batch-inventory.json>
 ```
 
-The scanner records files, hashes, and duplicate groups. It deliberately leaves every semantic role `unclassified`.
+The scanner records files, lowercase SHA-256 hashes, and duplicate groups. It deliberately leaves every semantic role `unclassified`. The canonical `正面/1.jpg` path/hash must resolve to exactly one real record in `views.front.files`; never copy a detached or user-supplied hash into the contract.
 
 ### 2. Classify references visually
 
@@ -58,13 +58,13 @@ Open every unique image with image-view tooling. Assign each path exactly one ro
 - `accessory_source`
 - `unused`
 
-Each assignment contains `role`, numeric `confidence` from 0 to 1, and a concrete visual `reason`. Follow the schema in `references/folder-contract.md`. Do not infer ordinary roles from filenames. The only filename-based exception is `正面/1.jpg`: treat it as the canonical **IDENTITY MODEL SOURCE** for identity only, then inspect it visually before deriving any identity evidence.
+Each assignment contains `role`, numeric `confidence` from 0 to 1, and a concrete visual `reason`; the scanner record retains that role, confidence, reason, path, and hash as the authoritative evidence. Follow the schema in `references/folder-contract.md`. Do not infer ordinary roles from filenames. The only filename-based exception is `正面/1.jpg`: treat it as the canonical **IDENTITY MODEL SOURCE** for identity only, then inspect it visually before deriving any identity evidence.
 
 正面/1.jpg is the sole filename-based exception. A generic model_source or local pose/composition source must never supply canonical identity or body_profile.
 
 Apply these rules:
 
-- Each ready view has exactly one model, product, and scene source.
+- Each ready view has exactly one scanner-backed model, product, scene, and composition source. A path has one primary role; the sole legal overlap is an explicit `model_source` -> `composition_source` fallback recorded with `composition_fallback: model_source`.
 - Attach the schema-2 `identity_profile` from visible evidence in `正面/1.jpg`, including head visibility, skin tone and visible ancestry cues, visible face features, hair evidence, age impression, and body profile. Never let a `侧面`, `背面`, or `全身` pose model override these canonical identity characteristics. Noncanonical local pose/composition sources must not control or override `body_profile`; they control only pose, crop, body direction, camera, and composition.
 - Inspect the product evidence and attach `garment_profile`. Set `requires_full_garment_frame: true` only when the garment is visually confirmed as a below-knee dress.
 - If composition is absent and the model source clearly controls crop, reuse the model source as composition fallback.
@@ -115,7 +115,11 @@ Read `references/prompt-output-schema.md` and the matching template:
 | `back` | 背面 | `references/templates/back.md` |
 | `full` | 全身 | `references/templates/full.md` |
 
-Fill the template from visual evidence. Save the completed Chinese analysis in `analysis_markdown` and exactly five complete English prompts in `actions`. Prefix every executable prompt:
+Fill the template from visual evidence. Save the completed Chinese analysis in `analysis_markdown` and exactly five complete English prompts in `actions`. `schema_version` is the strict JSON integer `2`, never `2.0`, `true`, or `"2"`. Every action contains strict positive-integer `attempt`, scanner-backed `source_bindings`, typed `action_directives` with exactly `action`, `camera`, `composition`, and `scene`, plus `correction` (`null` on attempt 1; exact `fix`/`preserve` prose on retries). The five `action_directives.action` values must be five distinct, meaningful actions; each rendered action must be independently executable rather than a lock-only clone.
+
+Build `prompt_en` only with `render_positive_prompt(skc_id, view, action, manifest)` and require exact output equality during validation. The deterministic renderer emits canonical identity, product, scene, and pose/composition path/hash bindings; action/camera/composition/scene prose; optional correction; generation settings; then the exact terminal contract. A positive `FOOTWEAR SOURCE` block appears only from an explicit validated `footwear_contract`; without it, omit the footwear binding and every positive footwear-source instruction.
+
+The renderer prefixes every executable prompt:
 
 ```text
 SKC <skc_id> | VIEW <view> | ACTION <action_id> | ATTEMPT <n>
@@ -170,6 +174,13 @@ Validate each prompt JSON against its active schema-2 manifest before browser wo
 python3 scripts/validate_manifest.py prompt <skc>/_codex/prompts/<view>.json <skc>/_codex/manifest.json
 ```
 
+For retries, also pass the active run-state so typed `attempt`, `ATTEMPT n`, and the immediately preceding rejected attempt remain consistent:
+
+```bash
+python3 scripts/validate_manifest.py prompt <skc>/_codex/prompts/<view>.json \
+  <skc>/_codex/manifest.json <skc>/_codex/run-state.json
+```
+
 ### 4. Resolve and verify the dated Lovart context
 
 Before preparing uploads, resolve the expected month project and date region from the user-provided path:
@@ -216,7 +227,7 @@ Create one ASCII-only package per view. Use only the fixed ASCII root and a SHA-
 5. `composition_01` when its hash is not already present
 6. `accessory_01...`
 
-If a local view pose reference is byte-identical to `正面/1.jpg`, upload only `identity_model_01` but retain the local pose/composition role logically in the manifest and prompt. Keep a mapping from temporary name to manifest path in the run log. Prompts refer to semantic labels such as `IDENTITY MODEL SOURCE`, `POSE/COMPOSITION SOURCE`, `PRODUCT SOURCE`, `SCENE SOURCE`, and `SHOES ACCESSORY SOURCE`, never Lovart's numeric image index. Upload all references once per isolated view conversation.
+If a local view pose reference is byte-identical to `正面/1.jpg`, upload only `identity_model_01` but retain the local pose/composition role logically in the manifest and prompt. Keep a mapping from temporary name to manifest path in the run log. Prompts refer to semantic labels such as `IDENTITY MODEL SOURCE`, `POSE/COMPOSITION SOURCE`, `PRODUCT SOURCE`, `SCENE SOURCE`, and conditional `FOOTWEAR SOURCE`, never Lovart's numeric image index. Upload all references once per isolated view conversation.
 
 ### 7. Operate Lovart in Chrome
 
@@ -224,11 +235,20 @@ Read `references/lovart-execution.md` completely before browser work. Use the ex
 
 Create or locate the date label and SKC label before generation. A date region must be wide enough for the full 10-cell row plus labels and safety padding. Place a new date strictly to the right of the previous date region's actual rightmost object plus a visible safety gap. Place a new SKC for an existing date strictly below that date region's previous SKC actual bottom edge plus a gap approximately 25% of one displayed image height. Never place two different SKCs from the same date side by side, and never estimate the next region from only the first five base images.
 
-Before the first submission, reserve and visually verify the complete destination block: one date label, one SKC label, four labeled rows, and 10 cells per row. Record it with `update_run_state.py reserve-layout`. Submission is forbidden until the month project and layout reservation are both verified. Keep the placement backlog at zero: whenever a result appears, identify it from its exact task label and artifact, record `generated`, place and verify it, then submit the next task. If the task label or artifact cannot be matched, record `blocked:result-identity`; if any generated result remains unplaced, stop new submissions with `blocked:canvas-placement`.
+Before the first submission, reserve and visually verify the complete destination block: one date label, one SKC label, four labeled rows, and 10 cells per row. Record it with `update_run_state.py reserve-layout`. Submission is forbidden until the month project and layout reservation are both verified and internally consistent (`expected_month_project == verified_month_project`, matching date region, no blocker, no pending feedback). Keep the placement backlog at zero: whenever a result appears, resolve its exact canonical task label and unique artifact, record `generated`, place and verify it, then submit the next task. If the task label or artifact cannot be matched, record `blocked:result-identity`; if any generated result remains unplaced, stop new submissions with `blocked:canvas-placement`.
+
+Every submission must supply an explicit deterministic batch context: the original scanner batch inventory plus the current run-state of every SKC listed in that inventory. Pass the current state as the positional state; repeat `--batch-state` once for every other current-batch SKC. Even a single-SKC run passes `--batch-inventory`. Missing, partial, duplicated, differently ordered, or cross-month/date context fails closed. This is how the global 10-unfinished cap is enforced across all current batch SKC states rather than only one file:
+
+```bash
+python3 scripts/update_run_state.py transition <state> <view> <action-id> submitted \
+  --task-label "SKC <skc-id> | VIEW <view> | ACTION <action-id> | ATTEMPT <n>" \
+  --batch-inventory <temporary-batch-inventory.json> \
+  --batch-state <other-skc-1-run-state.json> --batch-state <other-skc-2-run-state.json>
+```
 
 Use one Chrome tab and a separate Lovart conversation for every action. Upload that action's view package, submit exactly one task, wait until Lovart visibly accepts or queues it, then switch to a new conversation without opening another browser tab. Do not submit a second task in the same conversation while the first is unfinished: Lovart cancels the earlier free-queue task. Select Nano Banana Pro, 4K, 2:3. Treat 10 accepted unfinished tasks as Lovart's hard global concurrency window: count `submitted`, `queued`, and visibly generating actions across all views and SKCs, fill the window up to 10 even when early tasks show a free-queue estimate, never submit an 11th, and fill every released slot immediately with the next pending action. For a fresh four-view SKC, submit front `FR01`–`FR05` and side `SI01`–`SI05` as the first 10-task wave unless existing unfinished tasks already occupy slots. As soon as any slot is released, continue with back and then full-body actions; do not wait for a whole wave to finish.
 
-Use a two-phase quality order for each SKC: first submit and wait for all 20 base actions (four views times five actions) to finish; only then begin the unified visual review. Do not interrupt base generation with quality retries. Run `update_run_state.py review-gate` before review. Every view must contain five identified and verified base results in action slots `01`–`05`. If any view has fewer than five, record `blocked:base-count-incomplete`; do not review or submit corrections until the missing base actions finish and are placed. After the gate passes, review the 20 base results one by one, then use released slots for evidence-based retries.
+Use a two-phase quality order for each SKC: first submit and wait for all 20 base actions (four views times five actions) to finish; only then begin the unified visual review. Do not interrupt base generation with quality retries. Run `update_run_state.py review-gate` before review. Completion and any `qualified`/`rejected` transition depend on the persisted gate for exactly 20 verified primary base results with unique artifacts. Every view must contain five identified and verified base results in action slots `01`–`05`. If any view has fewer than five, record `blocked:base-count-incomplete`; do not review or submit corrections until the missing base actions finish and are placed. After the gate passes, review the 20 base results one by one, then use released slots for evidence-based retries.
 
 Apply a hard generation cap independently to every view. Front, side, back, and full may each produce at most 10 candidate images total: five base candidates plus no more than five correction candidates. Count a candidate only after Lovart visibly returns an image; count rejected images and replacement images, but do not count pending, submitted, queued, cancelled, or failed requests that return no image. Before submitting, reserve capacity for all unfinished requests in that view so accepted work cannot exceed the 10-image cap. Give every rejected action one correction opportunity before assigning another correction to an action that has already received one. Stop the view immediately after it has five qualified actions or reaches 10 generated candidates. At the cap, mark every unresolved action `blocked:quality-cap` and continue other views or SKCs.
 
@@ -236,11 +256,18 @@ Canvas placement is **not** deferred to either phase. The moment any task finish
 
 Never click `立即生成`, use points, pay for acceleration, silently select Nano Banana 2, combine actions into a grid request, or upload references to the wrong view conversation.
 
-Update state after every observable task change. Use `generated` only after the exact Lovart task label and artifact identity are confirmed:
+Update state after every observable task change. Use `generated` only after the exact Lovart task label and a canonical nonblank unique artifact identity are confirmed. A result record must exist before any placement or quality transition; pre-placement and duplicate artifacts fail closed:
 
 ```bash
-python3 scripts/update_run_state.py transition <state> <view> <action-id> <status> [--reason ...] [--task-label ...] [--artifact-id ...]
+python3 scripts/update_run_state.py transition <state> <view> <action-id> generated \
+  --task-label "SKC <skc-id> | VIEW <view> | ACTION <action-id> | ATTEMPT <n>" \
+  --artifact-id "<unique-visible-artifact-id>"
+
+python3 scripts/update_run_state.py place <state> <view> <action-id> <attempt> \
+  --area primary --slot <1-5> --verified
 ```
+
+`attempt` and `slot` are strict JSON integers, never booleans, floats, or numeric strings. Primary slots `1`–`5` must equal the action number. Only a verified primary result displaced after a later attempt has returned may move into supplemental slots `6`–`10`; each physical row slot has at most one placement.
 
 Use `--reason-code` only for these four hard-rule failures and always pair it with an evidence-based `--reason`:
 
@@ -286,9 +313,11 @@ On failure, record a specific reason and resubmit the same action with a concise
 3. Rebuild and append the entire manifest-derived terminal block from the active manifest.
 4. Validate the rebuilt prompt; never append correction text after the terminal block.
 
+Implement that order through typed data: increment `attempt` to the exact next run-state attempt, set `correction` to exactly `{"fix": "<observed defect>", "preserve": "<already-correct elements>"}`, call `render_positive_prompt`, and validate with the active run-state argument. The renderer places `CORRECTION FOR ATTEMPT n` before settings and the exact terminal suffix; do not splice free text into rendered output.
+
 Append each exact correction prompt and visible Lovart label to `run-log.md`; `run-state.json` retains structured attempt and rejection history plus the view-level generated count. There is no per-action three-attempt rule. The view stops at five qualified actions or 10 generated candidates; unresolved actions then become `blocked:quality-cap`.
 
-Maintain the canvas continuously inside the assigned date/SKC region as four horizontal lanes: row 1 `正面`, row 2 `侧面`, row 3 `背面`, row 4 `全身`. Give every image the same displayed width while preserving its original aspect ratio. Align the tops of images within a row and the left edges of all four rows. Use a horizontal gap approximately 8% of the displayed image width and a vertical row gap approximately 8% of the displayed image height. These ratios are visual targets with small operational tolerance; visible uneven gaps, large empty spaces, or overlap fail placement verification. The left side of every row is a fixed five-cell primary strip ordered action `01` through `05`. The next five continuous positions are supplemental cells, so each row can contain at most 10 generated images. Place every base result immediately in its action's primary cell. When a retry finishes, first move the displaced/rejected candidate into the same row's next supplemental cell, then put the new candidate into the original primary cell. Keep supplemental candidates grouped by action and attempt number. Never move supplemental images to another row, another SKC/date region, or a detached vertical pile.
+Maintain the canvas continuously inside the assigned date/SKC region as four horizontal lanes: row 1 `正面`, row 2 `侧面`, row 3 `背面`, row 4 `全身`. Give every image the same displayed width while preserving its original aspect ratio. Align the tops of images within a row and the left edges of all four rows. Use a horizontal gap approximately 8% of the displayed image width and a vertical row gap approximately 8% of the displayed image height. These ratios are visual targets with small operational tolerance; visible uneven gaps, large empty spaces, or overlap fail placement verification. The left side of every row is a fixed five-cell primary strip ordered action `01` through `05`. The next five continuous positions are supplemental slots `6`–`10`, so each row can contain at most 10 generated images. Place every base result immediately in its action's primary cell. When a retry finishes, first record its returned unique artifact, then move the displaced/rejected candidate into the same row's next supplemental slot, and finally put the new candidate into the original primary cell. Keep supplemental candidates grouped by action and attempt number. Never move supplemental images to another row, another SKC/date region, or a detached vertical pile.
 
 After every placement, verify all of the following before continuing: the result is in the correct view row, the action cell or supplemental position is correct, image size matches the row, spacing is even, no other image moved unexpectedly, and Lovart has visibly retained the position. Record the placement in `run-state.json`. If placement cannot be verified, stop new submissions, record `blocked:canvas-placement`, and preserve the existing layout; do not attempt a final bulk rearrangement.
 

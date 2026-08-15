@@ -31,6 +31,14 @@ validate_manifest = importlib.util.module_from_spec(VALIDATOR_SPEC)
 assert VALIDATOR_SPEC.loader is not None
 VALIDATOR_SPEC.loader.exec_module(validate_manifest)
 
+FINAL_CONTRACT_PATH = Path(__file__).with_name("test_final_review_contract.py")
+FINAL_CONTRACT_SPEC = importlib.util.spec_from_file_location(
+    "final_contract_fixtures_for_documentation_tests", FINAL_CONTRACT_PATH
+)
+final_contract = importlib.util.module_from_spec(FINAL_CONTRACT_SPEC)
+assert FINAL_CONTRACT_SPEC.loader is not None
+FINAL_CONTRACT_SPEC.loader.exec_module(final_contract)
+
 CANONICAL_SOURCE = {"relative_path": "正面/1.jpg", "sha256": "a" * 64}
 IDENTITY_FIELDS = (
     "head_visibility",
@@ -104,20 +112,7 @@ def canonical_negative_prompt(view, manifest):
 
 
 def representative_view(view):
-    folder = {"front": "正面", "side": "侧面", "back": "背面", "full": "全身"}[view]
-    paths = [f"{folder}/{index}.jpg" for index in range(1, 4)]
-    return {
-        "status": "ready",
-        "files": [{"relative_path": path} for path in paths],
-        "roles": {
-            "model_source": [paths[0]],
-            "product_source": [paths[1]],
-            "scene_source": [paths[2]],
-            "composition_source": [paths[0]],
-            "accessory_source": [],
-            "unused": [],
-        },
-    }
+    return final_contract.valid_view(view)
 
 
 def representative_manifest(head_visibility, *, long_dress):
@@ -150,21 +145,16 @@ def representative_manifest(head_visibility, *, long_dress):
 
 
 def scanner_inventory():
+    views = {
+        view: representative_view(view)
+        for view in ("front", "side", "back", "full")
+    }
     return {
         "schema_version": 1,
         "skc_id": "ds-doc-test",
         "skc_path": "/tmp/ds-doc-test",
         "canonical_identity_source": copy.deepcopy(CANONICAL_SOURCE),
-        "views": {
-            view: {
-                "status": "blocked:missing-view",
-                "files": [],
-                "roles": {},
-                "composition_fallback": None,
-                "blockers": ["missing view folder or supported images"],
-            }
-            for view in ("front", "side", "back", "full")
-        },
+        "views": views,
     }
 
 
@@ -198,32 +188,27 @@ def template_action_texts(view):
 
 def render_template_prompt(view, manifest):
     prefix = {"front": "FR", "side": "SI", "back": "BA", "full": "FU"}[view]
-    profile = manifest["identity_profile"]
     actions = []
     for index, template_text in enumerate(template_action_texts(view), start=1):
-        rendered = template_text.replace("`", "")
-        for field in IDENTITY_FIELDS:
-            rendered = re.sub(
-                rf"{re.escape(field)}=<[^>]+>",
-                f"{field}={profile[field]}",
-                rendered,
-            )
-        if not manifest["garment_profile"]["requires_full_garment_frame"]:
-            rendered = rendered.split("GARMENT FRAME LOCK:", 1)[0].rstrip()
         action_id = f"{prefix}{index:02d}"
-        actions.append(
-            {
-                "action_id": action_id,
-                "title": f"Documented {view} action {index}",
-                "prompt_en": (
-                    f"SKC {manifest['skc_id']} | VIEW {view} | ACTION {action_id} | "
-                    f"ATTEMPT 1 "
-                    f"{'Nano Banana Pro, 4K, 2:3. ' if view != 'full' else ''}"
-                    f"{rendered}"
-                ),
-                "negative_prompt": canonical_negative_prompt(view, manifest),
-            }
+        action = {
+            "action_id": action_id,
+            "attempt": 1,
+            "title": f"Documented {view} action {index}",
+            "source_bindings": final_contract.source_bindings(manifest, view),
+            "action_directives": {
+                "action": f"Execute documented {view} ecommerce action {index}",
+                "camera": f"Use documented camera setup {index} for {view}",
+                "composition": f"Use documented composition {index} with the product complete",
+                "scene": f"Extend the bound scene coherently for documented action {index}",
+            },
+            "correction": None,
+            "negative_prompt": canonical_negative_prompt(view, manifest),
+        }
+        action["prompt_en"] = validate_manifest.render_positive_prompt(
+            manifest["skc_id"], view, action, manifest
         )
+        actions.append(action)
     return {
         "schema_version": 2,
         "skc_id": manifest["skc_id"],
@@ -274,6 +259,49 @@ class DocumentationContractTests(unittest.TestCase):
         handbook = HANDBOOK.read_text(encoding="utf-8")
         self.assertIn("footwear_contract", handbook)
         self.assertIn("鞋履证据", handbook)
+
+    def test_final_review_typed_positive_prompt_contract_is_published(self):
+        documents = (SKILL, PROMPT_SCHEMA, *TEMPLATES.values())
+        for document in documents:
+            with self.subTest(document=document.name):
+                source = document.read_text(encoding="utf-8")
+                self.assertIn("render_positive_prompt", source)
+                self.assertIn("source_bindings", source)
+                self.assertIn("action_directives", source)
+
+        schema = PROMPT_SCHEMA.read_text(encoding="utf-8")
+        self.assertIn('"attempt": 1', schema)
+        self.assertIn('"correction": null', schema)
+        self.assertIn("active run-state", schema)
+        self.assertIn("five distinct", schema)
+
+    def test_final_review_batch_artifact_and_slot_interfaces_are_published(self):
+        for document in (SKILL, LOVART, README):
+            with self.subTest(document=document.name):
+                source = document.read_text(encoding="utf-8")
+                self.assertIn("--batch-inventory", source)
+                self.assertIn("--batch-state", source)
+                self.assertIn("exact canonical task label", source)
+                self.assertIn("unique artifact", source)
+                self.assertIn("supplemental slots `6`–`10`", source)
+                self.assertIn("20 verified primary base results", source)
+
+    def test_positive_footwear_source_is_conditional_in_full_template(self):
+        template = TEMPLATES["full"].read_text(encoding="utf-8")
+
+        self.assertNotIn("SHOES ACCESSORY SOURCE", template)
+        self.assertIn("When and only when `footwear_contract` is present", template)
+        self.assertIn("FOOTWEAR SOURCE", template)
+        self.assertIn("omit every positive footwear-source instruction", template)
+
+    def test_handbook_publishes_final_review_runtime_guards(self):
+        for artifact in (HANDBOOK_TEMPLATE, HANDBOOK, SITE_INDEX):
+            with self.subTest(artifact=artifact.name):
+                source = artifact.read_text(encoding="utf-8")
+                self.assertIn("Typed Positive Prompt", source)
+                self.assertIn("Batch Context", source)
+                self.assertIn("结果先于归位", source)
+                self.assertIn("补图槽 6–10", source)
 
     def test_handbook_publishes_identity_framing_and_canvas_rule_cards(self):
         handbook = HANDBOOK.read_text(encoding="utf-8")

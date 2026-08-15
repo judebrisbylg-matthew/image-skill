@@ -14,23 +14,24 @@
 10. Start a fresh conversation for the action. Keep all actions in one Chrome tab, but never reuse a conversation for another unfinished action.
 11. Confirm the visible model is Nano Banana Pro, output is 4K, ratio is 2:3, and no points acceleration is enabled.
 
-Project verification is a hard gate. No reference upload, prompt submission, or concurrency-slot reservation may occur while it is pending or blocked.
+Project verification is a hard gate. No reference upload, prompt submission, or concurrency-slot reservation may occur while it is pending or blocked. Submission also requires internally consistent evidence: expected and verified project strings must be canonical and equal, the reserved date must match the execution context, and blocker/feedback fields must both be clear.
 
 ## Upload and submit
 
-- Upload the action's view ASCII package in manifest order with canonical `identity_model_01` (`正面/1.jpg`) first. If a local view pose reference is byte-identical, upload no duplicate but preserve its pose/composition role logically. Repeat the same view package in each action conversation. For full-body actions, include the footwear accessory source and append the hard requirement that the complete head-to-toe model, full face, both shoes, toes, and soles stay inside the frame with safety margin.
+- Upload the action's view ASCII package in manifest order with canonical `identity_model_01` (`正面/1.jpg`) first. Its path/hash and every required logical source must resolve to real scanner records. If a local view pose reference is byte-identical, upload no duplicate but preserve its pose/composition role logically. Repeat the same view package in each action conversation. Include a positive `FOOTWEAR SOURCE` only when the active view has an explicit validated `footwear_contract`; without it, omit every positive shoes-source instruction. Full-body framing still keeps the complete head-to-toe model, full face, feet and any visible footwear inside the frame with safety margin.
 - Verify the visible reference count and thumbnails before submitting.
 - Submit `01`–`05` as separate action conversations in the same browser tab. After each submission, wait until `submitted` or `queued` is visible, then click New Conversation before preparing the next action. Never submit a second prompt into a conversation that already has an unfinished free-queue task because Lovart cancels the earlier task. Lovart accepts a maximum wave of 10 unfinished image tasks across the workflow. Count `submitted`, `queued`, and visibly generating actions as occupied slots. A free-queue wait estimate on an accepted task does not prevent filling the remaining slots. For a fresh SKC, fill wave one with front `FR01`–`FR05` plus side `SI01`–`SI05`; never submit an 11th. As each task completes, use the released slot for the next pending back/full action.
 - Never request five variants in one combined image. Never use a collage, contact sheet, grid, or multiple people.
 - If a button offers `立即生成` or points acceleration, do not click it. Record queue state and mark the accepted task `queued`.
 - Record every visible free-queue estimate but continue submitting until 10 unfinished tasks are accepted. Fill a released slot immediately with the next pending back/full action. For each SKC, finish all 20 base generations before visual review or retry submissions. Finalize Chrome as a handoff only when the 10-task window is full or Lovart explicitly refuses an additional free submission. Do not block one tool call indefinitely.
-- A completed result creates a placement backlog. Resolve its exact task label and artifact identity, move it to the correct slot, verify persistence, and update state before using the released concurrency slot. The placement backlog must remain zero before every new submission. Unknown identity is `blocked:result-identity`; an unverified move is `blocked:canvas-placement`.
+- Before every submission, provide `--batch-inventory <temporary-batch-inventory.json>` and one `--batch-state <other-run-state.json>` for every other SKC declared by that inventory. This explicit deterministic context must cover all current batch SKC states exactly once and in inventory order; missing context fails closed, including single-SKC submissions without the inventory. The global unfinished cap is computed across those states.
+- A completed result creates a placement backlog. First record `generated` with the exact canonical task label and a canonical nonblank unique artifact; only then move it to the correct slot, verify persistence, and update state before using the released concurrency slot. Pre-placement and duplicate artifact identities are rejected. The placement backlog must remain zero before every new submission. Unknown identity is `blocked:result-identity`; an unverified move is `blocked:canvas-placement`.
 
 ## Base-count review gate
 
-- Unified review and correction generation are forbidden until every view has five identified and verified base results in action slots `01`–`05`.
+- Unified review, quality status transitions, correction generation, and final completion are forbidden until the persisted gate proves exactly 20 verified primary base results: five identified and verified base results per view in action slots `01`–`05`, with exact canonical task labels and 20 unique artifact identities.
 - Run the deterministic review gate after base generation. A missing result produces `blocked:base-count-incomplete` with the missing count for front, side, back, and full.
-- “Submitted”, “queued”, a Lovart text response, or an unidentified canvas image is not a base result. Only a returned image with matching task label, artifact identity, and verified primary placement counts.
+- “Submitted”, “queued”, a Lovart text response, or an unidentified canvas image is not a base result. Only a returned image with matching exact canonical task label, unique artifact identity, and verified primary placement counts.
 - When the gate reports fewer than five for any view, finish those missing base actions first. Do not start quality review and do not generate corrections.
 
 ## Ordered visual review
@@ -103,26 +104,26 @@ Inside the assigned date/SKC region, create the four row lanes before the first 
 
 Each row has two horizontal zones:
 
-- **Primary strip:** five equal cells for action `01`–`05`.
-- **Supplemental strip:** five equal-width fixed cells immediately after the five primary cells using the same approximately 8% inter-cell gap, with no separator or widened break; contains replaced, rejected, and retry candidates for that same view only. A row therefore contains one continuous sequence of at most 10 generated images.
+- **Primary strip:** physical slots `1`–`5`, one equal cell for each action `01`–`05`; a primary slot must equal its action number.
+- **Supplemental strip:** supplemental slots `6`–`10`, five equal-width fixed cells immediately after the primary slots using the same approximately 8% inter-cell gap, with no separator or widened break; contains replaced, rejected, and retry candidates for that same view only. A row therefore contains one continuous sequence of at most 10 generated images.
 
 Normalize at placement time: every image in the SKC uses the same displayed width while retaining its original aspect ratio; images within a row share a top edge; all four rows share a left edge. Use a horizontal gap approximately 8% of image width and a vertical gap approximately 8% of image height. Small operational tolerance is acceptable, but inconsistent spacing, large holes, overlap, stretching, and crop changes are not.
 
 For every newly completed task, perform this sequence before submitting another task:
 
-1. Identify the result from its exact `SKC | VIEW | ACTION | ATTEMPT` conversation label.
-2. For attempt 1, move the result directly into the action's primary cell.
-3. For every correction attempt, move the candidate currently occupying that primary cell into the next available cell of the same row's five-cell supplemental strip, ordered by action then attempt; then move the new result into the vacated primary cell.
+1. Identify the result from its exact canonical `SKC <id> | VIEW <view> | ACTION <action-id> | ATTEMPT <n>` conversation label and record its unique artifact through the `generated` transition.
+2. Only after that result record exists, move attempt 1 directly into the matching primary slot.
+3. For every correction attempt, record the new returned artifact first, move the verified candidate currently occupying that primary slot into the next available physical supplemental slot `6`–`10`, ordered by action then attempt, and then move the new result into the vacated primary slot.
 4. Match the existing row image size and snap to the shared row baseline and column spacing.
 5. Deselect the object, navigate away and back or refocus the canvas, and visually confirm the position persisted and no neighboring object moved.
 6. Record the verified placement:
 
 ```bash
 python3 scripts/update_run_state.py place <state> <view> <action-id> <attempt> \
-  --area primary --slot <01-05> --verified
+  --area primary --slot <1-5> --verified
 ```
 
-When moving a displaced candidate to the supplemental strip, update its earlier placement with the same command using `--area supplemental --slot <stable-row-local-index> --verified`.
+`attempt` and `slot` are strict integers: booleans, floats, numeric strings, nonexistent attempts, and occupied row slots fail closed. When moving a displaced candidate to the supplemental strip, update its earlier placement using `--area supplemental --slot <6-10> --verified`. Only a verified primary candidate displaced after a later result has returned can enter that zone. Any row-slot collision is rejected.
 
 Do not use `Cmd+A`, whole-canvas Auto Layout, or a final bulk drag. Do not leave any generated candidate in Lovart's default vertical stack. Do not move a correction into another SKC or date region. If a move cannot be verified, stop new submissions and log `blocked:canvas-placement` rather than risking the established rows.
 
@@ -150,6 +151,8 @@ Use only an evidence-based correction in the pre-contract action prose:
 ```text
 CORRECTION FOR ATTEMPT <n>: Preserve all original reference roles and constraints. Fix only: <specific observed defects>. Do not change: <already-correct product, pose, crop, and scene elements>.
 ```
+
+Represent this as typed `attempt` plus `correction: {"fix": "...", "preserve": "..."}`. `attempt` must agree with the active run-state and exact `ATTEMPT n` label. Call `render_positive_prompt`, then validate with `<prompt.json> <manifest.json> <run-state.json>`; the renderer places the correction before settings and the exact terminal suffix.
 
 Append the exact submitted rebuilt prompt and Lovart task label to `run-log.md`. Do not overwrite the base prompt JSON.
 

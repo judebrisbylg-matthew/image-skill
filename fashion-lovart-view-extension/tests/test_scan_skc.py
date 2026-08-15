@@ -27,7 +27,21 @@ def valid_inventory():
             "relative_path": "正面/1.jpg",
             "sha256": "a" * 64,
         },
-        "views": {"front": {"status": "blocked:missing-view", "roles": {}}},
+        "views": {
+            "front": {
+                "status": "blocked:role-ambiguous",
+                "files": [
+                    {
+                        "relative_path": "正面/1.jpg",
+                        "sha256": "a" * 64,
+                        "role": "unclassified",
+                        "confidence": None,
+                        "reason": "",
+                    }
+                ],
+                "roles": {},
+            }
+        },
     }
 
 
@@ -103,6 +117,20 @@ class ScanSkcVisualContractTests(unittest.TestCase):
                 {"unclassified"},
             )
 
+    def test_visual_contract_attachment_rechecks_canonical_hash_against_scanner_record(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            skc = self.make_skc(Path(temp_dir))
+            (skc / "正面" / "1.jpg").write_bytes(b"canonical-model")
+            inventory = scan_skc.build_inventory(skc)
+            inventory["canonical_identity_source"]["sha256"] = "b" * 64
+
+            with self.assertRaisesRegex(ValueError, "scanner record"):
+                scan_skc.attach_visual_contracts(
+                    inventory,
+                    valid_identity_profile(),
+                    valid_garment_profile(),
+                )
+
     def test_role_assignments_reject_boolean_confidence_and_non_string_reason(self):
         def inventory_with_one_file():
             inventory = valid_inventory()
@@ -126,12 +154,7 @@ class ScanSkcVisualContractTests(unittest.TestCase):
                     )
 
     def test_attaches_partial_head_identity_and_below_knee_dress_contracts(self):
-        inventory = {
-            "canonical_identity_source": {
-                "relative_path": "正面/1.jpg",
-                "sha256": "a" * 64,
-            }
-        }
+        inventory = valid_inventory()
         profile = {
             "head_visibility": "partial",
             "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin with visible Mediterranean appearance cues",
@@ -199,12 +222,7 @@ class ScanSkcVisualContractTests(unittest.TestCase):
                     )
 
     def test_contract_canonical_source_cannot_be_overridden_by_caller(self):
-        inventory = {
-            "canonical_identity_source": {
-                "relative_path": "正面/1.jpg",
-                "sha256": "a" * 64,
-            }
-        }
+        inventory = valid_inventory()
         profile = {
             "canonical_source": {"relative_path": "侧面/1.jpg", "sha256": "caller-hash"},
             "head_visibility": "partial",
@@ -231,12 +249,7 @@ class ScanSkcVisualContractTests(unittest.TestCase):
         )
 
     def test_attach_visual_contracts_rejects_blank_identity_evidence(self):
-        inventory = {
-            "canonical_identity_source": {
-                "relative_path": "正面/1.jpg",
-                "sha256": "a" * 64,
-            }
-        }
+        inventory = valid_inventory()
         profile = {
             "head_visibility": "partial",
             "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin",
@@ -270,12 +283,7 @@ class ScanSkcVisualContractTests(unittest.TestCase):
                     )
 
     def test_attach_visual_contracts_rejects_invalid_confidence(self):
-        inventory = {
-            "canonical_identity_source": {
-                "relative_path": "正面/1.jpg",
-                "sha256": "a" * 64,
-            }
-        }
+        inventory = valid_inventory()
         profile = {
             "head_visibility": "partial",
             "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin",
@@ -302,12 +310,7 @@ class ScanSkcVisualContractTests(unittest.TestCase):
                     )
 
     def test_attach_visual_contracts_rejects_incomplete_garment_profile(self):
-        inventory = {
-            "canonical_identity_source": {
-                "relative_path": "正面/1.jpg",
-                "sha256": "a" * 64,
-            }
-        }
+        inventory = valid_inventory()
         profile = {
             "head_visibility": "partial",
             "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin",
@@ -334,12 +337,7 @@ class ScanSkcVisualContractTests(unittest.TestCase):
                     )
 
     def test_attach_visual_contracts_rejects_below_knee_non_dress(self):
-        inventory = {
-            "canonical_identity_source": {
-                "relative_path": "正面/1.jpg",
-                "sha256": "a" * 64,
-            }
-        }
+        inventory = valid_inventory()
         profile = {
             "head_visibility": "partial",
             "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin",
