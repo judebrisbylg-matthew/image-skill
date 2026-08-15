@@ -10,7 +10,12 @@ from collections import defaultdict
 from pathlib import Path
 
 
-VIEW_NAMES = {"正面": "front", "侧面": "side", "背面": "back", "全身": "full"}
+VIEW_FOLDERS = {
+    "front": ("正面",),
+    "side": ("侧面",),
+    "back": ("背面",),
+    "full": ("全身", "全身图"),
+}
 VIEW_ORDER = ("front", "side", "back", "full")
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ROLES = (
@@ -25,7 +30,11 @@ REQUIRED_ROLES = ("model_source", "product_source", "scene_source")
 
 
 def is_skc_dir(path: Path) -> bool:
-    return path.is_dir() and any((path / name).is_dir() for name in VIEW_NAMES)
+    return path.is_dir() and any(
+        (path / name).is_dir()
+        for aliases in VIEW_FOLDERS.values()
+        for name in aliases
+    )
 
 
 def discover_skc_paths(input_path: Path | str) -> list[Path]:
@@ -55,7 +64,8 @@ def build_inventory(skc_path: Path | str) -> dict:
 
     views = {}
     all_files = []
-    for folder_name, view_key in VIEW_NAMES.items():
+    for view_key, aliases in VIEW_FOLDERS.items():
+        folder_name = next((name for name in aliases if (skc / name).is_dir()), aliases[0])
         view_dir = skc / folder_name
         files = []
         if view_dir.is_dir():
