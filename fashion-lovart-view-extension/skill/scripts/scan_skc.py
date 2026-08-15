@@ -27,6 +27,9 @@ ROLES = (
     "unused",
 )
 REQUIRED_ROLES = ("model_source", "product_source", "scene_source")
+CANONICAL_IDENTITY_PATH = "正面/1.jpg"
+HEAD_VISIBILITY = {"full", "partial", "absent"}
+HEM_POSITIONS = {"above_knee", "at_knee", "below_knee", "not_applicable"}
 
 
 def is_skc_dir(path: Path) -> bool:
@@ -55,6 +58,16 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _canonical_identity_source(skc: Path, all_files: list[dict]) -> dict | None:
+    match = next(
+        (item for item in all_files if item["relative_path"] == CANONICAL_IDENTITY_PATH),
+        None,
+    )
+    if match is None:
+        return None
+    return {"relative_path": match["relative_path"], "sha256": match["sha256"]}
 
 
 def build_inventory(skc_path: Path | str) -> dict:
@@ -113,8 +126,42 @@ def build_inventory(skc_path: Path | str) -> dict:
         "schema_version": 1,
         "skc_id": skc.name,
         "skc_path": str(skc),
+        "canonical_identity_source": _canonical_identity_source(skc, all_files),
         "views": {key: views[key] for key in VIEW_ORDER},
     }
+
+
+def attach_visual_contracts(
+    inventory: dict, identity_profile: dict, garment_profile: dict
+) -> dict:
+    if inventory.get("canonical_identity_source") is None:
+        raise ValueError("missing canonical identity source: 正面/1.jpg")
+    if identity_profile.get("head_visibility") not in HEAD_VISIBILITY:
+        raise ValueError("identity_profile.head_visibility is invalid")
+    required_identity = {
+        "skin_tone_and_visible_ancestry_cues",
+        "visible_face_features",
+        "hair_evidence",
+        "age_impression",
+        "body_profile",
+        "confidence",
+        "reason",
+    }
+    if required_identity - set(identity_profile):
+        raise ValueError("identity_profile is incomplete")
+    expected_full_frame = (
+        garment_profile.get("garment_type") == "dress"
+        and garment_profile.get("hem_position") == "below_knee"
+    )
+    if garment_profile.get("requires_full_garment_frame") is not expected_full_frame:
+        raise ValueError("requires_full_garment_frame contradicts garment type and hem")
+    inventory["identity_profile"] = {
+        "canonical_source": inventory["canonical_identity_source"],
+        **identity_profile,
+    }
+    inventory["garment_profile"] = dict(garment_profile)
+    inventory["schema_version"] = 2
+    return inventory
 
 
 def apply_role_assignments(inventory: dict, assignments: dict) -> dict:
