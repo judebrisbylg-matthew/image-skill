@@ -12,7 +12,7 @@ Ignore `.DS_Store`, hidden metadata, existing `_codex`, and unsupported files.
 
 Assign roles from visual content, with one filename-based exception: `正面/1.jpg` is always the canonical **IDENTITY MODEL SOURCE** for identity only. Inspect this file visually before continuing; the filename selects the source but does not replace evidence-based analysis.
 
-- `model_source`: model identity, body, styling base, pose/crop when applicable.
+- `model_source`: per-view human pose, body direction, and crop evidence. Only canonical `正面/1.jpg` contributes identity or `body_profile`; a noncanonical model source never does.
 - `product_source`: garment construction for the requested view.
 - `scene_source`: environmental identity and light evidence.
 - `composition_source`: crop, subject scale, head visibility, and framing.
@@ -34,7 +34,7 @@ Require all garment fields: nonblank `garment_type`, valid `hem_position`, boole
   "正面/1.jpg": {
     "role": "model_source",
     "confidence": 0.98,
-    "reason": "Adult model on a plain background; crop and styling are clearly visible."
+    "reason": "Adult human pose on a plain background; body direction and crop are clearly visible."
   },
   "全身/4.png": {
     "role": "accessory_source",

@@ -275,10 +275,22 @@ class DocumentationContractTests(unittest.TestCase):
             "Noncanonical local pose/composition sources must not control or override "
             "`body_profile`"
         )
-        documents = (SKILL, FOLDER, PROMPT_SCHEMA, LOVART, *TEMPLATES.values())
+        documents = (
+            SKILL,
+            FOLDER,
+            PROMPT_SCHEMA,
+            LOVART,
+            README,
+            *TEMPLATES.values(),
+        )
         for document in documents:
             with self.subTest(document=document.name):
                 self.assertIn(required_guard, document.read_text(encoding="utf-8"))
+
+        folder = FOLDER.read_text(encoding="utf-8")
+        readme = README.read_text(encoding="utf-8")
+        self.assertNotIn("model identity, body, styling base", folder)
+        self.assertNotIn("动作、构图和身体比例", readme)
 
     def test_templates_require_concrete_identity_values_inside_every_action_lock(self):
         required_fields = (

@@ -89,7 +89,7 @@ batch-root/
     └── 全身/
 ```
 
-`正面/1.jpg` 是唯一按文件名确定的身份源，只控制身份。系统会从其可见证据建立 `identity_profile`；其他视角的人物图只能补充动作、构图和身体比例，不得覆盖身份。每个 ASCII 上传包都先放 `identity_model_01`。若本视角动作参考与它 byte-identical，只上传一次，但在 manifest 和提示词中继续保留动作/构图逻辑角色。
+`正面/1.jpg` 是唯一按文件名确定的身份源，只控制身份。系统会从其可见证据建立 `identity_profile`；其他视角的人物图只能补充姿势、机位、身体朝向、裁切和构图，不得覆盖身份。Noncanonical local pose/composition sources must not control or override `body_profile`. 每个 ASCII 上传包都先放 `identity_model_01`。若本视角动作参考与它 byte-identical，只上传一次，但在 manifest 和提示词中继续保留动作/构图逻辑角色。
 
 ## 使用
 
