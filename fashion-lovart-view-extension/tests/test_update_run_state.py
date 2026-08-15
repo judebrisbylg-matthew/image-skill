@@ -18,9 +18,16 @@ def load_module():
 
 
 def ready_state(module):
-    return module.initialize_state(
+    state = module.initialize_state(
         {"skc_id": "ds-test", "views": {"front": {"status": "ready"}}}
     )
+    module.record_layout_reservation(
+        state,
+        date_region="8月14日",
+        skc_label="ds-test · V2测试",
+        verified=True,
+    )
+    return state
 
 
 def verified_execution_context():
@@ -129,6 +136,70 @@ class RunStateTests(unittest.TestCase):
             task_label="SKC ds-test | VIEW front | ACTION FR01 | ATTEMPT 1",
         )
         self.assertEqual(state["views"]["front"]["actions"]["FR01"]["status"], "submitted")
+
+    def test_submission_rejects_status_only_legacy_layout_until_rereserved(self):
+        module = load_module()
+        state = gated_state(module)
+        state["layout_reservation"] = {"status": "verified"}
+
+        with self.assertRaisesRegex(ValueError, "reserve-layout.*again"):
+            module.transition_action(
+                state,
+                "front",
+                "FR01",
+                "submitted",
+                task_label="SKC ds-test | VIEW front | ACTION FR01 | ATTEMPT 1",
+            )
+
+        self.assertEqual(state["views"]["front"]["actions"]["FR01"]["status"], "pending")
+
+    def test_submission_rejects_any_incomplete_v3_layout_reservation(self):
+        module = load_module()
+        mutations = {
+            "contract version": lambda reservation: reservation.update(
+                contract_version="date-skc-four-row-v2"
+            ),
+            "date region": lambda reservation: reservation.update(date_region="   "),
+            "active date": lambda reservation: reservation.update(date_region="8月15日"),
+            "skc label": lambda reservation: reservation.update(skc_label=""),
+            "active skc": lambda reservation: reservation.update(
+                skc_label="another-skc"
+            ),
+            "verification time": lambda reservation: reservation.update(
+                verified_at="not-a-timestamp"
+            ),
+            "view row order": lambda reservation: reservation["view_rows"].reverse(),
+            "ten cells": lambda reservation: reservation["view_rows"][0].update(
+                cells=list(range(1, 10))
+            ),
+            "horizontal ratio": lambda reservation: reservation.update(
+                horizontal_gap_ratio=0.31
+            ),
+            "vertical ratio": lambda reservation: reservation.update(
+                vertical_gap_ratio=0.31
+            ),
+            "skc ratio": lambda reservation: reservation.update(skc_gap_ratio=0.31),
+        }
+        for defect, mutate in mutations.items():
+            with self.subTest(defect=defect):
+                state = gated_state(module)
+                mutate(state["layout_reservation"])
+
+                with self.assertRaisesRegex(ValueError, "reserve-layout.*again"):
+                    module.transition_action(
+                        state,
+                        "front",
+                        "FR01",
+                        "submitted",
+                        task_label=(
+                            "SKC ds-test | VIEW front | ACTION FR01 | ATTEMPT 1"
+                        ),
+                    )
+
+                self.assertEqual(
+                    state["views"]["front"]["actions"]["FR01"]["status"],
+                    "pending",
+                )
 
     def test_rejected_identity_drift_requires_structured_reason_code(self):
         module = load_module()

@@ -162,15 +162,72 @@ def placement_backlog(state: dict) -> list[dict]:
     return backlog
 
 
+def _has_aware_iso_timestamp(value: object) -> bool:
+    if not isinstance(value, str) or not value.strip():
+        return False
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
+
+
+def _layout_reservation_errors(state: dict) -> list[str]:
+    reservation = state.get("layout_reservation")
+    if not isinstance(reservation, dict):
+        return ["layout_reservation must be an object"]
+    errors = []
+    if reservation.get("contract_version") != LAYOUT_CONTRACT_VERSION:
+        errors.append(f"contract_version must be {LAYOUT_CONTRACT_VERSION}")
+    date_region = reservation.get("date_region")
+    if not isinstance(date_region, str) or not date_region.strip():
+        errors.append("date_region must be a nonblank string")
+    skc_label = reservation.get("skc_label")
+    if not isinstance(skc_label, str) or not skc_label.strip():
+        errors.append("skc_label must be a nonblank string")
+    if not _has_aware_iso_timestamp(reservation.get("verified_at")):
+        errors.append("verified_at must be a timezone-aware ISO timestamp")
+    expected_rows = [
+        {"view": view_key, "cells": list(range(1, 11))}
+        for view_key in LAYOUT_VIEW_ORDER
+    ]
+    if reservation.get("view_rows") != expected_rows:
+        errors.append("view_rows must be front/side/back/full with cells 1 through 10")
+    expected_ratios = {
+        "horizontal_gap_ratio": HORIZONTAL_GAP_RATIO,
+        "vertical_gap_ratio": VERTICAL_GAP_RATIO,
+        "skc_gap_ratio": SKC_GAP_RATIO,
+    }
+    for field, expected in expected_ratios.items():
+        if reservation.get(field) != expected:
+            errors.append(f"{field} must be {expected}")
+    context = state.get("execution_context")
+    if isinstance(context, dict) and context.get("date_region"):
+        if date_region != context["date_region"]:
+            errors.append("date_region must match the verified execution context")
+    skc_id = state.get("skc_id")
+    if isinstance(skc_id, str) and skc_id.strip() and isinstance(skc_label, str):
+        if skc_id not in skc_label:
+            errors.append("skc_label must identify the active SKC")
+    return errors
+
+
 def _assert_submission_gate(state: dict, task_label: str | None) -> None:
     """Reject browser submissions while deterministic preconditions are unmet."""
+    reservation = state.get("layout_reservation")
+    if not isinstance(reservation, dict) or reservation.get("status") != "verified":
+        raise ValueError("layout reservation is not verified")
+    layout_errors = _layout_reservation_errors(state)
+    if layout_errors:
+        raise ValueError(
+            "layout reservation is incomplete; run reserve-layout again: "
+            + "; ".join(layout_errors)
+        )
     context = state.get("execution_context")
     if context is None:
         return
     if context.get("project_verification_status") != "verified":
         raise ValueError("month project is not verified")
-    if state.get("layout_reservation", {}).get("status") != "verified":
-        raise ValueError("layout reservation is not verified")
     if placement_backlog(state):
         raise ValueError("placement backlog must be zero before submission")
     if not task_label:
