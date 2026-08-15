@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+import re
 from pathlib import Path
 
 
@@ -26,6 +28,20 @@ IDENTITY_MARKER = "IDENTITY LOCK:"
 HEAD_CROP_MARKER = "HEAD CROP FLOOR:"
 FULL_HEAD_MARKER = "FULL-BODY HEAD COMPLETION:"
 GARMENT_FRAME_MARKER = "GARMENT FRAME LOCK:"
+IDENTITY_TEXT_FIELDS = (
+    "skin_tone_and_visible_ancestry_cues",
+    "visible_face_features",
+    "hair_evidence",
+    "age_impression",
+    "body_profile",
+    "reason",
+)
+GARMENT_FIELDS = (
+    "garment_type",
+    "hem_position",
+    "requires_full_garment_frame",
+    "reason",
+)
 
 
 def _validate_canonical_source(source: object, field: str) -> list[str]:
@@ -35,8 +51,60 @@ def _validate_canonical_source(source: object, field: str) -> list[str]:
     if source.get("relative_path") != CANONICAL_IDENTITY_PATH:
         errors.append(f"{field}.relative_path must be {CANONICAL_IDENTITY_PATH}")
     sha256 = source.get("sha256")
-    if not isinstance(sha256, str) or len(sha256) != 64:
-        errors.append(f"{field}.sha256 must be a 64-character string")
+    if not isinstance(sha256, str) or re.fullmatch(r"[0-9a-fA-F]{64}", sha256) is None:
+        errors.append(f"{field}.sha256 must be a 64-character hexadecimal string")
+    return errors
+
+
+def _validate_identity_profile(profile: object, field: str) -> list[str]:
+    if not isinstance(profile, dict):
+        return [f"{field} must be an object"]
+    errors = _validate_canonical_source(
+        profile.get("canonical_source"), f"{field}.canonical_source"
+    )
+    if profile.get("head_visibility") not in HEAD_VISIBILITY:
+        errors.append(f"{field}.head_visibility is invalid")
+    for evidence_field in IDENTITY_TEXT_FIELDS:
+        value = profile.get(evidence_field)
+        if not isinstance(value, str) or not value.strip():
+            errors.append(f"{field}.{evidence_field} must be a nonblank string")
+    confidence = profile.get("confidence")
+    if (
+        isinstance(confidence, bool)
+        or not isinstance(confidence, (int, float))
+        or not math.isfinite(confidence)
+        or not 0 <= confidence <= 1
+    ):
+        errors.append(f"{field}.confidence must be a number from 0 to 1")
+    return errors
+
+
+def _validate_garment_profile(profile: object, field: str) -> list[str]:
+    if not isinstance(profile, dict):
+        return [f"{field} must be an object"]
+    errors = []
+    for required_field in GARMENT_FIELDS:
+        if required_field not in profile:
+            errors.append(f"{field}.{required_field} is required")
+    garment_type = profile.get("garment_type")
+    if not isinstance(garment_type, str) or not garment_type.strip():
+        errors.append(f"{field}.garment_type must be a nonblank string")
+    hem_position = profile.get("hem_position")
+    if hem_position not in HEM_POSITIONS:
+        errors.append(f"{field}.hem_position is invalid")
+    reason = profile.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        errors.append(f"{field}.reason must be a nonblank string")
+    full_frame = profile.get("requires_full_garment_frame")
+    if not isinstance(full_frame, bool):
+        errors.append(f"{field}.requires_full_garment_frame must be boolean")
+    if hem_position == "below_knee" and garment_type != "dress":
+        errors.append(f"{field}.hem_position below_knee is valid only for garment_type dress")
+    expected_full_frame = garment_type == "dress" and hem_position == "below_knee"
+    if isinstance(full_frame, bool) and full_frame is not expected_full_frame:
+        errors.append(
+            f"{field}.requires_full_garment_frame contradicts garment type and hem"
+        )
     return errors
 
 
@@ -49,26 +117,12 @@ def validate_manifest_data(data: dict) -> list[str]:
     canonical_source = data.get("canonical_identity_source")
     errors.extend(_validate_canonical_source(canonical_source, "canonical_identity_source"))
     identity_profile = data.get("identity_profile")
-    if not isinstance(identity_profile, dict):
-        errors.append("identity_profile must be an object")
-    else:
-        errors.extend(_validate_canonical_source(identity_profile.get("canonical_source"), "identity_profile.canonical_source"))
+    errors.extend(_validate_identity_profile(identity_profile, "identity_profile"))
+    if isinstance(identity_profile, dict):
         if identity_profile.get("canonical_source") != canonical_source:
             errors.append("identity_profile.canonical_source must match canonical_identity_source")
-        if identity_profile.get("head_visibility") not in HEAD_VISIBILITY:
-            errors.append("identity_profile.head_visibility is invalid")
     garment_profile = data.get("garment_profile")
-    if not isinstance(garment_profile, dict):
-        errors.append("garment_profile must be an object")
-    else:
-        if garment_profile.get("hem_position") not in HEM_POSITIONS:
-            errors.append("garment_profile.hem_position is invalid")
-        expected_full_frame = (
-            garment_profile.get("garment_type") == "dress"
-            and garment_profile.get("hem_position") == "below_knee"
-        )
-        if garment_profile.get("requires_full_garment_frame") is not expected_full_frame:
-            errors.append("garment_profile.requires_full_garment_frame contradicts garment type and hem")
+    errors.extend(_validate_garment_profile(garment_profile, "garment_profile"))
     views = data.get("views")
     if not isinstance(views, dict) or not views:
         return errors + ["views must be a non-empty object"]
@@ -98,10 +152,13 @@ def validate_manifest_data(data: dict) -> list[str]:
     return errors
 
 
-def validate_prompt_data(data: dict) -> list[str]:
-    errors = []
+def validate_prompt_data(data: dict, active_manifest: dict) -> list[str]:
+    manifest_errors = validate_manifest_data(active_manifest)
+    errors = [f"active manifest: {error}" for error in manifest_errors]
     if data.get("schema_version") != 2:
         errors.append("schema_version must be 2")
+    if data.get("skc_id") != active_manifest.get("skc_id"):
+        errors.append("skc_id must match the active manifest exactly")
     if data.get("view") not in VIEW_KEYS:
         errors.append("view must be front, side, back, or full")
     generation = data.get("generation", {})
@@ -114,23 +171,13 @@ def validate_prompt_data(data: dict) -> list[str]:
     identity_contract = data.get("identity_contract")
     if not isinstance(identity_contract, dict):
         errors.append("identity_contract must be an object")
-    else:
-        if identity_contract.get("canonical_source") != CANONICAL_IDENTITY_PATH:
-            errors.append(f"identity_contract.canonical_source must be {CANONICAL_IDENTITY_PATH}")
-        if identity_contract.get("head_visibility") not in HEAD_VISIBILITY:
-            errors.append("identity_contract.head_visibility is invalid")
+    elif identity_contract != active_manifest.get("identity_profile"):
+        errors.append("identity_contract must match the active manifest identity_profile exactly")
     garment_contract = data.get("garment_contract")
     if not isinstance(garment_contract, dict):
         errors.append("garment_contract must be an object")
-    else:
-        if garment_contract.get("hem_position") not in HEM_POSITIONS:
-            errors.append("garment_contract.hem_position is invalid")
-        expected_full_frame = (
-            garment_contract.get("garment_type") == "dress"
-            and garment_contract.get("hem_position") == "below_knee"
-        )
-        if garment_contract.get("requires_full_garment_frame") is not expected_full_frame:
-            errors.append("garment_contract.requires_full_garment_frame contradicts garment type and hem")
+    elif garment_contract != active_manifest.get("garment_profile"):
+        errors.append("garment_contract must match the active manifest garment_profile exactly")
     actions = data.get("actions")
     if not isinstance(actions, list) or len(actions) != 5:
         return errors + ["actions must contain exactly five items"]
@@ -181,13 +228,26 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("kind", choices=("manifest", "prompt"))
     parser.add_argument("path", type=Path)
+    parser.add_argument("active_manifest", type=Path, nargs="?")
     args = parser.parse_args()
+    if args.kind == "prompt" and args.active_manifest is None:
+        parser.error("prompt validation requires an active manifest argument")
+    if args.kind == "manifest" and args.active_manifest is not None:
+        parser.error("manifest validation accepts only one JSON path")
     try:
         data = json.loads(args.path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         print(f"invalid JSON: {exc}")
         return 2
-    errors = validate_manifest_data(data) if args.kind == "manifest" else validate_prompt_data(data)
+    if args.kind == "manifest":
+        errors = validate_manifest_data(data)
+    else:
+        try:
+            active_manifest = json.loads(args.active_manifest.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"invalid active manifest JSON: {exc}")
+            return 2
+        errors = validate_prompt_data(data, active_manifest)
     if errors:
         for error in errors:
             print(f"ERROR: {error}")

@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -30,6 +32,20 @@ REQUIRED_ROLES = ("model_source", "product_source", "scene_source")
 CANONICAL_IDENTITY_PATH = "正面/1.jpg"
 HEAD_VISIBILITY = {"full", "partial", "absent"}
 HEM_POSITIONS = {"above_knee", "at_knee", "below_knee", "not_applicable"}
+IDENTITY_TEXT_FIELDS = (
+    "skin_tone_and_visible_ancestry_cues",
+    "visible_face_features",
+    "hair_evidence",
+    "age_impression",
+    "body_profile",
+    "reason",
+)
+GARMENT_FIELDS = (
+    "garment_type",
+    "hem_position",
+    "requires_full_garment_frame",
+    "reason",
+)
 
 
 def is_skc_dir(path: Path) -> bool:
@@ -134,26 +150,53 @@ def build_inventory(skc_path: Path | str) -> dict:
 def attach_visual_contracts(
     inventory: dict, identity_profile: dict, garment_profile: dict
 ) -> dict:
-    if inventory.get("canonical_identity_source") is None:
+    canonical_source = inventory.get("canonical_identity_source")
+    if not isinstance(canonical_source, dict):
         raise ValueError("missing canonical identity source: 正面/1.jpg")
+    if canonical_source.get("relative_path") != CANONICAL_IDENTITY_PATH:
+        raise ValueError("canonical_identity_source.relative_path must be 正面/1.jpg")
+    sha256 = canonical_source.get("sha256")
+    if not isinstance(sha256, str) or re.fullmatch(r"[0-9a-fA-F]{64}", sha256) is None:
+        raise ValueError("canonical_identity_source.sha256 must be a 64-character hexadecimal string")
+    if not isinstance(identity_profile, dict):
+        raise ValueError("identity_profile must be an object")
     if identity_profile.get("head_visibility") not in HEAD_VISIBILITY:
         raise ValueError("identity_profile.head_visibility is invalid")
-    required_identity = {
-        "skin_tone_and_visible_ancestry_cues",
-        "visible_face_features",
-        "hair_evidence",
-        "age_impression",
-        "body_profile",
-        "confidence",
-        "reason",
-    }
-    if required_identity - set(identity_profile):
-        raise ValueError("identity_profile is incomplete")
+    for field in IDENTITY_TEXT_FIELDS:
+        value = identity_profile.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"identity_profile.{field} must be a nonblank string")
+    confidence = identity_profile.get("confidence")
+    if (
+        isinstance(confidence, bool)
+        or not isinstance(confidence, (int, float))
+        or not math.isfinite(confidence)
+        or not 0 <= confidence <= 1
+    ):
+        raise ValueError("identity_profile.confidence must be a number from 0 to 1")
+    if not isinstance(garment_profile, dict):
+        raise ValueError("garment_profile must be an object")
+    for field in GARMENT_FIELDS:
+        if field not in garment_profile:
+            raise ValueError(f"garment_profile.{field} is required")
+    garment_type = garment_profile.get("garment_type")
+    if not isinstance(garment_type, str) or not garment_type.strip():
+        raise ValueError("garment_profile.garment_type must be a nonblank string")
+    hem_position = garment_profile.get("hem_position")
+    if hem_position not in HEM_POSITIONS:
+        raise ValueError("garment_profile.hem_position is invalid")
+    full_frame = garment_profile.get("requires_full_garment_frame")
+    if not isinstance(full_frame, bool):
+        raise ValueError("garment_profile.requires_full_garment_frame must be boolean")
+    reason = garment_profile.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        raise ValueError("garment_profile.reason must be a nonblank string")
+    if hem_position == "below_knee" and garment_type != "dress":
+        raise ValueError("garment_profile.hem_position below_knee is valid only for garment_type dress")
     expected_full_frame = (
-        garment_profile.get("garment_type") == "dress"
-        and garment_profile.get("hem_position") == "below_knee"
+        garment_type == "dress" and hem_position == "below_knee"
     )
-    if garment_profile.get("requires_full_garment_frame") is not expected_full_frame:
+    if full_frame is not expected_full_frame:
         raise ValueError("requires_full_garment_frame contradicts garment type and hem")
     inventory["identity_profile"] = {
         **identity_profile,

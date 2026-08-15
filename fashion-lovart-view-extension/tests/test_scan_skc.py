@@ -58,7 +58,12 @@ class ScanSkcVisualContractTests(unittest.TestCase):
             )
 
     def test_attaches_partial_head_identity_and_below_knee_dress_contracts(self):
-        inventory = {"canonical_identity_source": {"relative_path": "正面/1.jpg", "sha256": "abc"}}
+        inventory = {
+            "canonical_identity_source": {
+                "relative_path": "正面/1.jpg",
+                "sha256": "a" * 64,
+            }
+        }
         profile = {
             "head_visibility": "partial",
             "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin with visible Mediterranean appearance cues",
@@ -85,7 +90,7 @@ class ScanSkcVisualContractTests(unittest.TestCase):
         inventory = {
             "canonical_identity_source": {
                 "relative_path": "正面/1.jpg",
-                "sha256": "verified-hash",
+                "sha256": "a" * 64,
             }
         }
         profile = {
@@ -110,8 +115,138 @@ class ScanSkcVisualContractTests(unittest.TestCase):
 
         self.assertEqual(
             result["identity_profile"]["canonical_source"],
-            {"relative_path": "正面/1.jpg", "sha256": "verified-hash"},
+            {"relative_path": "正面/1.jpg", "sha256": "a" * 64},
         )
+
+    def test_attach_visual_contracts_rejects_blank_identity_evidence(self):
+        inventory = {
+            "canonical_identity_source": {
+                "relative_path": "正面/1.jpg",
+                "sha256": "a" * 64,
+            }
+        }
+        profile = {
+            "head_visibility": "partial",
+            "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin",
+            "visible_face_features": "lower face visible",
+            "hair_evidence": "dark brown loose strands",
+            "age_impression": "adult, approximately 25-35",
+            "body_profile": "slim adult build",
+            "confidence": 0.86,
+            "reason": "Visible evidence only",
+        }
+        garment = {
+            "garment_type": "dress",
+            "hem_position": "below_knee",
+            "requires_full_garment_frame": True,
+            "reason": "Hem extends below both knees.",
+        }
+        for field in (
+            "skin_tone_and_visible_ancestry_cues",
+            "visible_face_features",
+            "hair_evidence",
+            "age_impression",
+            "body_profile",
+            "reason",
+        ):
+            with self.subTest(field=field):
+                broken = dict(profile)
+                broken[field] = "   "
+                with self.assertRaisesRegex(ValueError, field):
+                    scan_skc.attach_visual_contracts(
+                        dict(inventory), broken, dict(garment)
+                    )
+
+    def test_attach_visual_contracts_rejects_invalid_confidence(self):
+        inventory = {
+            "canonical_identity_source": {
+                "relative_path": "正面/1.jpg",
+                "sha256": "a" * 64,
+            }
+        }
+        profile = {
+            "head_visibility": "partial",
+            "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin",
+            "visible_face_features": "lower face visible",
+            "hair_evidence": "dark brown loose strands",
+            "age_impression": "adult, approximately 25-35",
+            "body_profile": "slim adult build",
+            "confidence": 0.86,
+            "reason": "Visible evidence only",
+        }
+        garment = {
+            "garment_type": "dress",
+            "hem_position": "below_knee",
+            "requires_full_garment_frame": True,
+            "reason": "Hem extends below both knees.",
+        }
+        for confidence in (-0.01, 1.01, True, "0.86", None):
+            with self.subTest(confidence=confidence):
+                broken = dict(profile)
+                broken["confidence"] = confidence
+                with self.assertRaisesRegex(ValueError, "confidence"):
+                    scan_skc.attach_visual_contracts(
+                        dict(inventory), broken, dict(garment)
+                    )
+
+    def test_attach_visual_contracts_rejects_incomplete_garment_profile(self):
+        inventory = {
+            "canonical_identity_source": {
+                "relative_path": "正面/1.jpg",
+                "sha256": "a" * 64,
+            }
+        }
+        profile = {
+            "head_visibility": "partial",
+            "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin",
+            "visible_face_features": "lower face visible",
+            "hair_evidence": "dark brown loose strands",
+            "age_impression": "adult, approximately 25-35",
+            "body_profile": "slim adult build",
+            "confidence": 0.86,
+            "reason": "Visible evidence only",
+        }
+        garment = {
+            "garment_type": "dress",
+            "hem_position": "below_knee",
+            "requires_full_garment_frame": True,
+            "reason": "Hem extends below both knees.",
+        }
+        for field in garment:
+            with self.subTest(field=field):
+                broken = dict(garment)
+                del broken[field]
+                with self.assertRaisesRegex(ValueError, field):
+                    scan_skc.attach_visual_contracts(
+                        dict(inventory), dict(profile), broken
+                    )
+
+    def test_attach_visual_contracts_rejects_below_knee_non_dress(self):
+        inventory = {
+            "canonical_identity_source": {
+                "relative_path": "正面/1.jpg",
+                "sha256": "a" * 64,
+            }
+        }
+        profile = {
+            "head_visibility": "partial",
+            "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin",
+            "visible_face_features": "lower face visible",
+            "hair_evidence": "dark brown loose strands",
+            "age_impression": "adult, approximately 25-35",
+            "body_profile": "slim adult build",
+            "confidence": 0.86,
+            "reason": "Visible evidence only",
+        }
+        garment = {
+            "garment_type": "shirt",
+            "hem_position": "below_knee",
+            "requires_full_garment_frame": False,
+            "reason": "Invalid self-declared shirt contract.",
+        }
+
+        with self.assertRaisesRegex(ValueError, "below_knee.*dress"):
+            scan_skc.attach_visual_contracts(inventory, profile, garment)
 
 
 if __name__ == "__main__":
