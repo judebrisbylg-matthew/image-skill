@@ -41,7 +41,7 @@ After the base-count gate passes, inspect every candidate in this fixed priority
 3. **Conditional dress frame:** only when the product is a visually confirmed below-knee dress and `requires_full_garment_frame` is true, require the complete neckline-to-hem garment in frame. Reject a cropped hem with `long-dress-hem-cropped`.
 4. **Ordinary quality:** then inspect garment construction, action, hands, accessories, scene, lighting, anatomy, and artifacts.
 
-Record every failed review through the structured rejection CLI; do not store only free-form `--reason` text:
+Use `--reason-code` only for these four hard-rule failures and always pair it with an evidence-based `--reason`:
 
 ```bash
 python3 scripts/update_run_state.py transition <state> <view> <action-id> rejected \
@@ -52,6 +52,13 @@ python3 scripts/update_run_state.py transition <state> <view> <action-id> reject
 - `head-crop-below-minimum` — front/side/back crop below the half-head floor
 - `full-head-incomplete` — full-body head or hair crown incomplete
 - `long-dress-hem-cropped` — confirmed below-knee dress hem cropped
+
+Ordinary garment, hands, scene, light, or anatomy rejection uses free-form `--reason` only:
+
+```bash
+python3 scripts/update_run_state.py transition <state> <view> <action-id> rejected \
+  --reason "<ordinary quality defect>"
+```
 
 ## Per-view generation cap
 

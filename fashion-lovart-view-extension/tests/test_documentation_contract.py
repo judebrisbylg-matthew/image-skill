@@ -73,9 +73,19 @@ class DocumentationContractTests(unittest.TestCase):
             "head_visibility of `partial` or `absent` alone never lowers a view's "
             "ready status and never triggers `blocked:role-ambiguous`"
         )
+        confidence_scope = (
+            "Every classified file with confidence below 0.7—including optional "
+            "`accessory_source` and `unused` files—triggers `blocked:role-ambiguous`"
+        )
+        no_penalty = (
+            "`partial` or `absent` head_visibility is not itself a confidence penalty"
+        )
 
         for document in (skill, folder):
             self.assertIn(rule, document)
+            self.assertIn(confidence_scope, document)
+            self.assertIn(no_penalty, document)
+            self.assertNotIn("Confidence below 0.7 for a required role assignment", document)
 
     def test_folder_contract_keeps_identity_source_first_without_duplicate_upload(self):
         folder = FOLDER.read_text(encoding="utf-8")
@@ -106,6 +116,10 @@ class DocumentationContractTests(unittest.TestCase):
             r"update_run_state\.py transition <state> <view> <action-id> rejected \\\n"
             r"\s+--reason \"<observed defect>\" --reason-code <code>"
         )
+        ordinary_command = re.compile(
+            r"update_run_state\.py transition <state> <view> <action-id> rejected \\\n"
+            r"\s+--reason \"<ordinary quality defect>\"\n"
+        )
         mappings = (
             "`identity-drift` — canonical identity mismatch",
             "`head-crop-below-minimum` — front/side/back crop below the half-head floor",
@@ -115,6 +129,18 @@ class DocumentationContractTests(unittest.TestCase):
 
         for document in (skill, reference):
             self.assertRegex(document, command)
+            self.assertRegex(document, ordinary_command)
+            self.assertIn(
+                "Use `--reason-code` only for these four hard-rule failures",
+                document,
+            )
+            self.assertIn(
+                "Ordinary garment, hands, scene, light, or anatomy rejection uses "
+                "free-form `--reason` only",
+                document,
+            )
+            self.assertNotIn("For every quality rejection", document)
+            self.assertNotIn("Record every failed review through the structured rejection CLI", document)
             for mapping in mappings:
                 self.assertIn(mapping, document)
 

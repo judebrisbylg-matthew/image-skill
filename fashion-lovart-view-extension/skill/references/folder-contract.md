@@ -42,7 +42,7 @@ Attach `canonical_identity_source` and `identity_profile` to the schema-2 manife
 }
 ```
 
-Every supported visible image must appear. Confidence below `0.7` for a required role assignment blocks that view for manual resolution. The canonical identity file may legitimately expose less than a complete head: head_visibility of `partial` or `absent` alone never lowers a view's ready status and never triggers `blocked:role-ambiguous`.
+Every supported visible image must appear. Every classified file with confidence below 0.7—including optional `accessory_source` and `unused` files—triggers `blocked:role-ambiguous`. Unclassified images and multiple candidates for a required role also block that view for manual resolution. The canonical identity file may legitimately expose less than a complete head: `partial` or `absent` head_visibility is not itself a confidence penalty. Therefore head_visibility of `partial` or `absent` alone never lowers a view's ready status and never triggers `blocked:role-ambiguous`.
 
 ## Duplicate policy
 
