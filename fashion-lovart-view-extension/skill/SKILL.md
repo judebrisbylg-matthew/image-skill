@@ -68,7 +68,7 @@ Apply these rules:
 - Attach the schema-2 `identity_profile` from visible evidence in `正面/1.jpg`, including head visibility, skin tone and visible ancestry cues, visible face features, hair evidence, age impression, and body profile. Never let a `侧面`, `背面`, or `全身` pose model override these canonical identity characteristics. Noncanonical local pose/composition sources must not control or override `body_profile`; they control only pose, crop, body direction, camera, and composition.
 - Inspect the product evidence and attach `garment_profile`. Set `requires_full_garment_frame: true` only when the garment is visually confirmed as a below-knee dress.
 - If composition is absent and the model source clearly controls crop, reuse the model source as composition fallback.
-- Accessories are optional. In the full-body workflow, shoes are normally an accessory source.
+- Accessories are optional. A non-empty `accessory_source` alone never proves footwear: bags, jewelry, and other styling remain footwear-inactive. Add the view's optional `footwear_contract` only after visually confirming required shoes. It must contain exactly `kind: footwear`, non-empty unique `source_paths`, numeric `confidence` from 0.7 to 1, and a canonical nonblank `reason`; every source path must belong to that view's `accessory_source`. Omit the contract when footwear is absent or unconfirmed.
 - Each path has one primary role. The only multi-role rule is the explicit unique-model-to-composition fallback. Images with identical hashes upload only once.
 - Every classified file with confidence below 0.7—including optional `accessory_source` and `unused` files—triggers `blocked:role-ambiguous`; unclassified images and multiple candidates for a required role also block that view. The canonical identity file may legitimately expose less than a complete head: `partial` or `absent` head_visibility is not itself a confidence penalty. Therefore head_visibility of `partial` or `absent` alone never lowers a view's ready status and never triggers `blocked:role-ambiguous`.
 
@@ -147,17 +147,12 @@ Every front, side, and back action must contain one actionable `HEAD CROP FLOOR:
 
 The final suffix order is `FINAL CONTRACT OVERRIDE` -> `IDENTITY LOCK` -> the view's `HEAD CROP FLOOR` or `FULL-BODY HEAD COMPLETION` -> conditional `GARMENT FRAME LOCK`. Earlier prompt prose may describe the requested action freely because this final block overrides any conflict. Nothing except trailing whitespace may follow the applicable final lock; appended prose invalidates the prompt.
 
-Negative Prompt is script-generated and immutable. Do not write, paraphrase, reorder, trim, extend, or otherwise compose `negative_prompt` as Markdown prose. Build the active view contract from the validated manifest, call `render_negative_prompt`, and copy its return value without modification into all five actions:
+Negative Prompt is script-generated and immutable. Do not write, paraphrase, reorder, trim, extend, or otherwise compose `negative_prompt` as Markdown prose. Derive the active view contract with `view_contract_from_manifest`, call `render_negative_prompt`, and copy its return value without modification into all five actions. Only an explicit validated `footwear_contract` activates required-footwear defects; a generic bag, jewelry, or other `accessory_source` never does, and a malformed explicit contract invalidates the manifest:
 
 ```python
-from scripts.negative_prompt import render_negative_prompt
+from scripts.negative_prompt import render_negative_prompt, view_contract_from_manifest
 
-view_contract = {
-    "name": view,
-    "footwear_required": bool(
-        manifest["views"][view]["roles"]["accessory_source"]
-    ),
-}
+view_contract = view_contract_from_manifest(view, manifest["views"][view])
 negative_prompt = render_negative_prompt(
     view_contract,
     manifest["identity_profile"],
@@ -167,7 +162,7 @@ for action in actions:
     action["negative_prompt"] = negative_prompt
 ```
 
-The canonical renderer activates view-specific crop defects, below-knee-dress defects only when `requires_full_garment_frame` is `true`, and required-footwear defects only when the active view's accessory/footwear contract is present. Action-specific composition restrictions remain in `prompt_en` before the immutable final suffix; they never become ad hoc negative-prompt text.
+The canonical renderer activates view-specific crop defects, below-knee-dress defects only when `requires_full_garment_frame` is `true`, and required-footwear defects only when the active view's explicit validated `footwear_contract` is present. Action-specific composition restrictions remain in `prompt_en` before the immutable final suffix; they never become ad hoc negative-prompt text.
 
 Validate each prompt JSON against its active schema-2 manifest before browser work. The prompt `skc_id`, complete canonical identity path/hash/profile, and garment contract must match that manifest exactly:
 

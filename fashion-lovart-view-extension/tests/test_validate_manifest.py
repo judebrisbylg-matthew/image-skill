@@ -71,22 +71,27 @@ def canonical_negative_prompt(view, manifest):
                 "interrupted shoulder-to-lowest-hem continuity",
             )
         )
-    view_roles = manifest["views"][view]["roles"]
-    if view == "full" and view_roles["accessory_source"]:
+    if "footwear_contract" in manifest["views"][view]:
         defects.append(
             "invented/changed/missing/cropped/obscured required footwear"
         )
     return NEGATIVE_PROMPT_PREFIX + "; ".join(defects)
 
 
+def add_accessory(manifest, view, relative_path):
+    manifest["views"][view]["files"].append({"relative_path": relative_path})
+    manifest["views"][view]["roles"]["accessory_source"].append(relative_path)
+
+
 def activate_full_footwear_contract(manifest):
     footwear_path = "全身/4.jpg"
-    manifest["views"]["full"]["files"].append(
-        {"relative_path": footwear_path}
-    )
-    manifest["views"]["full"]["roles"]["accessory_source"] = [
-        footwear_path
-    ]
+    add_accessory(manifest, "full", footwear_path)
+    manifest["views"]["full"]["footwear_contract"] = {
+        "kind": "footwear",
+        "source_paths": [footwear_path],
+        "confidence": 0.96,
+        "reason": "Visually confirmed required shoes",
+    }
 
 
 def valid_view(view):
@@ -360,6 +365,130 @@ class DeterministicNegativePromptContractTests(unittest.TestCase):
             with self.subTest(defect=defect):
                 with self.assertRaises(ValueError):
                     renderer(view, identity_contract, garment_contract)
+
+    def test_view_contract_derivation_requires_explicit_footwear_evidence(self):
+        cases = []
+
+        absent = valid_manifest()
+        cases.append(("footwear absent", "full", absent, False))
+
+        bag_only = valid_manifest()
+        add_accessory(bag_only, "full", "全身/bag.jpg")
+        cases.append(("full bag only", "full", bag_only, False))
+
+        jewelry_only = valid_manifest()
+        add_accessory(jewelry_only, "full", "全身/jewelry.jpg")
+        cases.append(("full jewelry only", "full", jewelry_only, False))
+
+        footwear_present = valid_manifest()
+        activate_full_footwear_contract(footwear_present)
+        cases.append(("footwear present", "full", footwear_present, True))
+
+        for view, path in (
+            ("front", "正面/bag.jpg"),
+            ("side", "侧面/jewelry.jpg"),
+            ("back", "背面/styling.jpg"),
+        ):
+            manifest = valid_manifest()
+            add_accessory(manifest, view, path)
+            cases.append((f"valid non-full {view} accessory", view, manifest, False))
+
+        for defect, view, manifest, footwear_required in cases:
+            with self.subTest(defect=defect):
+                builder = getattr(
+                    validate_manifest, "view_contract_from_manifest", None
+                )
+                self.assertTrue(
+                    callable(builder),
+                    "validator must expose explicit footwear view-contract derivation",
+                )
+                self.assertEqual(
+                    builder(view, manifest["views"][view]),
+                    {"name": view, "footwear_required": footwear_required},
+                )
+
+    def test_generic_accessories_never_activate_required_footwear_defects(self):
+        cases = (
+            ("full bag only", "full", "全身/bag.jpg"),
+            ("full jewelry only", "full", "全身/jewelry.jpg"),
+            ("front bag", "front", "正面/bag.jpg"),
+            ("side jewelry", "side", "侧面/jewelry.jpg"),
+            ("back other styling", "back", "背面/styling.jpg"),
+        )
+        for defect, view, accessory_path in cases:
+            with self.subTest(defect=defect):
+                manifest = valid_manifest()
+                add_accessory(manifest, view, accessory_path)
+                prompt = valid_prompt(view, manifest)
+
+                self.assertNotIn(
+                    "required footwear",
+                    prompt["actions"][0]["negative_prompt"],
+                )
+                self.assertEqual(
+                    validate_manifest.validate_manifest_data(manifest), []
+                )
+                self.assertEqual(
+                    validate_manifest.validate_prompt_data(prompt, manifest), []
+                )
+
+    def test_omitted_optional_accessory_bucket_remains_footwear_inactive(self):
+        manifest = valid_manifest()
+        del manifest["views"]["full"]["roles"]["accessory_source"]
+        prompt = valid_prompt("full", manifest)
+
+        self.assertEqual(
+            validate_manifest.view_contract_from_manifest(
+                "full", manifest["views"]["full"]
+            ),
+            {"name": "full", "footwear_required": False},
+        )
+        self.assertEqual(validate_manifest.validate_manifest_data(manifest), [])
+        self.assertEqual(
+            validate_manifest.validate_prompt_data(prompt, manifest), []
+        )
+
+    def test_explicit_footwear_evidence_activates_the_required_footwear_defect(self):
+        manifest = valid_manifest()
+        activate_full_footwear_contract(manifest)
+        prompt = valid_prompt("full", manifest)
+
+        self.assertIn(
+            "invented/changed/missing/cropped/obscured required footwear",
+            prompt["actions"][0]["negative_prompt"],
+        )
+        self.assertEqual(validate_manifest.validate_manifest_data(manifest), [])
+        self.assertEqual(
+            validate_manifest.validate_prompt_data(prompt, manifest), []
+        )
+
+    def test_malformed_explicit_footwear_evidence_fails_closed(self):
+        mutations = {
+            "wrong kind": lambda contract: contract.update(kind="bag"),
+            "empty sources": lambda contract: contract.update(source_paths=[]),
+            "source not accessory": lambda contract: contract.update(
+                source_paths=["全身/2.jpg"]
+            ),
+            "non-string source": lambda contract: contract.update(
+                source_paths=[{}]
+            ),
+            "low confidence": lambda contract: contract.update(confidence=0.69),
+            "boolean confidence": lambda contract: contract.update(confidence=True),
+            "blank reason": lambda contract: contract.update(reason="   "),
+            "unknown field": lambda contract: contract.update(extra=True),
+        }
+        for defect, mutate in mutations.items():
+            with self.subTest(defect=defect):
+                manifest = valid_manifest()
+                activate_full_footwear_contract(manifest)
+                mutate(manifest["views"]["full"]["footwear_contract"])
+
+                errors = validate_manifest.validate_manifest_data(manifest)
+
+                self.assertTrue(
+                    any("footwear_contract" in error for error in errors),
+                    errors,
+                )
 
     def test_validator_rejects_every_noncanonical_negative_prompt_mutation(self):
         manifest = valid_manifest()

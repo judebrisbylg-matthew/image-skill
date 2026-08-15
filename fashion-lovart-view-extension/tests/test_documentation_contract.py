@@ -96,10 +96,7 @@ def canonical_negative_prompt(view, manifest):
                 "interrupted shoulder-to-lowest-hem continuity",
             )
         )
-    if (
-        view == "full"
-        and manifest["views"][view]["roles"]["accessory_source"]
-    ):
+    if "footwear_contract" in manifest["views"][view]:
         defects.append(
             "invented/changed/missing/cropped/obscured required footwear"
         )
@@ -260,6 +257,23 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn("exact string equality", schema)
         self.assertIn("NEGATIVE PROMPT CONTRACT", handbook)
         self.assertIn("脚本生成且不可编辑", handbook)
+
+    def test_footwear_docs_require_explicit_evidence_not_generic_accessories(self):
+        documents = (SKILL, FOLDER, PROMPT_SCHEMA, *TEMPLATES.values())
+        lossy_derivation = (
+            'bool(manifest["views"][view]["roles"]["accessory_source"])'
+        )
+
+        for document in documents:
+            with self.subTest(document=document.name):
+                source = document.read_text(encoding="utf-8")
+                self.assertIn("footwear_contract", source)
+                self.assertIn("view_contract_from_manifest", source)
+                self.assertNotIn(lossy_derivation, source)
+
+        handbook = HANDBOOK.read_text(encoding="utf-8")
+        self.assertIn("footwear_contract", handbook)
+        self.assertIn("鞋履证据", handbook)
 
     def test_handbook_publishes_identity_framing_and_canvas_rule_cards(self):
         handbook = HANDBOOK.read_text(encoding="utf-8")

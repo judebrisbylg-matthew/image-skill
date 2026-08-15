@@ -44,7 +44,7 @@ Noncanonical local pose/composition sources must not control or override `body_p
 
 ## 通用负面提示词
 
-Negative Prompt is script-generated and immutable. Set every action's `negative_prompt` to the unmodified result of `render_negative_prompt(view_contract, identity_contract, garment_contract)`, where `view_contract.name` is `side` and `footwear_required` comes from the active validated manifest view. Do not compose, paraphrase, reorder, trim, append, or remove negative-prompt text in this Markdown template.
+Negative Prompt is script-generated and immutable. Derive the `side` contract with `view_contract_from_manifest`; it activates footwear only from an explicit validated `footwear_contract`, never from a generic bag, jewelry, or other `accessory_source`. Set every action's `negative_prompt` to the unmodified result of `render_negative_prompt(view_contract, identity_contract, garment_contract)`. Do not compose, paraphrase, reorder, trim, append, or remove negative-prompt text in this Markdown template.
 
 ## 输出参数
 

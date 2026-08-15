@@ -21,6 +21,19 @@ Assign roles from visual content, with one filename-based exception: `正面/1.j
 
 Model, product, and scene must each resolve to exactly one source. Composition may fall back to the unique model source. Accessories are optional and may contain multiple files.
 
+An optional per-view `footwear_contract` is the only evidence that activates required-footwear defects:
+
+```json
+"footwear_contract": {
+  "kind": "footwear",
+  "source_paths": ["全身/4.png"],
+  "confidence": 0.99,
+  "reason": "Visually confirmed required shoes"
+}
+```
+
+It must contain exactly those four fields. `source_paths` must be non-empty, unique, canonical relative paths already present in the same view's `accessory_source`; `confidence` must be a number from 0.7 to 1; and `reason` must be a canonical nonblank string. Omit `footwear_contract` when shoes are absent or unconfirmed, including bag-only, jewelry-only, and other generic accessory cases. Derive prompt state with `view_contract_from_manifest`; never infer footwear from a non-empty `accessory_source`. A malformed explicit contract is invalid rather than footwear-inactive.
+
 Each file path has exactly one primary role. The only supported multi-role behavior is `composition_fallback: model_source` when no separate composition source exists.
 
 Attach `canonical_identity_source`, `identity_profile`, and `garment_profile` to the schema-2 manifest. Derive `head_visibility`, `skin_tone_and_visible_ancestry_cues`, `visible_face_features`, `hair_evidence`, `age_impression`, and `body_profile` only from visible evidence in `正面/1.jpg`; require numeric `confidence` from 0 to 1 and a nonblank visual `reason`. Noncanonical local pose/composition sources must not control or override `body_profile`; they may control only pose, crop, body direction, camera, and composition.

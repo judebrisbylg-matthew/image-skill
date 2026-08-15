@@ -686,7 +686,7 @@
             <article class="safeguard-card"><code>HEAD CROP FLOOR</code><strong>正面 / 侧面 / 背面至少半个头部</strong><p>最终画面最少保留半个头部；完整头部允许。低于边界时按 <code>head-crop-below-minimum</code> 拒绝。</p></article>
             <article class="safeguard-card"><code>COMPLETE FULL BODY</code><strong>全身图必须从头顶到鞋底完整</strong><p>完整发冠、脸、身体、服装、双脚与鞋底连续入镜，并在头顶和鞋底外留出安全边距。</p></article>
             <article class="safeguard-card"><code>CONDITIONAL DRESS FRAME</code><strong>确认膝下连衣裙才锁定完整裙摆</strong><p>从肩部/领口连续展示至完整裙摆最低点，裙摆下方保留可见安全边距，不接触边缘、不遮蔽主要轮廓、不改变视觉长度；任一违反以 <code>long-dress-hem-cropped</code> 拒绝。</p></article>
-            <article class="safeguard-card"><code>NEGATIVE PROMPT CONTRACT</code><strong>Negative Prompt 脚本生成且不可编辑</strong><p><code>render_negative_prompt</code> 根据视角、身份、裙长与鞋履合同生成唯一字符串；Markdown 只说明调用方式，不能改写、重排或追加缺陷词。</p></article>
+            <article class="safeguard-card"><code>NEGATIVE PROMPT CONTRACT</code><strong>Negative Prompt 脚本生成且不可编辑</strong><p><code>view_contract_from_manifest</code> 只接受显式且已验证的 <code>footwear_contract</code> 作为鞋履证据；包袋、首饰或其他普通 <code>accessory_source</code> 不会启用鞋履缺陷。随后由 <code>render_negative_prompt</code> 根据视角、身份、裙长与鞋履合同生成唯一字符串；Markdown 只说明调用方式，不能改写、重排或追加缺陷词。</p></article>
             <article class="safeguard-card"><code>date-skc-four-row-v3</code><strong>日期 → SKC → 四视角 → 主图 / 补图</strong><p>日期横向排列，同日 SKC 纵向堆叠；每个 SKC 固定正面、侧面、背面、全身四行，每行先 5 个主槽再 5 个补图槽。</p></article>
           </div>
           <div class="quality-grid">

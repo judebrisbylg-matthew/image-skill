@@ -60,6 +60,12 @@ IDENTITY_TEXT_FIELDS = (
     "body_profile",
     "reason",
 )
+FOOTWEAR_CONTRACT_FIELDS = {
+    "kind",
+    "source_paths",
+    "confidence",
+    "reason",
+}
 
 
 def _is_canonical_nonblank_string(value: object) -> bool:
@@ -140,6 +146,58 @@ def _validate_garment_contract(contract: object) -> None:
         raise ValueError(
             "garment_contract.requires_full_garment_frame contradicts garment type and hem"
         )
+
+
+def view_contract_from_manifest(view: object, manifest_view: object) -> dict:
+    """Derive footwear state only from explicit validated manifest evidence."""
+    if type(view) is not str:
+        raise ValueError("view name must be front, side, back, or full")
+    view_name, _ = _validate_view(view)
+    if not isinstance(manifest_view, dict):
+        raise ValueError("manifest view must be an object")
+    roles = manifest_view.get("roles")
+    if not isinstance(roles, dict):
+        raise ValueError("manifest view roles must be an object")
+    accessory_sources = roles.get("accessory_source", [])
+    if type(accessory_sources) is not list:
+        raise ValueError("manifest view accessory_source must be a list")
+
+    if "footwear_contract" not in manifest_view:
+        return {"name": view_name, "footwear_required": False}
+    contract = manifest_view["footwear_contract"]
+    if not isinstance(contract, dict):
+        raise ValueError("footwear_contract must be an object")
+    if set(contract) != FOOTWEAR_CONTRACT_FIELDS:
+        raise ValueError(
+            "footwear_contract must contain exactly kind, source_paths, confidence, and reason"
+        )
+    if contract.get("kind") != "footwear":
+        raise ValueError("footwear_contract.kind must be footwear")
+    source_paths = contract.get("source_paths")
+    if type(source_paths) is not list or not source_paths:
+        raise ValueError("footwear_contract.source_paths must be a non-empty list")
+    for source_path in source_paths:
+        if not _is_canonical_nonblank_string(source_path):
+            raise ValueError(
+                "footwear_contract.source_paths must contain canonical nonblank strings"
+            )
+        if source_path not in accessory_sources:
+            raise ValueError(
+                "footwear_contract.source_paths must resolve to accessory_source paths"
+            )
+    if len(set(source_paths)) != len(source_paths):
+        raise ValueError("footwear_contract.source_paths must be unique")
+    confidence = contract.get("confidence")
+    if (
+        isinstance(confidence, bool)
+        or not isinstance(confidence, (int, float))
+        or not math.isfinite(confidence)
+        or not 0.7 <= confidence <= 1
+    ):
+        raise ValueError("footwear_contract.confidence must be a number from 0.7 to 1")
+    if not _is_canonical_nonblank_string(contract.get("reason")):
+        raise ValueError("footwear_contract.reason must be a canonical nonblank string")
+    return {"name": view_name, "footwear_required": True}
 
 
 def _deduplicate_in_order(phrases: list[str]) -> list[str]:

@@ -20,6 +20,7 @@ if _NEGATIVE_PROMPT_SPEC is None or _NEGATIVE_PROMPT_SPEC.loader is None:
 _negative_prompt_module = importlib.util.module_from_spec(_NEGATIVE_PROMPT_SPEC)
 _NEGATIVE_PROMPT_SPEC.loader.exec_module(_negative_prompt_module)
 render_negative_prompt = _negative_prompt_module.render_negative_prompt
+view_contract_from_manifest = _negative_prompt_module.view_contract_from_manifest
 
 
 VIEW_KEYS = {"front", "side", "back", "full"}
@@ -447,6 +448,10 @@ def validate_manifest_data(data: object) -> list[str]:
                     errors.append(f"{view_key}: required role {role} must contain exactly one source")
             if not roles.get("composition_source"):
                 errors.append(f"{view_key}: missing composition_source or model fallback")
+        try:
+            view_contract_from_manifest(view_key, view)
+        except ValueError as exc:
+            errors.append(f"{view_key}: {exc}")
     return errors
 
 
@@ -526,17 +531,8 @@ def validate_prompt_data(data: object, active_manifest: object) -> list[str]:
         active_view = (
             manifest_views.get(view) if isinstance(manifest_views, dict) else None
         )
-        roles = active_view.get("roles") if isinstance(active_view, dict) else None
-        accessory_sources = (
-            roles.get("accessory_source") if isinstance(roles, dict) else None
-        )
-        view_contract = {
-            "name": view,
-            "footwear_required": (
-                isinstance(accessory_sources, list) and bool(accessory_sources)
-            ),
-        }
         try:
+            view_contract = view_contract_from_manifest(view, active_view)
             expected_negative_prompt = render_negative_prompt(
                 view_contract,
                 active_manifest.get("identity_profile"),
