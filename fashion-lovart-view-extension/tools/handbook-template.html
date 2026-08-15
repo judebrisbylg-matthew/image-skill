@@ -436,6 +436,11 @@
     .rule-step span { color: var(--muted); font-size: 11px; }
 
     .quality-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+    .safeguard-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; margin-bottom: 18px; }
+    .safeguard-card { padding: 16px; background: #fff; border: 1px solid var(--line); border-radius: 11px; }
+    .safeguard-card > code { display: block; margin-bottom: 8px; color: var(--accent-dark); font-size: 10px; font-weight: 750; }
+    .safeguard-card strong { display: block; margin-bottom: 6px; font-size: 13px; }
+    .safeguard-card p { margin: 0; color: var(--muted); font-size: 12px; }
     details { background: #fff; border: 1px solid var(--line); border-radius: 10px; }
     summary { padding: 14px 16px; font-weight: 750; font-size: 13px; cursor: pointer; list-style: none; }
     summary::-webkit-details-marker { display: none; }
@@ -493,7 +498,7 @@
       .shell { display: block; }
       .left-rail { display: none; }
       main { padding: 38px 18px 70px; }
-      .hero-grid, .queue-board, .quality-grid { grid-template-columns: 1fr; }
+      .hero-grid, .queue-board, .quality-grid, .safeguard-grid { grid-template-columns: 1fr; }
       .system-map { grid-template-columns: 1fr; }
       .system-node:not(:last-child)::after { content: "↓"; top: auto; right: 50%; bottom: -13px; transform: translateX(50%); }
       .pipeline { grid-template-columns: repeat(4, 1fr); }
@@ -677,6 +682,14 @@
           <span class="section-kicker">07 / QUALITY GATE</span>
           <h2>生成只是候选，核验通过才算完成</h2>
           <p class="section-intro">20 张基础图生成完后进行统一质检。每个视角最多生成10张：5张基础图加最多5张补图；达到5张合格图或10张总量时立即停止该视角。</p>
+          <div class="safeguard-grid">
+            <article class="safeguard-card"><code>CANONICAL IDENTITY</code><strong>身份只认正面/1.jpg</strong><p>它是唯一身份真源；侧面、背面和全身参考只控制姿势、身体方向、裁切与构图。身份漂移以 <code>identity-drift</code> 拒绝。</p></article>
+            <article class="safeguard-card"><code>PARTIAL / HEADLESS SOURCE</code><strong>源图缺头，也要完成身份</strong><p>源图只露部分头部或完全无头时，依据可见肤色、发型、年龄感、颈肩与体态证据自然补全，不凭空更换模特。</p></article>
+            <article class="safeguard-card"><code>HEAD CROP FLOOR</code><strong>正面 / 侧面 / 背面至少半个头部</strong><p>最终画面最少保留半个头部；完整头部允许。低于边界时按 <code>head-crop-below-minimum</code> 拒绝。</p></article>
+            <article class="safeguard-card"><code>COMPLETE FULL BODY</code><strong>全身图必须从头顶到鞋底完整</strong><p>完整发冠、脸、身体、服装、双脚与鞋底连续入镜，并在头顶和鞋底外留出安全边距。</p></article>
+            <article class="safeguard-card"><code>CONDITIONAL DRESS FRAME</code><strong>确认膝下连衣裙才锁定完整裙摆</strong><p>仅当视觉证据确认膝下连衣裙时，要求领口至完整裙摆全部入镜；裙摆被裁切以 <code>long-dress-hem-cropped</code> 拒绝。</p></article>
+            <article class="safeguard-card"><code>date-skc-four-row-v3</code><strong>日期 → SKC → 四视角 → 主图 / 补图</strong><p>日期横向排列，同日 SKC 纵向堆叠；每个 SKC 固定正面、侧面、背面、全身四行，每行先 5 个主槽再 5 个补图槽。</p></article>
+          </div>
           <div class="quality-grid">
             <details open><summary>产品一致性</summary><ul><li>颜色、版型、领口、袖型、长度和面料正确</li><li>视角与动作合同一致</li><li>包袋、鞋子和手部正确</li></ul></details>
             <details open><summary>图像真实性</summary><ul><li>单图、单个成年模特、无拼图</li><li>光向、投影、反射与色温统一</li><li>无抠图白边、严重肢体错误、文字或水印</li></ul></details>

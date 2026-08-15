@@ -3,10 +3,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const toolsRoot = path.dirname(fileURLToPath(import.meta.url));
-const packageRoot = path.resolve(toolsRoot, '..');
+const projectRoot = path.resolve(toolsRoot, '..', '..');
+const packageRoot = path.resolve(projectRoot, 'fashion-lovart-view-extension');
 const skillRoot = path.join(packageRoot, 'skill');
 const sourceHtml = path.join(toolsRoot, 'handbook-template.html');
-const outputHtml = path.join(packageRoot, 'docs', 'handbook.html');
+const outputPaths = [
+  path.join(packageRoot, 'docs', 'handbook.html'),
+  path.join(projectRoot, 'docs', 'index.html'),
+];
 
 const specs = [
   ['skill', '智能体主流程', 'SKILL.md', 'SKILL.md'],
@@ -316,5 +320,7 @@ const editorJs = `
 `;
 html = html.replace('    const sections = [...document.querySelectorAll(\'main section[id]\')];', editorJs + "    const sections = [...document.querySelectorAll('main section[id]')];");
 
-fs.writeFileSync(outputHtml, html);
-console.log(outputHtml);
+for (const outputPath of outputPaths) {
+  fs.writeFileSync(outputPath, html);
+  console.log(outputPath);
+}

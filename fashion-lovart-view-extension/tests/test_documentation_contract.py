@@ -1,3 +1,4 @@
+import json
 import re
 import unittest
 from pathlib import Path
@@ -8,6 +9,9 @@ SKILL = ROOT / "skill" / "SKILL.md"
 LOVART = ROOT / "skill" / "references" / "lovart-execution.md"
 FOLDER = ROOT / "skill" / "references" / "folder-contract.md"
 README = ROOT / "README.md"
+HANDBOOK = ROOT / "docs" / "handbook.html"
+SITE_INDEX = ROOT.parent / "docs" / "index.html"
+BUILDER = ROOT / "tools" / "build_handbook.mjs"
 TEMPLATES = {
     view: ROOT / "skill" / "references" / "templates" / f"{view}.md"
     for view in ("front", "side", "back", "full")
@@ -15,6 +19,49 @@ TEMPLATES = {
 
 
 class DocumentationContractTests(unittest.TestCase):
+    def test_handbook_publishes_identity_framing_and_canvas_rule_cards(self):
+        handbook = HANDBOOK.read_text(encoding="utf-8")
+
+        for rule in (
+            "正面/1.jpg",
+            "半个头部",
+            "完整裙摆",
+            "identity-drift",
+            "date-skc-four-row-v3",
+        ):
+            self.assertIn(rule, handbook)
+
+    def test_handbook_embeds_all_eight_workspace_markdown_documents(self):
+        handbook = HANDBOOK.read_text(encoding="utf-8")
+        markdown_paths = (
+            "SKILL.md",
+            "references/folder-contract.md",
+            "references/prompt-output-schema.md",
+            "references/lovart-execution.md",
+            "references/templates/front.md",
+            "references/templates/side.md",
+            "references/templates/back.md",
+            "references/templates/full.md",
+        )
+
+        for relative_path in markdown_paths:
+            source = (ROOT / "skill" / relative_path).read_text(encoding="utf-8")
+            encoded_source = json.dumps(source, ensure_ascii=False)
+            self.assertIn(
+                f'"relativePath":"{relative_path}","content":{encoded_source}',
+                handbook,
+            )
+
+    def test_builder_uses_repository_skill_and_syncs_the_site_index(self):
+        builder = BUILDER.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "path.resolve(projectRoot, 'fashion-lovart-view-extension')",
+            builder,
+        )
+        self.assertNotIn(".codex/skills", builder)
+        self.assertEqual(HANDBOOK.read_bytes(), SITE_INDEX.read_bytes())
+
     def test_skill_contains_month_gate_and_spacing_ratios(self):
         skill = SKILL.read_text(encoding="utf-8")
 
