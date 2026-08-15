@@ -58,11 +58,13 @@ Open every unique image with image-view tooling. Assign each path exactly one ro
 - `accessory_source`
 - `unused`
 
-Each assignment contains `role`, numeric `confidence` from 0 to 1, and a concrete visual `reason`. Follow the schema in `references/folder-contract.md`. Do not infer role from filename alone.
+Each assignment contains `role`, numeric `confidence` from 0 to 1, and a concrete visual `reason`. Follow the schema in `references/folder-contract.md`. Do not infer ordinary roles from filenames. The only filename-based exception is `正面/1.jpg`: treat it as the canonical **IDENTITY MODEL SOURCE** for identity only, then inspect it visually before deriving any identity evidence.
 
 Apply these rules:
 
 - Each ready view has exactly one model, product, and scene source.
+- Attach the schema-2 `identity_profile` from visible evidence in `正面/1.jpg`, including head visibility, skin tone and visible ancestry cues, visible face features, hair evidence, age impression, and body profile. Never let a `侧面`, `背面`, or `全身` pose model override these canonical identity characteristics.
+- Inspect the product evidence and attach `garment_profile`. Set `requires_full_garment_frame: true` only when the garment is visually confirmed as a below-knee dress.
 - If composition is absent and the model source clearly controls crop, reuse the model source as composition fallback.
 - Accessories are optional. In the full-body workflow, shoes are normally an accessory source.
 - Each path has one primary role. The only multi-role rule is the explicit unique-model-to-composition fallback. Images with identical hashes upload only once.
@@ -90,6 +92,8 @@ Fill the template from visual evidence. Save the completed Chinese analysis in `
 ```text
 SKC <skc_id> | VIEW <view> | ACTION <action_id> | ATTEMPT <n>
 ```
+
+Every action must contain `IDENTITY LOCK:` and preserve the `identity_profile` from `正面/1.jpg`, while any local view model controls pose/composition only. Every front, side, and back action must contain `HEAD CROP FLOOR:` and retain at least half the head; a complete head is allowed. Every full action must contain `FULL-BODY HEAD COMPLETION:` and reconstruct a natural complete head from the canonical visible evidence when the source head is partial or absent. When `garment_contract.requires_full_garment_frame` is true, every action must contain `GARMENT FRAME LOCK:` and keep the complete neckline-to-hem dress inside the frame. Do not add that lock for a garment that is not visually confirmed as a below-knee dress.
 
 Validate each prompt JSON before browser work:
 
@@ -136,17 +140,18 @@ Resume rules:
 
 Create one ASCII-only package per view. Use only the fixed ASCII root and a SHA-derived SKC slug; never place a Chinese or user-provided name directly in the temporary path. Copy unique files in this order:
 
-1. `model_01`
-2. `product_01`
-3. `scene_01`
-4. `composition_01` when its hash is not already present
-5. `accessory_01...`
+1. `identity_model_01`: canonical `正面/1.jpg`, always first
+2. `pose_model_01`: separate local view pose/composition model when its hash differs
+3. `product_01`
+4. `scene_01`
+5. `composition_01` when its hash is not already present
+6. `accessory_01...`
 
-Keep a mapping from temporary name to manifest path in the run log. Prompts refer to semantic labels such as `MODEL SOURCE`, `PRODUCT SOURCE`, `SCENE SOURCE`, and `SHOES ACCESSORY SOURCE`, never Lovart's numeric image index. Upload all references once per isolated view conversation.
+If a local view pose reference is byte-identical to `正面/1.jpg`, upload only `identity_model_01` but retain the local pose/composition role logically in the manifest and prompt. Keep a mapping from temporary name to manifest path in the run log. Prompts refer to semantic labels such as `IDENTITY MODEL SOURCE`, `POSE/COMPOSITION SOURCE`, `PRODUCT SOURCE`, `SCENE SOURCE`, and `SHOES ACCESSORY SOURCE`, never Lovart's numeric image index. Upload all references once per isolated view conversation.
 
 ### 7. Operate Lovart in Chrome
 
-Read `references/lovart-execution.md` completely before browser work. Use the existing signed-in Chrome session. Work in project `YYYY年M月`, then resolve the canvas hierarchy before submitting anything: dates are horizontal canvas regions from left to right; SKCs belonging to the same date are stacked vertically from top to bottom; every SKC contains four view rows; every row contains five primary cells followed by five supplemental cells. The exact destination of every result is therefore `date -> SKC -> view -> action/attempt`.
+Read `references/lovart-execution.md` completely before browser work. Use the existing signed-in Chrome session. Work in project `YYYY年M月`, then resolve the canvas hierarchy before submitting anything. The confirmed screenshot maps to `date -> SKC -> front/side/back/full -> primary/supplemental`; enforce layout contract version `date-skc-four-row-v3`. Dates are horizontal canvas regions from left to right; SKCs belonging to the same date are stacked vertically from top to bottom; every SKC contains four view rows; every row contains five primary cells followed by five supplemental cells.
 
 Create or locate the date label and SKC label before generation. A date region must be wide enough for the full 10-cell row plus labels and safety padding. Place a new date strictly to the right of the previous date region's actual rightmost object plus a visible safety gap. Place a new SKC for an existing date strictly below that date region's previous SKC actual bottom edge plus a gap approximately 25% of one displayed image height. Never place two different SKCs from the same date side by side, and never estimate the next region from only the first five base images.
 
@@ -170,7 +175,7 @@ python3 scripts/update_run_state.py transition <state> <view> <action-id> <statu
 
 ### 8. Review candidates
 
-Codex must open or enlarge every candidate and compare it against the active manifest sources and action prompt. Lovart-written self-checks and thumbnail rows are not evidence.
+Codex must open or enlarge every candidate and compare it against the active manifest sources and action prompt. Lovart-written self-checks and thumbnail rows are not evidence. Review in this order: identity against the canonical `identity_profile`; crop/head framing; conditional full-garment framing; then ordinary product, pose, scene, lighting, and styling quality.
 
 A candidate qualifies only when all are true:
 
@@ -181,7 +186,10 @@ A candidate qualifies only when all are true:
 - Model, background lighting direction, ground shadow, reflections, and color temperature agree.
 - No cutout edge, halo, severe anatomy error, text, watermark, or random logo.
 - Front, side, back, and full-body purposes are not confused.
-- For every full-body action, the frame contains the complete model continuously from the very top of the hair/head to the bottom of both feet, including the complete face, both shoes, toes, and soles. Leave visible safety margin above the hair and below the footwear; no part of the head, chin, ankles, feet, or shoes may touch or cross the image edge.
+- Identity matches `正面/1.jpg`; reject drift with `identity-drift`.
+- Front, side, and back retain at least half the model's head; reject a lower crop with `head-crop-below-minimum`. A complete head or complete face is acceptable.
+- When the manifest visually confirms a below-knee dress and requires a full garment frame, the entire neckline-to-hem garment is visible; reject a cropped hem with `long-dress-hem-cropped`.
+- For every full-body action, the frame contains the complete model continuously from the very top of the hair/head to the bottom of both feet, including the complete face, both shoes, toes, and soles. Leave visible safety margin above the hair and below the footwear; no part of the head, chin, ankles, feet, or shoes may touch or cross the image edge. Reject an incomplete reconstructed head with `full-head-incomplete`.
 
 On failure, record a specific reason and resubmit the same action with a concise correction only when the view still has generation capacity. Append each exact correction prompt and visible Lovart label to `run-log.md`; `run-state.json` retains structured attempt and rejection history plus the view-level generated count. There is no per-action three-attempt rule. The view stops at five qualified actions or 10 generated candidates; unresolved actions then become `blocked:quality-cap`.
 

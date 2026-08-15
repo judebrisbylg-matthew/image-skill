@@ -9,7 +9,7 @@
 5. If the name mismatches or cannot be read, do not upload references and do not submit tasks. Record `blocked:month-project-mismatch` and immediately send the generated feedback containing source path, expected project, current project, and correction instruction.
 6. After the user replies `已修正`, re-read the visible project name and verify it again. Do not resume from the user's statement alone.
 7. When verification passes, locate/create the correct date region, then the SKC area inside it, then the active view row. Dates run left-to-right; SKCs within the same date run top-to-bottom.
-8. Before upload, reserve the entire V2 destination: visible date/SKC labels, four view rows, and 10 cells per row. Record the verified reservation. Do not submit into an improvised or partially measured area.
+8. Before upload, reserve the entire destination using layout contract `date-skc-four-row-v3`: visible date/SKC labels, four view rows, and 10 cells per row. Record the verified reservation. Do not submit into an improvised or partially measured area.
 9. Start a fresh conversation for the action. Keep all actions in one Chrome tab, but never reuse a conversation for another unfinished action.
 10. Confirm the visible model is Nano Banana Pro, output is 4K, ratio is 2:3, and no points acceleration is enabled.
 
@@ -17,7 +17,7 @@ Project verification is a hard gate. No reference upload, prompt submission, or 
 
 ## Upload and submit
 
-- Upload the action's view ASCII package in manifest order. Repeat the same view package in each action conversation. For full-body actions, include the footwear accessory source and append the hard requirement that the complete head-to-toe model, full face, both shoes, toes, and soles stay inside the frame with safety margin.
+- Upload the action's view ASCII package in manifest order with canonical `identity_model_01` (`正面/1.jpg`) first. If a local view pose reference is byte-identical, upload no duplicate but preserve its pose/composition role logically. Repeat the same view package in each action conversation. For full-body actions, include the footwear accessory source and append the hard requirement that the complete head-to-toe model, full face, both shoes, toes, and soles stay inside the frame with safety margin.
 - Verify the visible reference count and thumbnails before submitting.
 - Submit `01`–`05` as separate action conversations in the same browser tab. After each submission, wait until `submitted` or `queued` is visible, then click New Conversation before preparing the next action. Never submit a second prompt into a conversation that already has an unfinished free-queue task because Lovart cancels the earlier task. Lovart accepts a maximum wave of 10 unfinished image tasks across the workflow. Count `submitted`, `queued`, and visibly generating actions as occupied slots. A free-queue wait estimate on an accepted task does not prevent filling the remaining slots. For a fresh SKC, fill wave one with front `FR01`–`FR05` plus side `SI01`–`SI05`; never submit an 11th. As each task completes, use the released slot for the next pending back/full action.
 - Never request five variants in one combined image. Never use a collage, contact sheet, grid, or multiple people.
@@ -32,6 +32,15 @@ Project verification is a hard gate. No reference upload, prompt submission, or 
 - “Submitted”, “queued”, a Lovart text response, or an unidentified canvas image is not a base result. Only a returned image with matching task label, artifact identity, and verified primary placement counts.
 - When the gate reports fewer than five for any view, finish those missing base actions first. Do not start quality review and do not generate corrections.
 
+## Ordered visual review
+
+After the base-count gate passes, inspect every candidate in this fixed priority order before ordinary styling quality:
+
+1. **Identity:** compare the candidate with the schema-2 `identity_profile` derived only from `正面/1.jpg`. A local pose model never overrides identity. Reject drift with `identity-drift`.
+2. **Crop/head:** front, side, and back retain at least half the head; a complete head and complete face are allowed. Full-body results retain the complete reconstructed head and hair crown. Reject violations with `head-crop-below-minimum` or `full-head-incomplete`.
+3. **Conditional dress frame:** only when the product is a visually confirmed below-knee dress and `requires_full_garment_frame` is true, require the complete neckline-to-hem garment in frame. Reject a cropped hem with `long-dress-hem-cropped`.
+4. **Ordinary quality:** then inspect garment construction, action, hands, accessories, scene, lighting, anatomy, and artifacts.
+
 ## Per-view generation cap
 
 - Treat 10 generated candidates as the absolute lifetime cap for each view: five base candidates plus no more than five correction candidates.
@@ -43,7 +52,7 @@ Project verification is a hard gate. No reference upload, prompt submission, or 
 
 ## Monthly canvas coordinate contract
 
-Treat the monthly Lovart project as a deterministic two-dimensional layout:
+Treat the monthly Lovart project as deterministic layout contract `date-skc-four-row-v3`. The confirmed screenshot maps to `date -> SKC -> front/side/back/full -> primary/supplemental`:
 
 - **Horizontal axis = date.** Date regions such as `8月13日`, `8月14日`, and `8月15日` advance from left to right.
 - **Vertical axis inside a date = SKC.** Different SKCs from the same date must stack from top to bottom and must never be placed side by side.
@@ -61,7 +70,7 @@ Before the first submission for a date or SKC:
 4. Create a visible SKC label and reserve a four-row block whose full width covers all 10 cells in every row.
 5. Verify that the reserved date and SKC regions do not overlap any existing image, label, supplemental strip, or future correction area.
 
-Do not infer a region boundary from the current viewport, the first five base images, or an incomplete SKC. The placement key is always `date -> SKC -> view -> action/attempt`.
+Do not infer a region boundary from the current viewport, the first five base images, or an incomplete SKC. The placement key is always `date -> SKC -> front/side/back/full -> primary/supplemental`, with action and attempt recorded inside the selected row zone.
 
 ## Immediate canvas placement
 

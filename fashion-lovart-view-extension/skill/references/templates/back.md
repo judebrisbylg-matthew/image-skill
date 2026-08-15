@@ -4,6 +4,8 @@
 
 ## 输入角色
 
+> The Feishu 图1/图2/图3 labels below are logical role labels, not Lovart upload index values. In every ASCII package, `identity_model_01` (`正面/1.jpg`) is physically first; a separate local back pose/composition source follows only when its hash differs.
+
 - 图1：模特、身形、肤色、基础服装色彩、下装、首饰、包袋和构图。
 - 图2：服装背面参考，是背面剪裁、后领、袖型、下摆和面料结构的唯一标准。
 - 图3：场景背景参考。
@@ -16,18 +18,18 @@
 
 ## 五个动作
 
-1. **侧后方3/4转身，单手轻扶包肩带**：露出完整衣背，另一手搭腰侧，重心偏单腿；场景使用适合当前素材的近景前景角度。
-2. **正侧后方，单手插袋，不拿包**：移除所有包袋；后背完整朝镜头稍带侧面，另一手搭胯，双腿错开。
-3. **侧后方轻靠可用场景结构，单手握包带**：仅当图3确有安全可依靠的墙面或结构时使用；否则改为同等侧后方松弛站姿，不虚构建筑。
-4. **背面微侧，单手整理袖口**：另一手挎包；街角/转折机位仅在图3允许时使用，否则以同一场景的侧向纵深替代。
-5. **半侧身背面，单手扶场景结构**：仅使用图3确有的栏杆、门框或等价结构；若没有，改为一手置腰后的自然动作，不虚构道具。
+1. **侧后方3/4转身，单手轻扶包肩带**：露出完整衣背，另一手搭腰侧，重心偏单腿；场景使用适合当前素材的近景前景角度。`IDENTITY LOCK:` Preserve the identity_profile from the canonical IDENTITY MODEL SOURCE 正面/1.jpg; the local back model controls pose/composition only. `HEAD CROP FLOOR:` The final image must retain at least half of the model's head. A complete head is allowed. Never crop below the half-head boundary. `GARMENT FRAME LOCK:` Activate only for a visually confirmed below-knee dress; when active, keep the complete neckline-to-hem garment inside the frame.
+2. **正侧后方，单手插袋，不拿包**：移除所有包袋；后背完整朝镜头稍带侧面，另一手搭胯，双腿错开。`IDENTITY LOCK:` Preserve the identity_profile from the canonical IDENTITY MODEL SOURCE 正面/1.jpg; the local back model controls pose/composition only. `HEAD CROP FLOOR:` The final image must retain at least half of the model's head. A complete head is allowed. Never crop below the half-head boundary. `GARMENT FRAME LOCK:` Activate only for a visually confirmed below-knee dress; when active, keep the complete neckline-to-hem garment inside the frame.
+3. **侧后方轻靠可用场景结构，单手握包带**：仅当图3确有安全可依靠的墙面或结构时使用；否则改为同等侧后方松弛站姿，不虚构建筑。`IDENTITY LOCK:` Preserve the identity_profile from the canonical IDENTITY MODEL SOURCE 正面/1.jpg; the local back model controls pose/composition only. `HEAD CROP FLOOR:` The final image must retain at least half of the model's head. A complete head is allowed. Never crop below the half-head boundary. `GARMENT FRAME LOCK:` Activate only for a visually confirmed below-knee dress; when active, keep the complete neckline-to-hem garment inside the frame.
+4. **背面微侧，单手整理袖口**：另一手挎包；街角/转折机位仅在图3允许时使用，否则以同一场景的侧向纵深替代。`IDENTITY LOCK:` Preserve the identity_profile from the canonical IDENTITY MODEL SOURCE 正面/1.jpg; the local back model controls pose/composition only. `HEAD CROP FLOOR:` The final image must retain at least half of the model's head. A complete head is allowed. Never crop below the half-head boundary. `GARMENT FRAME LOCK:` Activate only for a visually confirmed below-knee dress; when active, keep the complete neckline-to-hem garment inside the frame.
+5. **半侧身背面，单手扶场景结构**：仅使用图3确有的栏杆、门框或等价结构；若没有，改为一手置腰后的自然动作，不虚构道具。`IDENTITY LOCK:` Preserve the identity_profile from the canonical IDENTITY MODEL SOURCE 正面/1.jpg; the local back model controls pose/composition only. `HEAD CROP FLOOR:` The final image must retain at least half of the model's head. A complete head is allowed. Never crop below the half-head boundary. `GARMENT FRAME LOCK:` Activate only for a visually confirmed below-knee dress; when active, keep the complete neckline-to-hem garment inside the frame.
 
 每段必须以图2背面款式为最高服装优先级，禁止出现服装正面主视图。
 
 ## 通用负面提示词
 
 ```text
-no text, no logo, no watermark, full head, complete face, eyes, stiff military standing pose, both hands hanging down, distorted limbs, extra fingers, blurry fabric, low resolution, ugly body proportions, bag on ground, shop sign text, street sign text, front view of top
+no text, no logo, no watermark, eyes, stiff military standing pose, both hands hanging down, distorted limbs, extra fingers, blurry fabric, low resolution, ugly body proportions, bag on ground, shop sign text, street sign text, front view of top
 ```
 
 ## 输出参数
