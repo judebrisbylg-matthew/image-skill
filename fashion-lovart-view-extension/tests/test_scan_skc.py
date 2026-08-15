@@ -10,6 +10,52 @@ scan_skc = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(scan_skc)
 
+VALIDATOR_PATH = MODULE_PATH.with_name("validate_manifest.py")
+VALIDATOR_SPEC = importlib.util.spec_from_file_location(
+    "validate_manifest_for_scan_tests", VALIDATOR_PATH
+)
+validate_manifest = importlib.util.module_from_spec(VALIDATOR_SPEC)
+assert VALIDATOR_SPEC.loader is not None
+VALIDATOR_SPEC.loader.exec_module(validate_manifest)
+
+
+def valid_inventory():
+    return {
+        "schema_version": 1,
+        "skc_id": "ds123",
+        "canonical_identity_source": {
+            "relative_path": "正面/1.jpg",
+            "sha256": "a" * 64,
+        },
+        "views": {"front": {"status": "blocked:missing-view", "roles": {}}},
+    }
+
+
+def valid_identity_profile(**updates):
+    profile = {
+        "head_visibility": "partial",
+        "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin",
+        "visible_face_features": "lower face visible",
+        "hair_evidence": "dark brown loose strands",
+        "age_impression": "adult, approximately 25-35",
+        "body_profile": "slim adult build",
+        "confidence": 0.86,
+        "reason": "Visible evidence only",
+    }
+    profile.update(updates)
+    return profile
+
+
+def valid_garment_profile(**updates):
+    profile = {
+        "garment_type": "dress",
+        "hem_position": "below_knee",
+        "requires_full_garment_frame": True,
+        "reason": "Hem extends below both knees.",
+    }
+    profile.update(updates)
+    return profile
+
 
 class ScanSkcAliasTests(unittest.TestCase):
     def test_full_body_folder_alias_is_recognized_without_renaming(self):
@@ -85,6 +131,50 @@ class ScanSkcVisualContractTests(unittest.TestCase):
 
         self.assertEqual(result["identity_profile"]["head_visibility"], "partial")
         self.assertTrue(result["garment_profile"]["requires_full_garment_frame"])
+
+    def test_attached_evidence_is_trimmed_and_manifest_rejects_padded_evidence(self):
+        string_fields = {
+            "identity_profile": {
+                "head_visibility": "partial",
+                "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin",
+                "visible_face_features": "lower face visible",
+                "hair_evidence": "dark brown loose strands",
+                "age_impression": "adult, approximately 25-35",
+                "body_profile": "slim adult build",
+                "reason": "Visible evidence only",
+            },
+            "garment_profile": {
+                "garment_type": "dress",
+                "hem_position": "below_knee",
+                "reason": "Hem extends below both knees.",
+            },
+        }
+
+        for profile_key, fields in string_fields.items():
+            for field, canonical in fields.items():
+                with self.subTest(contract="attachment", field=field):
+                    identity = valid_identity_profile()
+                    garment = valid_garment_profile()
+                    target = identity if profile_key == "identity_profile" else garment
+                    target[field] = f" {canonical} "
+                    try:
+                        attached = scan_skc.attach_visual_contracts(
+                            valid_inventory(), identity, garment
+                        )
+                    except ValueError as exc:
+                        self.fail(f"attachment must normalize {field}: {exc}")
+                    self.assertEqual(attached[profile_key][field], canonical)
+
+                with self.subTest(contract="manifest", field=field):
+                    attached = scan_skc.attach_visual_contracts(
+                        valid_inventory(),
+                        valid_identity_profile(),
+                        valid_garment_profile(),
+                    )
+                    attached[profile_key][field] = f" {canonical} "
+                    self.assertTrue(
+                        validate_manifest.validate_manifest_data(attached)
+                    )
 
     def test_contract_canonical_source_cannot_be_overridden_by_caller(self):
         inventory = {

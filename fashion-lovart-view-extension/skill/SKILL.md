@@ -75,17 +75,25 @@ Supply both visual profiles as Python dictionaries created from direct image ins
 Invoke the schema migration in this order after visual classification:
 
 ```python
+import json
+from pathlib import Path
+
 from scripts.scan_skc import apply_role_assignments, attach_visual_contracts
 
-manifest = apply_role_assignments(inventory, assignments)
-manifest = attach_visual_contracts(
-    manifest,
-    identity_profile=identity_profile,
-    garment_profile=garment_profile,
-)
+batch_payload = json.loads(Path(batch_inventory_path).read_text(encoding="utf-8"))
+for inventory in batch_payload["skcs"]:
+    manifest = apply_role_assignments(
+        inventory, assignments_by_skc[inventory["skc_id"]]
+    )
+    manifest = attach_visual_contracts(
+        manifest,
+        identity_profile=identity_profiles[inventory["skc_id"]],
+        garment_profile=garment_profiles[inventory["skc_id"]],
+    )
 ```
 
-- **New run migration:** `scan_skc.py` deliberately emits a schema-1 inventory. Build `identity_profile` only from `正面/1.jpg`, build `garment_profile` from the active product evidence, call `apply_role_assignments(inventory, assignments)`, then call `attach_visual_contracts(...)` to produce schema-2 before saving `_codex/manifest.json`.
+- **Batch wrapper:** `scan_skc.py` always emits one wrapper whose `skcs` member contains the single-SKC inventories. Iterate `batch_payload["skcs"]` as shown; never pass the wrapper itself to `apply_role_assignments()`. For a single-SKC run, first require `len(batch_payload["skcs"]) == 1`, then select exactly `batch_payload["skcs"][0]`.
+- **New run migration:** Build each identity profile only from that inventory's `正面/1.jpg`, build its garment profile from the active product evidence, index assignments and profiles by `inventory["skc_id"]`, call `apply_role_assignments(...)`, then call `attach_visual_contracts(...)` to produce schema-2 before saving that SKC's `_codex/manifest.json`. Attachment trims every required identity and garment string before persistence.
 - **Resume migration:** Load the existing manifest before reusing prompts or browser state. If it is schema-1, or schema-2 with missing/invalid identity or garment evidence, reopen the canonical identity and product sources, rebuild both visual-profile dictionaries, rerun the two calls above, save schema-2, and regenerate prompts. If it is already schema-2, validate it and keep its exact canonical hash/profile contracts. A legacy/status-only layout reservation never clears submission; run `reserve-layout` again to record the complete v3 reservation.
 
 Save the resulting single-SKC schema-2 object as `_codex/manifest.json`, then validate:
@@ -111,7 +119,13 @@ Fill the template from visual evidence. Save the completed Chinese analysis in `
 SKC <skc_id> | VIEW <view> | ACTION <action_id> | ATTEMPT <n>
 ```
 
-Every standalone action must contain exactly one actionable `IDENTITY LOCK:` section. Use this fixed semicolon-delimited order and replace each placeholder with the exact active manifest value; prefix matches, duplicate assignments, reordered fields, and conflicting extra assignments are invalid:
+Every standalone action must end with one immutable, manifest-derived final contract suffix. Put all action, camera, composition, scene, lighting, and Nano Banana Pro / 4K / 2:3 prose before this suffix. Start the suffix with this exact sentence:
+
+```text
+FINAL CONTRACT OVERRIDE: In any conflict, the following identity, head-crop, full-body, and garment contracts override every earlier sentence in this prompt.
+```
+
+Follow it with exactly one actionable `IDENTITY LOCK:` section. Use this fixed semicolon-delimited order and replace each placeholder with the type- and value-equal active manifest string; prefix matches, duplicate assignments, reordered fields, coercion, and conflicting extra assignments are invalid:
 
 ```text
 IDENTITY LOCK: canonical_source=正面/1.jpg; head_visibility=<exact active value>; skin_tone_and_visible_ancestry_cues=<exact active value>; visible_face_features=<exact active value>; hair_evidence=<exact active value>; age_impression=<exact active value>; body_profile=<exact active value>; Noncanonical local pose/composition sources must not control or override body_profile.
@@ -128,6 +142,8 @@ GARMENT FRAME LOCK: Activate only for a visually confirmed below-knee dress; whe
 ```
 
 Every front, side, and back action must contain one actionable `HEAD CROP FLOOR:` section and retain at least half the head; a complete head is allowed. Every full action must contain one actionable `FULL-BODY HEAD COMPLETION:` section and reconstruct a natural complete head from the canonical visible evidence when the source head is partial or absent. When `garment_contract.requires_full_garment_frame` is true, every action must contain one actionable `GARMENT FRAME LOCK:` section: keep the below-knee dress continuously visible from the shoulder/neckline through the lowest hem point, leave visible safety margin below the hem, the hem must not touch or cross an image edge, keep the major hem silhouette unobscured, and keep the apparent garment length unchanged. Do not add that lock for any active garment contract that is not a visually confirmed below-knee dress.
+
+The final suffix order is `FINAL CONTRACT OVERRIDE` -> `IDENTITY LOCK` -> the view's `HEAD CROP FLOOR` or `FULL-BODY HEAD COMPLETION` -> conditional `GARMENT FRAME LOCK`. Earlier prompt prose may describe the requested action freely because this final block overrides any conflict. Nothing except trailing whitespace may follow the applicable final lock; appended prose invalidates the prompt.
 
 Validate each prompt JSON against its active schema-2 manifest before browser work. The prompt `skc_id`, complete canonical identity path/hash/profile, and garment contract must match that manifest exactly:
 

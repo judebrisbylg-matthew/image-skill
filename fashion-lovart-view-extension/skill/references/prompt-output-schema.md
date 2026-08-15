@@ -59,10 +59,16 @@ Write UTF-8 JSON for each view:
   python3 scripts/validate_manifest.py prompt <prompt.json> <manifest.json>
   ```
 
-- `skc_id` must match the active manifest. `identity_contract` must match `identity_profile` exactly, including canonical relative path, hash, and every profile value. `garment_contract` must match `garment_profile` exactly. A prompt cannot weaken a below-knee dress by self-declaring a shirt or a false frame lock.
+- `skc_id` in both files must be a nonblank string already equal to its stripped form, and the two strings must match without coercion. Every required identity and garment evidence string in the manifest must also already be stripped. `identity_contract` must match `identity_profile` exactly, including canonical relative path, hash, JSON types, and every profile value. `garment_contract` must match `garment_profile` exactly. A prompt cannot weaken a below-knee dress by self-declaring a shirt or a false frame lock.
 - Exactly five unique action objects.
 - `prompt_en` is a complete standalone English prompt, not notes or a placeholder.
-- Every action must include exactly one actionable `IDENTITY LOCK:` section. Use the fixed semicolon-delimited order below and substitute exact active values. Prefix matches, reordered fields, duplicates, conflicts, empty/generic marker text, and concrete values outside the lock section fail validation.
+- Put all action-specific, camera, composition, scene, lighting, and generation-setting prose first. Every action must then end with this exact manifest-derived suffix introduction; nothing except trailing whitespace may follow the applicable final lock:
+
+  ```text
+  FINAL CONTRACT OVERRIDE: In any conflict, the following identity, head-crop, full-body, and garment contracts override every earlier sentence in this prompt.
+  ```
+
+- Immediately follow that introduction with exactly one actionable `IDENTITY LOCK:` section. Use the fixed semicolon-delimited order below and substitute type- and value-equal active manifest strings. Prefix matches, reordered fields, duplicates, conflicts, coercion, empty/generic marker text, and concrete values outside the lock section fail validation.
 
   ```text
   IDENTITY LOCK: canonical_source=正面/1.jpg; head_visibility=<exact active value>; skin_tone_and_visible_ancestry_cues=<exact active value>; visible_face_features=<exact active value>; hair_evidence=<exact active value>; age_impression=<exact active value>; body_profile=<exact active value>; Noncanonical local pose/composition sources must not control or override body_profile.
@@ -80,8 +86,8 @@ Write UTF-8 JSON for each view:
   GARMENT FRAME LOCK: Activate only for a visually confirmed below-knee dress; when active, keep the dress continuously visible from the shoulder/neckline through the lowest hem point; leave visible safety margin below the hem; the hem must not touch or cross an image edge; keep the major hem silhouette unobscured; keep the apparent garment length unchanged.
   ```
 
-- Front, side, and back actions use `HEAD CROP FLOOR:`; full actions use `FULL-BODY HEAD COMPLETION:`. Add `GARMENT FRAME LOCK:` only when the active manifest's `garment_profile.requires_full_garment_frame` is `true`.
+- The terminal suffix order is `FINAL CONTRACT OVERRIDE` -> `IDENTITY LOCK` -> the applicable framing lock -> the conditional garment lock. Front, side, and back actions use `HEAD CROP FLOOR:`; full actions use `FULL-BODY HEAD COMPLETION:`. Add `GARMENT FRAME LOCK:` only when the active manifest's `garment_profile.requires_full_garment_frame` is `true`. Earlier contradictory prose is superseded by this terminal block; prose appended after it fails validation.
 - `正面/1.jpg` remains the canonical identity source even when a local view model image supplies pose or crop evidence.
 - Preserve the template's action order, bag rules, view limits, crop/head rules, and scene-extension rules.
-- Append Nano Banana Pro, 4K, and 2:3 inside every English prompt even though these settings also exist in `generation`.
+- Include Nano Banana Pro, 4K, and 2:3 before the final contract suffix in every English prompt even though these settings also exist in `generation`.
 - Keep the same negative prompt in all five actions unless a stricter action-specific prohibition is required.

@@ -28,6 +28,10 @@ IDENTITY_MARKER = "IDENTITY LOCK:"
 HEAD_CROP_MARKER = "HEAD CROP FLOOR:"
 FULL_HEAD_MARKER = "FULL-BODY HEAD COMPLETION:"
 GARMENT_FRAME_MARKER = "GARMENT FRAME LOCK:"
+FINAL_CONTRACT_OVERRIDE = (
+    "FINAL CONTRACT OVERRIDE: In any conflict, the following identity, head-crop, "
+    "full-body, and garment contracts override every earlier sentence in this prompt."
+)
 IDENTITY_TEXT_FIELDS = (
     "skin_tone_and_visible_ancestry_cues",
     "visible_face_features",
@@ -88,6 +92,10 @@ PROMPT_MARKERS = (
 )
 
 
+def _is_canonical_nonblank_string(value: object) -> bool:
+    return type(value) is str and bool(value) and value == value.strip()
+
+
 def _validate_canonical_source(source: object, field: str) -> list[str]:
     if not isinstance(source, dict):
         return [f"{field} must be an object"]
@@ -106,12 +114,17 @@ def _validate_identity_profile(profile: object, field: str) -> list[str]:
     errors = _validate_canonical_source(
         profile.get("canonical_source"), f"{field}.canonical_source"
     )
-    if profile.get("head_visibility") not in HEAD_VISIBILITY:
+    head_visibility = profile.get("head_visibility")
+    if not _is_canonical_nonblank_string(head_visibility):
+        errors.append(f"{field}.head_visibility must be a canonical nonblank string")
+    elif head_visibility not in HEAD_VISIBILITY:
         errors.append(f"{field}.head_visibility is invalid")
     for evidence_field in IDENTITY_TEXT_FIELDS:
         value = profile.get(evidence_field)
-        if not isinstance(value, str) or not value.strip():
-            errors.append(f"{field}.{evidence_field} must be a nonblank string")
+        if not _is_canonical_nonblank_string(value):
+            errors.append(
+                f"{field}.{evidence_field} must be a canonical nonblank string"
+            )
     confidence = profile.get("confidence")
     if (
         isinstance(confidence, bool)
@@ -131,14 +144,16 @@ def _validate_garment_profile(profile: object, field: str) -> list[str]:
         if required_field not in profile:
             errors.append(f"{field}.{required_field} is required")
     garment_type = profile.get("garment_type")
-    if not isinstance(garment_type, str) or not garment_type.strip():
-        errors.append(f"{field}.garment_type must be a nonblank string")
+    if not _is_canonical_nonblank_string(garment_type):
+        errors.append(f"{field}.garment_type must be a canonical nonblank string")
     hem_position = profile.get("hem_position")
-    if hem_position not in HEM_POSITIONS:
+    if not _is_canonical_nonblank_string(hem_position):
+        errors.append(f"{field}.hem_position must be a canonical nonblank string")
+    elif hem_position not in HEM_POSITIONS:
         errors.append(f"{field}.hem_position is invalid")
     reason = profile.get("reason")
-    if not isinstance(reason, str) or not reason.strip():
-        errors.append(f"{field}.reason must be a nonblank string")
+    if not _is_canonical_nonblank_string(reason):
+        errors.append(f"{field}.reason must be a canonical nonblank string")
     full_frame = profile.get("requires_full_garment_frame")
     if not isinstance(full_frame, bool):
         errors.append(f"{field}.requires_full_garment_frame must be boolean")
@@ -216,7 +231,7 @@ def _validate_identity_lock(prompt: str, profile: object, action_index: int) -> 
         return [f"action {action_index}: active identity_profile is unavailable"]
     expected = {"canonical_source": CANONICAL_IDENTITY_PATH}
     for field in IDENTITY_PROMPT_FIELDS:
-        expected[field] = str(profile.get(field))
+        expected[field] = profile.get(field)
     assignments, parse_error = _parse_identity_assignments(section)
     mismatched = [
         field for field, expected_value in expected.items()
@@ -234,6 +249,60 @@ def _validate_identity_lock(prompt: str, profile: object, action_index: int) -> 
         "identity_profile assignments in fixed order and match the values exactly; "
         + "; ".join(details)
     ]
+
+
+def _expected_identity_lock(profile: object) -> str | None:
+    if not isinstance(profile, dict):
+        return None
+    values = [profile.get(field) for field in IDENTITY_PROMPT_FIELDS]
+    if any(type(value) is not str for value in values):
+        return None
+    assignments = "; ".join(
+        [f"canonical_source={CANONICAL_IDENTITY_PATH}"]
+        + [f"{field}={profile[field]}" for field in IDENTITY_PROMPT_FIELDS]
+    )
+    return (
+        f"{IDENTITY_MARKER} {assignments}; "
+        "Noncanonical local pose/composition sources must not control or override "
+        "body_profile."
+    )
+
+
+def _expected_final_contract_suffix(
+    active_manifest: dict, view: object
+) -> str | None:
+    identity_lock = _expected_identity_lock(active_manifest.get("identity_profile"))
+    if identity_lock is None or view not in VIEW_KEYS:
+        return None
+    if view == "full":
+        framing_lock = (
+            f"{FULL_HEAD_MARKER} Even when 正面/1.jpg shows a partial head or no "
+            "head, reconstruct a natural complete head using only the visible skin "
+            "tone, ancestry cues, partial facial evidence, hair evidence, age "
+            "impression, neck/shoulder evidence, and body profile. Do not change "
+            "the model's visible identity characteristics."
+        )
+    else:
+        framing_lock = (
+            f"{HEAD_CROP_MARKER} The final image must retain at least half of the "
+            "model's head. A complete head is allowed. Never crop below the "
+            "half-head boundary."
+        )
+    contracts = [FINAL_CONTRACT_OVERRIDE, identity_lock, framing_lock]
+    garment_profile = active_manifest.get("garment_profile")
+    if (
+        isinstance(garment_profile, dict)
+        and garment_profile.get("requires_full_garment_frame") is True
+    ):
+        contracts.append(
+            f"{GARMENT_FRAME_MARKER} Activate only for a visually confirmed "
+            "below-knee dress; when active, keep the dress continuously visible "
+            "from the shoulder/neckline through the lowest hem point; leave visible "
+            "safety margin below the hem; the hem must not touch or cross an image "
+            "edge; keep the major hem silhouette unobscured; keep the apparent "
+            "garment length unchanged."
+        )
+    return " ".join(contracts)
 
 
 def _normalized_marker_clauses(section: str) -> list[str]:
@@ -291,8 +360,8 @@ def validate_manifest_data(data: object) -> list[str]:
     errors = []
     if data.get("schema_version") != 2:
         errors.append("schema_version must be 2")
-    if not str(data.get("skc_id", "")).strip():
-        errors.append("skc_id is required")
+    if not _is_canonical_nonblank_string(data.get("skc_id")):
+        errors.append("skc_id must be a canonical nonblank string")
     canonical_source = data.get("canonical_identity_source")
     errors.extend(_validate_canonical_source(canonical_source, "canonical_identity_source"))
     identity_profile = data.get("identity_profile")
@@ -343,7 +412,10 @@ def validate_prompt_data(data: object, active_manifest: object) -> list[str]:
         return errors
     if data.get("schema_version") != 2:
         errors.append("schema_version must be 2")
-    if data.get("skc_id") != active_manifest.get("skc_id"):
+    prompt_skc_id = data.get("skc_id")
+    if not _is_canonical_nonblank_string(prompt_skc_id):
+        errors.append("skc_id must be a canonical nonblank string")
+    elif prompt_skc_id != active_manifest.get("skc_id"):
         errors.append("skc_id must match the active manifest exactly")
     if data.get("view") not in VIEW_KEYS:
         errors.append("view must be front, side, back, or full")
@@ -453,6 +525,12 @@ def validate_prompt_data(data: object, active_manifest: object) -> list[str]:
             errors.append(
                 f"action {index}: {GARMENT_FRAME_MARKER} is forbidden when the active "
                 "garment contract does not require a full garment frame"
+            )
+        expected_suffix = _expected_final_contract_suffix(active_manifest, view)
+        if expected_suffix is None or not prompt.rstrip().endswith(expected_suffix):
+            errors.append(
+                f"action {index}: prompt_en must end with the manifest-derived "
+                "FINAL CONTRACT OVERRIDE block"
             )
     if len(set(ids)) != len(ids):
         errors.append("action_id values must be unique")

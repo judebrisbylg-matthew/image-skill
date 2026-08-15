@@ -46,6 +46,15 @@ GARMENT_FIELDS = (
     "requires_full_garment_frame",
     "reason",
 )
+IDENTITY_STRING_FIELDS = ("head_visibility", *IDENTITY_TEXT_FIELDS)
+GARMENT_STRING_FIELDS = ("garment_type", "hem_position", "reason")
+
+
+def _normalized_required_string(data: dict, field: str, profile_name: str) -> str:
+    value = data.get(field)
+    if type(value) is not str or not value.strip():
+        raise ValueError(f"{profile_name}.{field} must be a nonblank string")
+    return value.strip()
 
 
 def is_skc_dir(path: Path) -> bool:
@@ -160,12 +169,13 @@ def attach_visual_contracts(
         raise ValueError("canonical_identity_source.sha256 must be a 64-character hexadecimal string")
     if not isinstance(identity_profile, dict):
         raise ValueError("identity_profile must be an object")
-    if identity_profile.get("head_visibility") not in HEAD_VISIBILITY:
+    normalized_identity = dict(identity_profile)
+    for field in IDENTITY_STRING_FIELDS:
+        normalized_identity[field] = _normalized_required_string(
+            identity_profile, field, "identity_profile"
+        )
+    if normalized_identity["head_visibility"] not in HEAD_VISIBILITY:
         raise ValueError("identity_profile.head_visibility is invalid")
-    for field in IDENTITY_TEXT_FIELDS:
-        value = identity_profile.get(field)
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(f"identity_profile.{field} must be a nonblank string")
     confidence = identity_profile.get("confidence")
     if (
         isinstance(confidence, bool)
@@ -179,18 +189,18 @@ def attach_visual_contracts(
     for field in GARMENT_FIELDS:
         if field not in garment_profile:
             raise ValueError(f"garment_profile.{field} is required")
-    garment_type = garment_profile.get("garment_type")
-    if not isinstance(garment_type, str) or not garment_type.strip():
-        raise ValueError("garment_profile.garment_type must be a nonblank string")
-    hem_position = garment_profile.get("hem_position")
+    normalized_garment = dict(garment_profile)
+    for field in GARMENT_STRING_FIELDS:
+        normalized_garment[field] = _normalized_required_string(
+            garment_profile, field, "garment_profile"
+        )
+    garment_type = normalized_garment["garment_type"]
+    hem_position = normalized_garment["hem_position"]
     if hem_position not in HEM_POSITIONS:
         raise ValueError("garment_profile.hem_position is invalid")
     full_frame = garment_profile.get("requires_full_garment_frame")
     if not isinstance(full_frame, bool):
         raise ValueError("garment_profile.requires_full_garment_frame must be boolean")
-    reason = garment_profile.get("reason")
-    if not isinstance(reason, str) or not reason.strip():
-        raise ValueError("garment_profile.reason must be a nonblank string")
     if hem_position == "below_knee" and garment_type != "dress":
         raise ValueError("garment_profile.hem_position below_knee is valid only for garment_type dress")
     expected_full_frame = (
@@ -199,10 +209,10 @@ def attach_visual_contracts(
     if full_frame is not expected_full_frame:
         raise ValueError("requires_full_garment_frame contradicts garment type and hem")
     inventory["identity_profile"] = {
-        **identity_profile,
+        **normalized_identity,
         "canonical_source": inventory["canonical_identity_source"],
     }
-    inventory["garment_profile"] = dict(garment_profile)
+    inventory["garment_profile"] = normalized_garment
     inventory["schema_version"] = 2
     return inventory
 

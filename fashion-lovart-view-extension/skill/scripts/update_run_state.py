@@ -187,11 +187,24 @@ def _layout_reservation_errors(state: dict) -> list[str]:
         errors.append("skc_label must be a nonblank string")
     if not _has_aware_iso_timestamp(reservation.get("verified_at")):
         errors.append("verified_at must be a timezone-aware ISO timestamp")
-    expected_rows = [
-        {"view": view_key, "cells": list(range(1, 11))}
-        for view_key in LAYOUT_VIEW_ORDER
-    ]
-    if reservation.get("view_rows") != expected_rows:
+    view_rows = reservation.get("view_rows")
+    valid_rows = type(view_rows) is list and len(view_rows) == len(LAYOUT_VIEW_ORDER)
+    if valid_rows:
+        for row, expected_view in zip(view_rows, LAYOUT_VIEW_ORDER):
+            if type(row) is not dict or set(row) != {"view", "cells"}:
+                valid_rows = False
+                break
+            cells = row["cells"]
+            if (
+                row["view"] != expected_view
+                or type(cells) is not list
+                or len(cells) != 10
+                or any(type(cell) is not int for cell in cells)
+                or cells != list(range(1, 11))
+            ):
+                valid_rows = False
+                break
+    if not valid_rows:
         errors.append("view_rows must be front/side/back/full with cells 1 through 10")
     expected_ratios = {
         "horizontal_gap_ratio": HORIZONTAL_GAP_RATIO,

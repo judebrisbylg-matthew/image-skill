@@ -1,5 +1,9 @@
+import copy
+import importlib.util
 import json
 import re
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -18,6 +22,139 @@ TEMPLATES = {
     view: ROOT / "skill" / "references" / "templates" / f"{view}.md"
     for view in ("front", "side", "back", "full")
 }
+VALIDATOR_SCRIPT = ROOT / "skill" / "scripts" / "validate_manifest.py"
+
+VALIDATOR_SPEC = importlib.util.spec_from_file_location(
+    "validate_manifest_for_documentation_tests", VALIDATOR_SCRIPT
+)
+validate_manifest = importlib.util.module_from_spec(VALIDATOR_SPEC)
+assert VALIDATOR_SPEC.loader is not None
+VALIDATOR_SPEC.loader.exec_module(validate_manifest)
+
+CANONICAL_SOURCE = {"relative_path": "正面/1.jpg", "sha256": "a" * 64}
+IDENTITY_FIELDS = (
+    "head_visibility",
+    "skin_tone_and_visible_ancestry_cues",
+    "visible_face_features",
+    "hair_evidence",
+    "age_impression",
+    "body_profile",
+)
+
+
+def representative_manifest(head_visibility, *, long_dress):
+    return {
+        "schema_version": 2,
+        "skc_id": "ds-doc-test",
+        "canonical_identity_source": copy.deepcopy(CANONICAL_SOURCE),
+        "identity_profile": {
+            "canonical_source": copy.deepcopy(CANONICAL_SOURCE),
+            "head_visibility": head_visibility,
+            "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin",
+            "visible_face_features": "lower face visible",
+            "hair_evidence": "dark brown loose strands",
+            "age_impression": "adult 25-35",
+            "body_profile": "slim adult build",
+            "confidence": 0.86,
+            "reason": "Visible evidence only",
+        },
+        "garment_profile": {
+            "garment_type": "dress" if long_dress else "shirt",
+            "hem_position": "below_knee" if long_dress else "not_applicable",
+            "requires_full_garment_frame": long_dress,
+            "reason": "Visible product evidence",
+        },
+        "views": {"front": {"status": "blocked:missing-view", "roles": {}}},
+    }
+
+
+def scanner_inventory():
+    return {
+        "schema_version": 1,
+        "skc_id": "ds-doc-test",
+        "skc_path": "/tmp/ds-doc-test",
+        "canonical_identity_source": copy.deepcopy(CANONICAL_SOURCE),
+        "views": {
+            view: {
+                "status": "blocked:missing-view",
+                "files": [],
+                "roles": {},
+                "composition_fallback": None,
+                "blockers": ["missing view folder or supported images"],
+            }
+            for view in ("front", "side", "back", "full")
+        },
+    }
+
+
+def documented_migration_snippet():
+    skill = SKILL.read_text(encoding="utf-8")
+    section = skill.split(
+        "Invoke the schema migration in this order after visual classification:", 1
+    )[1]
+    match = re.search(r"```python\n(.*?)\n```", section, flags=re.DOTALL)
+    if match is None:
+        raise AssertionError("documented Python migration snippet is missing")
+    return match.group(1)
+
+
+def template_action_texts(view):
+    source = TEMPLATES[view].read_text(encoding="utf-8")
+    if view == "full":
+        actions = [
+            line for line in source.splitlines() if line.startswith("Generate one ")
+        ]
+    else:
+        actions = [
+            line
+            for line in source.splitlines()
+            if re.match(r"^[1-5]\. \*\*", line)
+        ]
+    if len(actions) != 5:
+        raise AssertionError(f"{view} template must expose exactly five actions")
+    return actions
+
+
+def render_template_prompt(view, manifest):
+    prefix = {"front": "FR", "side": "SI", "back": "BA", "full": "FU"}[view]
+    profile = manifest["identity_profile"]
+    actions = []
+    for index, template_text in enumerate(template_action_texts(view), start=1):
+        rendered = template_text.replace("`", "")
+        for field in IDENTITY_FIELDS:
+            rendered = re.sub(
+                rf"{re.escape(field)}=<[^>]+>",
+                f"{field}={profile[field]}",
+                rendered,
+            )
+        if not manifest["garment_profile"]["requires_full_garment_frame"]:
+            rendered = rendered.split("GARMENT FRAME LOCK:", 1)[0].rstrip()
+        action_id = f"{prefix}{index:02d}"
+        actions.append(
+            {
+                "action_id": action_id,
+                "title": f"Documented {view} action {index}",
+                "prompt_en": (
+                    f"SKC {manifest['skc_id']} | VIEW {view} | ACTION {action_id} | "
+                    f"ATTEMPT 1 Nano Banana Pro, 4K, 2:3. {rendered}"
+                ),
+                "negative_prompt": "Do not alter the product.",
+            }
+        )
+    return {
+        "schema_version": 2,
+        "skc_id": manifest["skc_id"],
+        "view": view,
+        "generation": {
+            "model": "nano banana pro",
+            "resolution": "4K",
+            "aspect_ratio": "2:3",
+        },
+        "identity_contract": copy.deepcopy(manifest["identity_profile"]),
+        "garment_contract": copy.deepcopy(manifest["garment_profile"]),
+        "analysis_markdown": "# Completed Chinese analysis",
+        "actions": actions,
+    }
 
 
 class DocumentationContractTests(unittest.TestCase):
@@ -240,18 +377,6 @@ class DocumentationContractTests(unittest.TestCase):
 
     def test_skill_executes_schema_one_to_two_visual_contract_migration(self):
         skill = SKILL.read_text(encoding="utf-8")
-
-        role_call = "apply_role_assignments(inventory, assignments)"
-        contract_call = (
-            "attach_visual_contracts(\n"
-            "    manifest,\n"
-            "    identity_profile=identity_profile,\n"
-            "    garment_profile=garment_profile,\n"
-            ")"
-        )
-        self.assertIn(role_call, skill)
-        self.assertIn(contract_call, skill)
-        self.assertLess(skill.index(role_call), skill.index(contract_call))
         self.assertIn("New run migration", skill)
         self.assertIn("Resume migration", skill)
         self.assertIn("schema-1", skill)
@@ -269,6 +394,74 @@ class DocumentationContractTests(unittest.TestCase):
             "requires_full_garment_frame",
         ):
             self.assertIn(field, skill)
+
+    def test_documented_batch_snippet_and_all_template_actions_execute(self):
+        inventory = scanner_inventory()
+        batch_payload = {"skcs": [inventory]}
+        long_manifest = representative_manifest("full", long_dress=True)
+
+        with self.subTest(contract="scanner batch wrapper"):
+            with tempfile.TemporaryDirectory() as temp_dir:
+                batch_inventory_path = Path(temp_dir) / "batch-inventory.json"
+                batch_inventory_path.write_text(
+                    json.dumps(batch_payload, ensure_ascii=False), encoding="utf-8"
+                )
+                namespace = {
+                    "batch_inventory_path": batch_inventory_path,
+                    "assignments_by_skc": {"ds-doc-test": {}},
+                    "identity_profiles": {
+                        "ds-doc-test": copy.deepcopy(
+                            long_manifest["identity_profile"]
+                        )
+                    },
+                    "garment_profiles": {
+                        "ds-doc-test": copy.deepcopy(
+                            long_manifest["garment_profile"]
+                        )
+                    },
+                    # Exercise the old documented shape against the real wrapper too.
+                    "inventory": copy.deepcopy(batch_payload),
+                    "assignments": {},
+                    "identity_profile": copy.deepcopy(
+                        long_manifest["identity_profile"]
+                    ),
+                    "garment_profile": copy.deepcopy(
+                        long_manifest["garment_profile"]
+                    ),
+                }
+                sys.path.insert(0, str(ROOT / "skill"))
+                try:
+                    exec(
+                        compile(
+                            documented_migration_snippet(),
+                            str(SKILL),
+                            "exec",
+                        ),
+                        namespace,
+                    )
+                except Exception as exc:
+                    self.fail(f"documented scanner-output snippet failed: {exc}")
+                finally:
+                    sys.path.remove(str(ROOT / "skill"))
+
+            self.assertEqual(namespace["batch_payload"]["skcs"][0]["skc_id"], "ds-doc-test")
+            self.assertEqual(
+                validate_manifest.validate_manifest_data(namespace["manifest"]), []
+            )
+
+        cases = {
+            "front": representative_manifest("full", long_dress=True),
+            "side": representative_manifest("partial", long_dress=True),
+            "back": representative_manifest("absent", long_dress=False),
+            "full": representative_manifest("partial", long_dress=True),
+        }
+        for view, manifest in cases.items():
+            with self.subTest(contract="template actions", view=view):
+                prompt = render_template_prompt(view, manifest)
+
+                self.assertEqual(
+                    validate_manifest.validate_prompt_data(prompt, manifest), []
+                )
 
     def test_noncanonical_local_models_never_control_body_profile(self):
         required_guard = (

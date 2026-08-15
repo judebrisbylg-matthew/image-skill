@@ -201,6 +201,23 @@ class RunStateTests(unittest.TestCase):
                     "pending",
                 )
 
+    def test_json_true_cannot_be_layout_cell_one(self):
+        module = load_module()
+        invalid_cells = {
+            "boolean": [True, *range(2, 11)],
+            "float": [1.0, *range(2, 11)],
+            "numeric string": ["1", *range(2, 11)],
+            "duplicate": [1, 1, *range(3, 11)],
+            "tuple": tuple(range(1, 11)),
+        }
+
+        for defect, cells in invalid_cells.items():
+            with self.subTest(defect=defect):
+                state = gated_state(module)
+                state["layout_reservation"]["view_rows"][0]["cells"] = cells
+
+                self.assertTrue(module._layout_reservation_errors(state))
+
     def test_rejected_identity_drift_requires_structured_reason_code(self):
         module = load_module()
         state = ready_state(module)

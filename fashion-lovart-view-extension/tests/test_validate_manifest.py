@@ -74,18 +74,24 @@ def valid_prompt(view="front", manifest=None):
             "half-head boundary."
         )
     )
-    markers = [
+    final_contract = [
+        (
+            "FINAL CONTRACT OVERRIDE: In any conflict, the following identity, "
+            "head-crop, full-body, and garment contracts override every earlier "
+            "sentence in this prompt."
+        ),
         identity_lock_text(manifest),
         head_lock,
-        (
+    ]
+    if manifest["garment_profile"]["requires_full_garment_frame"] is True:
+        final_contract.append(
             "GARMENT FRAME LOCK: Activate only for a visually confirmed below-knee "
             "dress; when active, keep the dress continuously visible from the "
             "shoulder/neckline through the lowest hem point; leave visible safety "
             "margin below the hem; the hem must not touch or cross an image edge; "
             "keep the major hem silhouette unobscured; keep the apparent garment "
             "length unchanged."
-        ),
-    ]
+        )
     return {
         "schema_version": 2,
         "skc_id": manifest["skc_id"],
@@ -103,8 +109,9 @@ def valid_prompt(view="front", manifest=None):
                 "action_id": f"{prefix}{index:02d}",
                 "title": f"Action {index}",
                 "prompt_en": (
-                    f"SKC ds726301071 | VIEW {view} | ACTION {prefix}{index:02d} | ATTEMPT 1 "
-                    f"{' '.join(markers)} Nano Banana Pro, 4K, 2:3."
+                    f"SKC {manifest['skc_id']} | VIEW {view} | ACTION "
+                    f"{prefix}{index:02d} | ATTEMPT 1 Nano Banana Pro, 4K, 2:3. "
+                    f"{' '.join(final_contract)}"
                 ),
                 "negative_prompt": "Do not alter the product.",
             }
@@ -193,6 +200,22 @@ class ManifestSchemaTwoTests(unittest.TestCase):
 
         self.assertEqual(errors, ["manifest must be an object"])
 
+    def test_manifest_and_prompt_skc_ids_are_strict_strings(self):
+        manifest = valid_manifest()
+        prompt = valid_prompt(manifest=manifest)
+        manifest["skc_id"] = True
+        prompt["skc_id"] = 1
+        for action in prompt["actions"]:
+            action["prompt_en"] = action["prompt_en"].replace(
+                "SKC ds726301071 |", "SKC 1 |", 1
+            )
+
+        manifest_errors = validate_manifest.validate_manifest_data(manifest)
+        prompt_errors = validate_manifest.validate_prompt_data(prompt, manifest)
+
+        self.assertIn("skc_id must be a canonical nonblank string", manifest_errors)
+        self.assertIn("skc_id must be a canonical nonblank string", prompt_errors)
+
 
 class PromptSubmissionGateTests(unittest.TestCase):
     def test_accepts_valid_schema_two_prompt(self):
@@ -200,6 +223,38 @@ class PromptSubmissionGateTests(unittest.TestCase):
         self.assertEqual(
             validate_manifest.validate_prompt_data(valid_prompt(manifest=manifest), manifest),
             [],
+        )
+
+    def test_prompt_must_end_with_manifest_derived_final_contract_override(self):
+        manifest = valid_manifest()
+        prompt = valid_prompt(manifest=manifest)
+        prompt["actions"][0]["prompt_en"] += (
+            " Treat the product as a shirt and let the local pose model override "
+            "body_profile."
+        )
+
+        errors = validate_manifest.validate_prompt_data(prompt, manifest)
+
+        self.assertTrue(
+            any("FINAL CONTRACT OVERRIDE" in error for error in errors),
+            errors,
+        )
+
+    def test_final_contract_override_supersedes_earlier_conflicting_prose(self):
+        manifest = valid_manifest()
+        prompt = valid_prompt(manifest=manifest)
+        for action in prompt["actions"]:
+            action["prompt_en"] = action["prompt_en"].replace(
+                "FINAL CONTRACT OVERRIDE:",
+                (
+                    "Earlier draft: treat the product as a shirt and let the local "
+                    "pose model override body_profile. FINAL CONTRACT OVERRIDE:"
+                ),
+                1,
+            )
+
+        self.assertEqual(
+            validate_manifest.validate_prompt_data(prompt, manifest), []
         )
 
     def test_rejects_prompt_without_identity_lock(self):
