@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,6 +13,10 @@ from pathlib import Path
 PREFIXES = {"front": "FR", "side": "SI", "back": "BA", "full": "FU"}
 VIEW_GENERATION_LIMIT = 10
 VIEW_SUPPLEMENTAL_LIMIT = 5
+DISPLAY_WIDTH_UNIT = 1.0
+HORIZONTAL_GAP_RATIO = 0.08
+VERTICAL_GAP_RATIO = 0.08
+SKC_GAP_RATIO = 0.25
 TRANSITIONS = {
     "pending": {"submitted", "blocked"},
     "submitted": {"queued", "qualified", "rejected", "blocked"},
@@ -26,7 +31,7 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def initialize_state(manifest: dict) -> dict:
+def initialize_state(manifest: dict, execution_context: dict | None = None) -> dict:
     views = {}
     for view_key, view_manifest in manifest.get("views", {}).items():
         source_status = view_manifest.get("status", "blocked:manifest")
@@ -59,7 +64,44 @@ def initialize_state(manifest: dict) -> dict:
             "supplemental_limit": VIEW_SUPPLEMENTAL_LIMIT,
             "actions": actions,
         }
-    return {"schema_version": 3, "skc_id": manifest["skc_id"], "status": "pending", "views": views}
+    return {
+        "schema_version": 4,
+        "skc_id": manifest["skc_id"],
+        "status": "pending",
+        "updated_at": now_iso(),
+        "execution_blocker": None,
+        "execution_context": deepcopy(execution_context),
+        "views": views,
+    }
+
+
+def record_project_verification(state: dict, context: dict) -> dict:
+    """Persist the latest browser-visible Lovart project verification."""
+    state["execution_context"] = deepcopy(context)
+    blocker = context.get("blocker")
+    if blocker in {
+        "blocked:month-project-mismatch",
+        "blocked:date-context-ambiguous",
+    }:
+        state["execution_blocker"] = blocker
+    elif context.get("project_verification_status") == "verified":
+        state["execution_blocker"] = None
+    state["schema_version"] = max(4, state.get("schema_version", 1))
+    state["updated_at"] = now_iso()
+    _recompute_state(state)
+    return state
+
+
+def mark_project_feedback_sent(state: dict) -> dict:
+    """Record that the blocking project-mismatch feedback reached the user."""
+    context = state.get("execution_context")
+    if not context or not context.get("feedback_required"):
+        raise ValueError("no pending project feedback")
+    context["feedback_required"] = False
+    context["feedback_sent_at"] = now_iso()
+    state["schema_version"] = max(4, state.get("schema_version", 1))
+    state["updated_at"] = now_iso()
+    return state
 
 
 def place_attempt(
@@ -101,7 +143,13 @@ def place_attempt(
         "attempt": attempt,
         "area": area,
         "slot": slot,
+        "row_slot": slot,
         "verified": verified,
+        "placement_status": "verified" if verified else "unverified",
+        "display_width_unit": DISPLAY_WIDTH_UNIT,
+        "horizontal_gap_ratio": HORIZONTAL_GAP_RATIO,
+        "vertical_gap_ratio": VERTICAL_GAP_RATIO,
+        "skc_gap_ratio": SKC_GAP_RATIO,
         "placed_at": now_iso(),
     }
     if record is None:
@@ -113,7 +161,8 @@ def place_attempt(
     elif canvas.get("current_attempt") == attempt:
         canvas["current_attempt"] = None
     action["updated_at"] = now_iso()
-    state["schema_version"] = max(3, state.get("schema_version", 1))
+    state["schema_version"] = max(4, state.get("schema_version", 1))
+    state["updated_at"] = now_iso()
     return state
 
 
@@ -216,7 +265,8 @@ def transition_action(state: dict, view_key: str, action_id: str, new_status: st
     action["status"] = new_status
     action["updated_at"] = now_iso()
     _block_view_at_generation_cap(view)
-    state["schema_version"] = max(3, state.get("schema_version", 1))
+    state["schema_version"] = max(4, state.get("schema_version", 1))
+    state["updated_at"] = now_iso()
     _recompute_state(state)
     return state
 
@@ -240,7 +290,9 @@ def _recompute_state(state: dict) -> None:
         else:
             view["status"] = "pending"
         view_statuses.append(view["status"])
-    if view_statuses and all(status == "completed" for status in view_statuses):
+    if state.get("execution_blocker"):
+        state["status"] = "blocked"
+    elif view_statuses and all(status == "completed" for status in view_statuses):
         state["status"] = "completed"
     elif any(status in {"partial"} or status.startswith("blocked:") for status in view_statuses):
         state["status"] = "partial"
@@ -256,6 +308,7 @@ def main() -> int:
     init = sub.add_parser("init")
     init.add_argument("manifest", type=Path)
     init.add_argument("state", type=Path)
+    init.add_argument("--execution-context", type=Path)
     update = sub.add_parser("transition")
     update.add_argument("state", type=Path)
     update.add_argument("view", choices=tuple(PREFIXES))
@@ -271,16 +324,29 @@ def main() -> int:
     place.add_argument("--area", choices=("primary", "supplemental"), required=True)
     place.add_argument("--slot", type=int, required=True)
     place.add_argument("--verified", action="store_true")
+    project = sub.add_parser("project")
+    project.add_argument("state", type=Path)
+    project.add_argument("context", type=Path)
+    feedback = sub.add_parser("feedback-sent")
+    feedback.add_argument("state", type=Path)
     args = parser.parse_args()
 
     if args.command == "init":
-        payload = initialize_state(json.loads(args.manifest.read_text(encoding="utf-8")))
+        execution_context = None
+        if args.execution_context:
+            execution_context = json.loads(
+                args.execution_context.read_text(encoding="utf-8")
+            )
+        payload = initialize_state(
+            json.loads(args.manifest.read_text(encoding="utf-8")),
+            execution_context,
+        )
         destination = args.state
     elif args.command == "transition":
         destination = args.state
         payload = json.loads(destination.read_text(encoding="utf-8"))
         transition_action(payload, args.view, args.action_id, args.status, reason=args.reason, task_label=args.task_label)
-    else:
+    elif args.command == "place":
         destination = args.state
         payload = json.loads(destination.read_text(encoding="utf-8"))
         place_attempt(
@@ -292,6 +358,15 @@ def main() -> int:
             slot=args.slot,
             verified=args.verified,
         )
+    elif args.command == "project":
+        destination = args.state
+        payload = json.loads(destination.read_text(encoding="utf-8"))
+        context = json.loads(args.context.read_text(encoding="utf-8"))
+        record_project_verification(payload, context)
+    else:
+        destination = args.state
+        payload = json.loads(destination.read_text(encoding="utf-8"))
+        mark_project_feedback_sent(payload)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(destination)
