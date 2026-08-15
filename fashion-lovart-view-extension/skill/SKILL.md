@@ -97,12 +97,32 @@ Validate each prompt JSON before browser work:
 python3 scripts/validate_manifest.py prompt <skc>/_codex/prompts/<view>.json
 ```
 
-### 4. Initialize or resume state
+### 4. Resolve and verify the dated Lovart context
+
+Before preparing uploads, resolve the expected month project and date region from the user-provided path:
+
+```bash
+python3 scripts/resolve_lovart_context.py resolve <input-path> --output <batch-context.json>
+```
+
+For a path such as `/Users/chenyiming/Desktop/8月/8月15日`, the exact expected Lovart project is `8月` and the date region is `8月15日`. The dated folder's direct parent is the only source of the project name; never infer it from today's date, recent projects, the active canvas, or a project ID.
+
+After Chrome exposes the current visible project name, verify it:
+
+```bash
+python3 scripts/resolve_lovart_context.py verify <batch-context.json> \
+  --visible-project <exact-visible-project-name> --output <batch-context.json>
+```
+
+`project_verification_status` must be `verified` before browser execution continues. If verification returns `blocked:month-project-mismatch`: Do not upload references or submit any generation task. Stop the current batch and immediately report the script-produced message to the user, including input path, expected project, current project, and the instruction to enter or create the correct project and reply `已修正`. Record that feedback with `update_run_state.py feedback-sent`. After the user replies, re-read the visible Lovart project name and run verification again; a user confirmation alone never clears the gate.
+
+### 5. Initialize or resume state
 
 If `_codex/run-state.json` does not exist:
 
 ```bash
-python3 scripts/update_run_state.py init <manifest.json> <run-state.json>
+python3 scripts/update_run_state.py init <manifest.json> <run-state.json> \
+  --execution-context <batch-context.json>
 ```
 
 Resume rules:
@@ -112,7 +132,7 @@ Resume rules:
 - Resume `rejected` actions only while that view has produced fewer than 10 candidate images.
 - Never restart completed views.
 
-### 5. Prepare references
+### 6. Prepare references
 
 Create one ASCII-only package per view. Use only the fixed ASCII root and a SHA-derived SKC slug; never place a Chinese or user-provided name directly in the temporary path. Copy unique files in this order:
 
@@ -124,11 +144,11 @@ Create one ASCII-only package per view. Use only the fixed ASCII root and a SHA-
 
 Keep a mapping from temporary name to manifest path in the run log. Prompts refer to semantic labels such as `MODEL SOURCE`, `PRODUCT SOURCE`, `SCENE SOURCE`, and `SHOES ACCESSORY SOURCE`, never Lovart's numeric image index. Upload all references once per isolated view conversation.
 
-### 6. Operate Lovart in Chrome
+### 7. Operate Lovart in Chrome
 
 Read `references/lovart-execution.md` completely before browser work. Use the existing signed-in Chrome session. Work in project `YYYY年M月`, then resolve the canvas hierarchy before submitting anything: dates are horizontal canvas regions from left to right; SKCs belonging to the same date are stacked vertically from top to bottom; every SKC contains four view rows; every row contains five primary cells followed by five supplemental cells. The exact destination of every result is therefore `date -> SKC -> view -> action/attempt`.
 
-Create or locate the date label and SKC label before generation. A date region must be wide enough for the full 10-cell row plus labels and safety padding. Place a new date strictly to the right of the previous date region's actual rightmost object plus a visible safety gap. Place a new SKC for an existing date strictly below that date region's previous SKC actual bottom edge plus a visible safety gap. Never place two different SKCs from the same date side by side, and never estimate the next region from only the first five base images.
+Create or locate the date label and SKC label before generation. A date region must be wide enough for the full 10-cell row plus labels and safety padding. Place a new date strictly to the right of the previous date region's actual rightmost object plus a visible safety gap. Place a new SKC for an existing date strictly below that date region's previous SKC actual bottom edge plus a gap approximately 25% of one displayed image height. Never place two different SKCs from the same date side by side, and never estimate the next region from only the first five base images.
 
 Use one Chrome tab and a separate Lovart conversation for every action. Upload that action's view package, submit exactly one task, wait until Lovart visibly accepts or queues it, then switch to a new conversation without opening another browser tab. Do not submit a second task in the same conversation while the first is unfinished: Lovart cancels the earlier free-queue task. Select Nano Banana Pro, 4K, 2:3. Treat 10 accepted unfinished tasks as Lovart's hard global concurrency window: count `submitted`, `queued`, and visibly generating actions across all views and SKCs, fill the window up to 10 even when early tasks show a free-queue estimate, never submit an 11th, and fill every released slot immediately with the next pending action. For a fresh four-view SKC, submit front `FR01`–`FR05` and side `SI01`–`SI05` as the first 10-task wave unless existing unfinished tasks already occupy slots. As soon as any slot is released, continue with back and then full-body actions; do not wait for a whole wave to finish.
 
@@ -146,7 +166,7 @@ Update state after every observable task change:
 python3 scripts/update_run_state.py transition <state> <view> <action-id> <status> [--reason ...] [--task-label ...]
 ```
 
-### 7. Review candidates
+### 8. Review candidates
 
 Codex must open or enlarge every candidate and compare it against the active manifest sources and action prompt. Lovart-written self-checks and thumbnail rows are not evidence.
 
@@ -163,7 +183,7 @@ A candidate qualifies only when all are true:
 
 On failure, record a specific reason and resubmit the same action with a concise correction only when the view still has generation capacity. Append each exact correction prompt and visible Lovart label to `run-log.md`; `run-state.json` retains structured attempt and rejection history plus the view-level generated count. There is no per-action three-attempt rule. The view stops at five qualified actions or 10 generated candidates; unresolved actions then become `blocked:quality-cap`.
 
-Maintain the canvas continuously inside the assigned date/SKC region as four horizontal lanes: row 1 `正面`, row 2 `侧面`, row 3 `背面`, row 4 `全身`. The left side of every row is a fixed five-cell primary strip ordered action `01` through `05`. The right side is a fixed five-cell supplemental strip, so each row can contain at most 10 generated images. Place every base result immediately in its action's primary cell. When a retry finishes, first move the displaced/rejected candidate into the same row's next supplemental cell, then put the new candidate into the original primary cell. Keep supplemental candidates grouped by action and attempt number. Never move supplemental images to another row, another SKC/date region, or a detached vertical pile.
+Maintain the canvas continuously inside the assigned date/SKC region as four horizontal lanes: row 1 `正面`, row 2 `侧面`, row 3 `背面`, row 4 `全身`. Give every image the same displayed width while preserving its original aspect ratio. Align the tops of images within a row and the left edges of all four rows. Use a horizontal gap approximately 8% of the displayed image width and a vertical row gap approximately 8% of the displayed image height. These ratios are visual targets with small operational tolerance; visible uneven gaps, large empty spaces, or overlap fail placement verification. The left side of every row is a fixed five-cell primary strip ordered action `01` through `05`. The next five continuous positions are supplemental cells, so each row can contain at most 10 generated images. Place every base result immediately in its action's primary cell. When a retry finishes, first move the displaced/rejected candidate into the same row's next supplemental cell, then put the new candidate into the original primary cell. Keep supplemental candidates grouped by action and attempt number. Never move supplemental images to another row, another SKC/date region, or a detached vertical pile.
 
 After every placement, verify all of the following before continuing: the result is in the correct view row, the action cell or supplemental position is correct, image size matches the row, spacing is even, no other image moved unexpectedly, and Lovart has visibly retained the position. Record the placement in `run-state.json`. If placement cannot be verified, stop new submissions, record `blocked:canvas-placement`, and preserve the existing layout; do not attempt a final bulk rearrangement.
 
