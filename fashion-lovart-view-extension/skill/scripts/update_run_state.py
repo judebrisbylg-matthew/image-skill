@@ -17,6 +17,14 @@ DISPLAY_WIDTH_UNIT = 1.0
 HORIZONTAL_GAP_RATIO = 0.08
 VERTICAL_GAP_RATIO = 0.08
 SKC_GAP_RATIO = 0.25
+LAYOUT_CONTRACT_VERSION = "date-skc-four-row-v3"
+LAYOUT_VIEW_ORDER = ("front", "side", "back", "full")
+QUALITY_REASON_CODES = {
+    "identity-drift",
+    "head-crop-below-minimum",
+    "full-head-incomplete",
+    "long-dress-hem-cropped",
+}
 TRANSITIONS = {
     "pending": {"submitted", "blocked"},
     "submitted": {"queued", "generated", "qualified", "rejected", "blocked"},
@@ -30,6 +38,29 @@ TRANSITIONS = {
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _layout_reservation(
+    *,
+    status: str,
+    date_region: str | None,
+    skc_label: str | None,
+    verified_at: str | None,
+) -> dict:
+    return {
+        "contract_version": LAYOUT_CONTRACT_VERSION,
+        "status": status,
+        "date_region": date_region,
+        "skc_label": skc_label,
+        "verified_at": verified_at,
+        "view_rows": [
+            {"view": view_key, "cells": list(range(1, 11))}
+            for view_key in LAYOUT_VIEW_ORDER
+        ],
+        "horizontal_gap_ratio": HORIZONTAL_GAP_RATIO,
+        "vertical_gap_ratio": VERTICAL_GAP_RATIO,
+        "skc_gap_ratio": SKC_GAP_RATIO,
+    }
 
 
 def initialize_state(manifest: dict, execution_context: dict | None = None) -> dict:
@@ -48,6 +79,7 @@ def initialize_state(manifest: dict, execution_context: dict | None = None) -> d
                 "updated_at": None,
                 "lovart_task_label": None,
                 "rejection_reasons": [],
+                "rejection_reason_codes": [],
                 "attempt_history": [],
                 "blocker": None,
                 "canvas": {
@@ -72,12 +104,12 @@ def initialize_state(manifest: dict, execution_context: dict | None = None) -> d
         "updated_at": now_iso(),
         "execution_blocker": None,
         "execution_context": deepcopy(execution_context),
-        "layout_reservation": {
-            "status": "pending",
-            "date_region": None,
-            "skc_label": None,
-            "verified_at": None,
-        },
+        "layout_reservation": _layout_reservation(
+            status="pending",
+            date_region=None,
+            skc_label=None,
+            verified_at=None,
+        ),
         "views": views,
     }
 
@@ -92,12 +124,12 @@ def record_layout_reservation(
     """Record the preallocated ten-cell-by-four-row destination block."""
     if not date_region or not skc_label:
         raise ValueError("date_region and skc_label are required")
-    state["layout_reservation"] = {
-        "status": "verified" if verified else "blocked:canvas-reservation",
-        "date_region": date_region,
-        "skc_label": skc_label,
-        "verified_at": now_iso() if verified else None,
-    }
+    state["layout_reservation"] = _layout_reservation(
+        status="verified" if verified else "blocked:canvas-reservation",
+        date_region=date_region,
+        skc_label=skc_label,
+        verified_at=now_iso() if verified else None,
+    )
     state["schema_version"] = max(5, state.get("schema_version", 1))
     state["updated_at"] = now_iso()
     return state
@@ -361,6 +393,7 @@ def transition_action(
     new_status: str,
     *,
     reason: str | None = None,
+    reason_code: str | None = None,
     task_label: str | None = None,
     artifact_id: str | None = None,
 ) -> dict:
@@ -373,6 +406,11 @@ def transition_action(
     old_status = action["status"]
     if new_status not in TRANSITIONS.get(old_status, set()):
         raise ValueError(f"invalid transition: {old_status} -> {new_status}")
+    if new_status == "rejected":
+        if not reason:
+            raise ValueError("rejected transition requires a reason")
+        if reason_code is not None and reason_code not in QUALITY_REASON_CODES:
+            raise ValueError(f"unknown quality reason code: {reason_code}")
 
     if new_status == "submitted":
         _assert_submission_gate(state, task_label)
@@ -392,6 +430,7 @@ def transition_action(
                 "task_label": task_label,
                 "artifact_id": None,
                 "rejection_reason": None,
+                "rejection_reason_code": None,
                 "result_recorded_at": None,
                 "result_status": None,
             }
@@ -406,11 +445,12 @@ def transition_action(
     if new_status in {"qualified", "rejected"} and old_status != "generated":
         _record_generated_candidate(view, action, new_status)
     if new_status == "rejected":
-        if not reason:
-            raise ValueError("rejected transition requires a reason")
         action["rejection_reasons"].append(reason)
+        if reason_code is not None:
+            action.setdefault("rejection_reason_codes", []).append(reason_code)
         if action["attempt_history"]:
             action["attempt_history"][-1]["rejection_reason"] = reason
+            action["attempt_history"][-1]["rejection_reason_code"] = reason_code
     if new_status == "blocked" and not action["blocker"]:
         action["blocker"] = reason or "blocked:unknown"
 
@@ -467,6 +507,7 @@ def main() -> int:
     update.add_argument("action_id")
     update.add_argument("status", choices=tuple(TRANSITIONS))
     update.add_argument("--reason")
+    update.add_argument("--reason-code")
     update.add_argument("--task-label")
     update.add_argument("--artifact-id")
     place = sub.add_parser("place")
@@ -511,6 +552,7 @@ def main() -> int:
             args.action_id,
             args.status,
             reason=args.reason,
+            reason_code=args.reason_code,
             task_label=args.task_label,
             artifact_id=args.artifact_id,
         )

@@ -130,6 +130,90 @@ class RunStateTests(unittest.TestCase):
         )
         self.assertEqual(state["views"]["front"]["actions"]["FR01"]["status"], "submitted")
 
+    def test_rejected_identity_drift_requires_structured_reason_code(self):
+        module = load_module()
+        state = ready_state(module)
+        module.transition_action(state, "front", "FR01", "submitted")
+
+        module.transition_action(
+            state,
+            "front",
+            "FR01",
+            "rejected",
+            reason="Skin tone and visible face structure differ from 正面/1.jpg.",
+            reason_code="identity-drift",
+        )
+
+        action = state["views"]["front"]["actions"]["FR01"]
+        history = action["attempt_history"][-1]
+        self.assertEqual(history["rejection_reason_code"], "identity-drift")
+        self.assertEqual(action["rejection_reason_codes"], ["identity-drift"])
+
+    def test_rejected_quality_failures_accept_only_known_structured_reason_codes(self):
+        module = load_module()
+        state = ready_state(module)
+        cases = (
+            ("FR01", "head-crop-below-minimum"),
+            ("FR02", "full-head-incomplete"),
+            ("FR03", "long-dress-hem-cropped"),
+        )
+
+        for action_id, reason_code in cases:
+            module.transition_action(state, "front", action_id, "submitted")
+            module.transition_action(
+                state,
+                "front",
+                action_id,
+                "rejected",
+                reason=f"Rejected for {reason_code}.",
+                reason_code=reason_code,
+            )
+            history = state["views"]["front"]["actions"][action_id][
+                "attempt_history"
+            ][-1]
+            self.assertEqual(history["rejection_reason_code"], reason_code)
+
+        module.transition_action(state, "front", "FR04", "submitted")
+        with self.assertRaisesRegex(ValueError, "unknown quality reason code"):
+            module.transition_action(
+                state,
+                "front",
+                "FR04",
+                "rejected",
+                reason="Rejected for an unrecognized reason.",
+                reason_code="unknown-quality-failure",
+            )
+
+    def test_verified_layout_reservation_preserves_four_row_canvas_contract(self):
+        module = load_module()
+        state = module.initialize_state(
+            {
+                "skc_id": "ds-test",
+                "views": {
+                    view: {"status": "ready"}
+                    for view in ("front", "side", "back", "full")
+                },
+            }
+        )
+
+        module.record_layout_reservation(
+            state,
+            date_region="8月14日",
+            skc_label="ds-test · V2测试",
+            verified=True,
+        )
+
+        reservation = state["layout_reservation"]
+        self.assertEqual(reservation["contract_version"], "date-skc-four-row-v3")
+        self.assertEqual(
+            [row["view"] for row in reservation["view_rows"]],
+            ["front", "side", "back", "full"],
+        )
+        self.assertTrue(all(row["cells"] == list(range(1, 11)) for row in reservation["view_rows"]))
+        self.assertEqual(reservation["horizontal_gap_ratio"], 0.08)
+        self.assertEqual(reservation["vertical_gap_ratio"], 0.08)
+        self.assertEqual(reservation["skc_gap_ratio"], 0.25)
+
     def test_generated_result_requires_identity_and_blocks_next_submission_until_placed(self):
         module = load_module()
         state = gated_state(module)
