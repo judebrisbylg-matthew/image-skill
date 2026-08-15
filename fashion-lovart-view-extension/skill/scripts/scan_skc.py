@@ -156,8 +156,8 @@ def attach_visual_contracts(
     if garment_profile.get("requires_full_garment_frame") is not expected_full_frame:
         raise ValueError("requires_full_garment_frame contradicts garment type and hem")
     inventory["identity_profile"] = {
-        "canonical_source": inventory["canonical_identity_source"],
         **identity_profile,
+        "canonical_source": inventory["canonical_identity_source"],
     }
     inventory["garment_profile"] = dict(garment_profile)
     inventory["schema_version"] = 2

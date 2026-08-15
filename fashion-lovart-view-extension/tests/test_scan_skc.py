@@ -81,6 +81,38 @@ class ScanSkcVisualContractTests(unittest.TestCase):
         self.assertEqual(result["identity_profile"]["head_visibility"], "partial")
         self.assertTrue(result["garment_profile"]["requires_full_garment_frame"])
 
+    def test_contract_canonical_source_cannot_be_overridden_by_caller(self):
+        inventory = {
+            "canonical_identity_source": {
+                "relative_path": "正面/1.jpg",
+                "sha256": "verified-hash",
+            }
+        }
+        profile = {
+            "canonical_source": {"relative_path": "侧面/1.jpg", "sha256": "caller-hash"},
+            "head_visibility": "partial",
+            "skin_tone_and_visible_ancestry_cues": "warm medium-tan skin",
+            "visible_face_features": "lower face and lips visible",
+            "hair_evidence": "dark brown loose strands",
+            "age_impression": "adult, approximately 25-35",
+            "body_profile": "slim adult build",
+            "confidence": 0.86,
+            "reason": "Derived only from visible evidence in 正面/1.jpg",
+        }
+        garment = {
+            "garment_type": "dress",
+            "hem_position": "below_knee",
+            "requires_full_garment_frame": True,
+            "reason": "The product hem extends below both knees.",
+        }
+
+        result = scan_skc.attach_visual_contracts(inventory, profile, garment)
+
+        self.assertEqual(
+            result["identity_profile"]["canonical_source"],
+            {"relative_path": "正面/1.jpg", "sha256": "verified-hash"},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
