@@ -4,10 +4,22 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import math
 import re
 from pathlib import Path
+
+
+_NEGATIVE_PROMPT_SPEC = importlib.util.spec_from_file_location(
+    "fashion_lovart_view_extension_negative_prompt",
+    Path(__file__).with_name("negative_prompt.py"),
+)
+if _NEGATIVE_PROMPT_SPEC is None or _NEGATIVE_PROMPT_SPEC.loader is None:
+    raise RuntimeError("could not load negative_prompt.py")
+_negative_prompt_module = importlib.util.module_from_spec(_NEGATIVE_PROMPT_SPEC)
+_NEGATIVE_PROMPT_SPEC.loader.exec_module(_negative_prompt_module)
+render_negative_prompt = _negative_prompt_module.render_negative_prompt
 
 
 VIEW_KEYS = {"front", "side", "back", "full"}
@@ -354,41 +366,6 @@ def _strict_json_equal(left: object, right: object) -> bool:
     return left == right
 
 
-def _negative_prompt_conflicts(
-    negative_prompt: str, *, view: object, require_full_garment_frame: bool
-) -> bool:
-    lowered = " ".join(negative_prompt.casefold().split())
-    patterns = [
-        r"\b(?:no|without)\s+(?:canonical\s+)?identity\b",
-        r"\b(?:allow|permit)\s+(?:canonical\s+)?identity\s+drift\b",
-        r"\bdo not\s+(?:preserve|match|keep|use)\s+(?:the\s+)?(?:canonical\s+)?identity\b",
-        r"\b(?:no|without)\s+(?:the\s+)?(?:final contract override|identity lock|head crop floor|full-body head completion|garment frame lock|full-body framing|head-to-toe framing)\b",
-        r"\b(?:ignore|disable|negate|override)\s+(?:the\s+)?(?:final contract override|identity lock|head crop floor|full-body head completion|garment frame lock)\b",
-        r"\b(?:no|without)\s+(?:a\s+)?(?:complete|full|half)\s+head\b",
-        r"\bwithout\s+at\s+least\s+half\s+(?:of\s+)?(?:the\s+model(?:'s)?\s+)?head\b",
-        r"\bcrop\s+below\s+the\s+half-head\s+boundary\b",
-        r"\b(?:hide|omit|remove|crop)\s+(?:the\s+)?(?:complete|full|half)?\s*head\b",
-        r"\bdo not\s+(?:retain|keep|show|reconstruct)\s+(?:at least\s+half|a\s+complete|the\s+full)?\s*(?:of\s+the\s+model(?:'s)?\s+)?head\b",
-    ]
-    if require_full_garment_frame:
-        patterns.extend(
-            (
-                r"\b(?:no|without)\s+(?:the\s+)?full\s+(?:garment|dress)\b",
-                r"\b(?:hide|omit|remove|crop)\s+(?:the\s+)?(?:garment|dress|hem)\b",
-                r"\bdo not\s+(?:keep|show|preserve)\s+(?:the\s+)?full\s+(?:garment|dress)\b",
-            )
-        )
-    if view == "full":
-        patterns.extend(
-            (
-                r"\b(?:no|without)\s+(?:the\s+)?(?:shoes?|soles?)\b",
-                r"\b(?:hide|omit|remove|crop)\s+(?:the\s+)?(?:shoes?|soles?)\b",
-                r"\bdo not\s+(?:show|include|keep)\s+(?:the\s+)?(?:shoes?|soles?)\b",
-            )
-        )
-    return any(re.search(pattern, lowered) for pattern in patterns)
-
-
 def validate_manifest_data(data: object) -> list[str]:
     if not isinstance(data, dict):
         return ["manifest must be an object"]
@@ -475,6 +452,7 @@ def validate_manifest_data(data: object) -> list[str]:
 
 def validate_prompt_data(data: object, active_manifest: object) -> list[str]:
     if not isinstance(active_manifest, dict):
+        manifest_errors = []
         errors = ["active manifest must be an object"]
     else:
         manifest_errors = validate_manifest_data(active_manifest)
@@ -542,6 +520,30 @@ def validate_prompt_data(data: object, active_manifest: object) -> list[str]:
         if view in ACTION_PREFIXES
         else []
     )
+    expected_negative_prompt = None
+    if not manifest_errors and view in VIEW_KEYS:
+        manifest_views = active_manifest.get("views")
+        active_view = (
+            manifest_views.get(view) if isinstance(manifest_views, dict) else None
+        )
+        roles = active_view.get("roles") if isinstance(active_view, dict) else None
+        accessory_sources = (
+            roles.get("accessory_source") if isinstance(roles, dict) else None
+        )
+        view_contract = {
+            "name": view,
+            "footwear_required": (
+                isinstance(accessory_sources, list) and bool(accessory_sources)
+            ),
+        }
+        try:
+            expected_negative_prompt = render_negative_prompt(
+                view_contract,
+                active_manifest.get("identity_profile"),
+                active_manifest.get("garment_profile"),
+            )
+        except ValueError as exc:
+            errors.append(f"active manifest negative prompt contract is invalid: {exc}")
     for index, action in enumerate(actions, start=1):
         if not isinstance(action, dict):
             errors.append(f"action {index} must be an object")
@@ -554,18 +556,15 @@ def validate_prompt_data(data: object, active_manifest: object) -> list[str]:
                 errors.append(f"action {index}: {field} is required")
         prompt = str(action.get("prompt_en", ""))
         negative_prompt = action.get("negative_prompt")
-        if type(negative_prompt) is str and negative_prompt.strip():
-            garment_profile = active_manifest.get("garment_profile")
-            full_garment = (
-                isinstance(garment_profile, dict)
-                and garment_profile.get("requires_full_garment_frame") is True
+        if (
+            type(negative_prompt) is str
+            and expected_negative_prompt is not None
+            and negative_prompt != expected_negative_prompt
+        ):
+            errors.append(
+                f"action {index}: negative_prompt must match render_negative_prompt "
+                "output exactly"
             )
-            if _negative_prompt_conflicts(
-                negative_prompt, view=view, require_full_garment_frame=full_garment
-            ):
-                errors.append(
-                    f"action {index}: negative_prompt must not negate active hard locks"
-                )
         if prompt and not any(ch.isascii() and ch.isalpha() for ch in prompt):
             errors.append(f"action {index}: prompt_en must contain English text")
         if action_id and view in ACTION_PREFIXES:

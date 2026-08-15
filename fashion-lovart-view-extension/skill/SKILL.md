@@ -147,6 +147,28 @@ Every front, side, and back action must contain one actionable `HEAD CROP FLOOR:
 
 The final suffix order is `FINAL CONTRACT OVERRIDE` -> `IDENTITY LOCK` -> the view's `HEAD CROP FLOOR` or `FULL-BODY HEAD COMPLETION` -> conditional `GARMENT FRAME LOCK`. Earlier prompt prose may describe the requested action freely because this final block overrides any conflict. Nothing except trailing whitespace may follow the applicable final lock; appended prose invalidates the prompt.
 
+Negative Prompt is script-generated and immutable. Do not write, paraphrase, reorder, trim, extend, or otherwise compose `negative_prompt` as Markdown prose. Build the active view contract from the validated manifest, call `render_negative_prompt`, and copy its return value without modification into all five actions:
+
+```python
+from scripts.negative_prompt import render_negative_prompt
+
+view_contract = {
+    "name": view,
+    "footwear_required": bool(
+        manifest["views"][view]["roles"]["accessory_source"]
+    ),
+}
+negative_prompt = render_negative_prompt(
+    view_contract,
+    manifest["identity_profile"],
+    manifest["garment_profile"],
+)
+for action in actions:
+    action["negative_prompt"] = negative_prompt
+```
+
+The canonical renderer activates view-specific crop defects, below-knee-dress defects only when `requires_full_garment_frame` is `true`, and required-footwear defects only when the active view's accessory/footwear contract is present. Action-specific composition restrictions remain in `prompt_en` before the immutable final suffix; they never become ad hoc negative-prompt text.
+
 Validate each prompt JSON against its active schema-2 manifest before browser work. The prompt `skc_id`, complete canonical identity path/hash/profile, and garment contract must match that manifest exactly:
 
 ```bash

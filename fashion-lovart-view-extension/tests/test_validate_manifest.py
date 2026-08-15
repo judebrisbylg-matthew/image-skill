@@ -15,6 +15,78 @@ SPEC.loader.exec_module(validate_manifest)
 
 
 CANONICAL_SOURCE = {"relative_path": "正面/1.jpg", "sha256": "a" * 64}
+NEGATIVE_PROMPT_PREFIX = (
+    "NEGATIVE PROMPT CONTRACT — reject only these defects: "
+)
+SHARED_NEGATIVE_DEFECTS = (
+    "collage/multiple panels",
+    "multiple people",
+    "text",
+    "watermark",
+    "logo-like marks",
+    "distorted anatomy/hands",
+    "pasted-on/cutout/halo/edge glow",
+    "mismatched lighting/color temperature/shadows",
+    "wrong scene",
+    "wrong product identity",
+    "wrong garment color/neckline/sleeves/length/material",
+    "identity drift",
+    "ethnicity/visible-ancestry drift",
+    "skin-tone drift",
+    "age drift",
+    "hair drift",
+    "body-profile drift",
+    "phone/selfie behavior",
+    "bag on ground",
+    "military stance",
+    "both hands hanging straight down",
+)
+
+
+def canonical_negative_prompt(view, manifest):
+    defects = list(SHARED_NEGATIVE_DEFECTS)
+    if view == "full":
+        defects.extend(
+            (
+                "any crop of hair crown/head/face/chin/neck/body/garment hem/ankles/feet/toes/shoes/soles",
+                "missing safety margin above hair or below footwear",
+                "wrong requested full view",
+            )
+        )
+    else:
+        defects.extend(
+            (
+                "less than a visible half head",
+                "complete loss of the head",
+                f"wrong requested {view} view",
+                f"crop violations for the active {view} composition contract",
+            )
+        )
+    if manifest["garment_profile"]["requires_full_garment_frame"]:
+        defects.extend(
+            (
+                "cropped/obscured hem",
+                "hem touching/crossing an image edge",
+                "shortened apparent garment length",
+                "interrupted shoulder-to-lowest-hem continuity",
+            )
+        )
+    view_roles = manifest["views"][view]["roles"]
+    if view == "full" and view_roles["accessory_source"]:
+        defects.append(
+            "invented/changed/missing/cropped/obscured required footwear"
+        )
+    return NEGATIVE_PROMPT_PREFIX + "; ".join(defects)
+
+
+def activate_full_footwear_contract(manifest):
+    footwear_path = "全身/4.jpg"
+    manifest["views"]["full"]["files"].append(
+        {"relative_path": footwear_path}
+    )
+    manifest["views"]["full"]["roles"]["accessory_source"] = [
+        footwear_path
+    ]
 
 
 def valid_view(view):
@@ -132,7 +204,7 @@ def valid_prompt(view="front", manifest=None):
                     f"{prefix}{index:02d} | ATTEMPT 1 Nano Banana Pro, 4K, 2:3. "
                     f"{' '.join(final_contract)}"
                 ),
-                "negative_prompt": "Do not alter the product.",
+                "negative_prompt": canonical_negative_prompt(view, manifest),
             }
             for index in range(1, 6)
         ],
@@ -218,6 +290,169 @@ class ManifestSchemaTwoTests(unittest.TestCase):
         errors = validate_manifest.validate_manifest_data([])
 
         self.assertEqual(errors, ["manifest must be an object"])
+
+
+class DeterministicNegativePromptContractTests(unittest.TestCase):
+    def renderer(self):
+        renderer = getattr(validate_manifest, "render_negative_prompt", None)
+        self.assertTrue(
+            callable(renderer),
+            "validate_manifest must expose the production render_negative_prompt API",
+        )
+        return renderer
+
+    def test_renderer_emits_the_exact_stable_order_for_local_and_full_views(self):
+        manifest = valid_manifest()
+        renderer = self.renderer()
+
+        self.assertEqual(
+            renderer(
+                "front",
+                manifest["identity_profile"],
+                manifest["garment_profile"],
+            ),
+            canonical_negative_prompt("front", manifest),
+        )
+
+        activate_full_footwear_contract(manifest)
+        self.assertEqual(
+            renderer(
+                {"name": "full", "footwear_required": True},
+                manifest["identity_profile"],
+                manifest["garment_profile"],
+            ),
+            canonical_negative_prompt("full", manifest),
+        )
+
+    def test_renderer_rejects_unsupported_views_and_malformed_contracts(self):
+        manifest = valid_manifest()
+        renderer = self.renderer()
+        cases = (
+            (
+                "unsupported view",
+                "three-quarter",
+                manifest["identity_profile"],
+                manifest["garment_profile"],
+            ),
+            (
+                "malformed view contract",
+                {"name": "full", "footwear_required": "yes"},
+                manifest["identity_profile"],
+                manifest["garment_profile"],
+            ),
+            (
+                "malformed identity contract",
+                "front",
+                {"head_visibility": "partial"},
+                manifest["garment_profile"],
+            ),
+            (
+                "malformed garment contract",
+                "front",
+                manifest["identity_profile"],
+                {
+                    **manifest["garment_profile"],
+                    "requires_full_garment_frame": 1,
+                },
+            ),
+        )
+        for defect, view, identity_contract, garment_contract in cases:
+            with self.subTest(defect=defect):
+                with self.assertRaises(ValueError):
+                    renderer(view, identity_contract, garment_contract)
+
+    def test_validator_rejects_every_noncanonical_negative_prompt_mutation(self):
+        manifest = valid_manifest()
+        canonical = canonical_negative_prompt("front", manifest)
+        phrases = canonical.removeprefix(NEGATIVE_PROMPT_PREFIX).split("; ")
+        reordered = (
+            NEGATIVE_PROMPT_PREFIX
+            + "; ".join((phrases[1], phrases[0], *phrases[2:]))
+        )
+        cases = {
+            "legacy free form": "Do not alter the product.",
+            "plausible paraphrase": (
+                "Reject collages, extra people, identity changes, crop mistakes, "
+                "and incorrect garments."
+            ),
+            "leading whitespace": " " + canonical,
+            "trailing whitespace": canonical + " ",
+            "reordered phrases": reordered,
+            "appended phrase": canonical + "; extra defect",
+            "removed phrase": canonical.replace("; multiple people", "", 1),
+            "another view": canonical_negative_prompt("side", manifest),
+        }
+        for defect, negative_prompt in cases.items():
+            with self.subTest(defect=defect):
+                prompt = valid_prompt("front", manifest)
+                prompt["actions"][0]["negative_prompt"] = negative_prompt
+
+                errors = validate_manifest.validate_prompt_data(prompt, manifest)
+
+                self.assertTrue(
+                    any(
+                        "render_negative_prompt output exactly" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+
+    def test_validator_binds_long_dress_phrases_to_the_active_manifest(self):
+        long_manifest = valid_manifest()
+        short_manifest = valid_manifest()
+        short_manifest["garment_profile"] = {
+            "garment_type": "shirt",
+            "hem_position": "not_applicable",
+            "requires_full_garment_frame": False,
+            "reason": "Visible shirt evidence",
+        }
+        cases = (
+            (
+                "long prompt on inactive contract",
+                short_manifest,
+                canonical_negative_prompt("front", long_manifest),
+            ),
+            (
+                "short prompt on active contract",
+                long_manifest,
+                canonical_negative_prompt("front", short_manifest),
+            ),
+        )
+        for defect, manifest, negative_prompt in cases:
+            with self.subTest(defect=defect):
+                prompt = valid_prompt("front", manifest)
+                prompt["actions"][0]["negative_prompt"] = negative_prompt
+
+                self.assertTrue(
+                    validate_manifest.validate_prompt_data(prompt, manifest),
+                    defect,
+                )
+
+    def test_validator_binds_footwear_phrases_to_the_active_view_contract(self):
+        inactive_manifest = valid_manifest()
+        active_manifest = valid_manifest()
+        activate_full_footwear_contract(active_manifest)
+        cases = (
+            (
+                "footwear prompt on inactive contract",
+                inactive_manifest,
+                canonical_negative_prompt("full", active_manifest),
+            ),
+            (
+                "non-footwear prompt on active contract",
+                active_manifest,
+                canonical_negative_prompt("full", inactive_manifest),
+            ),
+        )
+        for defect, manifest, negative_prompt in cases:
+            with self.subTest(defect=defect):
+                prompt = valid_prompt("full", manifest)
+                prompt["actions"][0]["negative_prompt"] = negative_prompt
+
+                self.assertTrue(
+                    validate_manifest.validate_prompt_data(prompt, manifest),
+                    defect,
+                )
 
     def test_manifest_and_prompt_skc_ids_are_strict_strings(self):
         manifest = valid_manifest()

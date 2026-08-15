@@ -40,6 +40,70 @@ IDENTITY_FIELDS = (
     "age_impression",
     "body_profile",
 )
+NEGATIVE_PROMPT_PREFIX = (
+    "NEGATIVE PROMPT CONTRACT — reject only these defects: "
+)
+SHARED_NEGATIVE_DEFECTS = (
+    "collage/multiple panels",
+    "multiple people",
+    "text",
+    "watermark",
+    "logo-like marks",
+    "distorted anatomy/hands",
+    "pasted-on/cutout/halo/edge glow",
+    "mismatched lighting/color temperature/shadows",
+    "wrong scene",
+    "wrong product identity",
+    "wrong garment color/neckline/sleeves/length/material",
+    "identity drift",
+    "ethnicity/visible-ancestry drift",
+    "skin-tone drift",
+    "age drift",
+    "hair drift",
+    "body-profile drift",
+    "phone/selfie behavior",
+    "bag on ground",
+    "military stance",
+    "both hands hanging straight down",
+)
+
+
+def canonical_negative_prompt(view, manifest):
+    defects = list(SHARED_NEGATIVE_DEFECTS)
+    if view == "full":
+        defects.extend(
+            (
+                "any crop of hair crown/head/face/chin/neck/body/garment hem/ankles/feet/toes/shoes/soles",
+                "missing safety margin above hair or below footwear",
+                "wrong requested full view",
+            )
+        )
+    else:
+        defects.extend(
+            (
+                "less than a visible half head",
+                "complete loss of the head",
+                f"wrong requested {view} view",
+                f"crop violations for the active {view} composition contract",
+            )
+        )
+    if manifest["garment_profile"]["requires_full_garment_frame"]:
+        defects.extend(
+            (
+                "cropped/obscured hem",
+                "hem touching/crossing an image edge",
+                "shortened apparent garment length",
+                "interrupted shoulder-to-lowest-hem continuity",
+            )
+        )
+    if (
+        view == "full"
+        and manifest["views"][view]["roles"]["accessory_source"]
+    ):
+        defects.append(
+            "invented/changed/missing/cropped/obscured required footwear"
+        )
+    return NEGATIVE_PROMPT_PREFIX + "; ".join(defects)
 
 
 def representative_view(view):
@@ -160,7 +224,7 @@ def render_template_prompt(view, manifest):
                     f"{'Nano Banana Pro, 4K, 2:3. ' if view != 'full' else ''}"
                     f"{rendered}"
                 ),
-                "negative_prompt": "Do not alter the product.",
+                "negative_prompt": canonical_negative_prompt(view, manifest),
             }
         )
     return {
@@ -180,6 +244,23 @@ def render_template_prompt(view, manifest):
 
 
 class DocumentationContractTests(unittest.TestCase):
+    def test_skill_schema_templates_and_handbook_publish_the_immutable_renderer_contract(self):
+        skill = SKILL.read_text(encoding="utf-8")
+        schema = PROMPT_SCHEMA.read_text(encoding="utf-8")
+        handbook = HANDBOOK.read_text(encoding="utf-8")
+
+        for document in (SKILL, PROMPT_SCHEMA, *TEMPLATES.values()):
+            with self.subTest(document=document.name):
+                source = document.read_text(encoding="utf-8")
+                self.assertIn("render_negative_prompt", source)
+                self.assertIn("script-generated", source)
+                self.assertIn("immutable", source)
+
+        self.assertIn(NEGATIVE_PROMPT_PREFIX, schema)
+        self.assertIn("exact string equality", schema)
+        self.assertIn("NEGATIVE PROMPT CONTRACT", handbook)
+        self.assertIn("脚本生成且不可编辑", handbook)
+
     def test_handbook_publishes_identity_framing_and_canvas_rule_cards(self):
         handbook = HANDBOOK.read_text(encoding="utf-8")
 
@@ -514,13 +595,14 @@ class DocumentationContractTests(unittest.TestCase):
                 for setting in ("nano banana pro", "4k", "2:3"):
                     self.assertIn(setting, literal_prefix)
 
-        negative_prompt = source.split(
+        negative_prompt_section = source.split(
             "## 二、通用负面提示词（Negative Prompt，全方案共用）", 1
-        )[1].split("`", 2)[1]
+        )[1].split("## 三、5组正向生图提示词方案", 1)[0]
+        self.assertIn("render_negative_prompt", negative_prompt_section)
+        self.assertIn("script-generated", negative_prompt_section)
+        self.assertIn("immutable", negative_prompt_section)
         manifest = representative_manifest("partial", long_dress=True)
         prompt = render_template_prompt("full", manifest)
-        for action in prompt["actions"]:
-            action["negative_prompt"] = negative_prompt
         self.assertEqual(validate_manifest.validate_prompt_data(prompt, manifest), [])
 
     def test_handbook_names_the_sole_identity_filename_exception_and_denies_generic_models(self):

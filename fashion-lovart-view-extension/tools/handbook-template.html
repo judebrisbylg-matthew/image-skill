@@ -686,6 +686,7 @@
             <article class="safeguard-card"><code>HEAD CROP FLOOR</code><strong>正面 / 侧面 / 背面至少半个头部</strong><p>最终画面最少保留半个头部；完整头部允许。低于边界时按 <code>head-crop-below-minimum</code> 拒绝。</p></article>
             <article class="safeguard-card"><code>COMPLETE FULL BODY</code><strong>全身图必须从头顶到鞋底完整</strong><p>完整发冠、脸、身体、服装、双脚与鞋底连续入镜，并在头顶和鞋底外留出安全边距。</p></article>
             <article class="safeguard-card"><code>CONDITIONAL DRESS FRAME</code><strong>确认膝下连衣裙才锁定完整裙摆</strong><p>从肩部/领口连续展示至完整裙摆最低点，裙摆下方保留可见安全边距，不接触边缘、不遮蔽主要轮廓、不改变视觉长度；任一违反以 <code>long-dress-hem-cropped</code> 拒绝。</p></article>
+            <article class="safeguard-card"><code>NEGATIVE PROMPT CONTRACT</code><strong>Negative Prompt 脚本生成且不可编辑</strong><p><code>render_negative_prompt</code> 根据视角、身份、裙长与鞋履合同生成唯一字符串；Markdown 只说明调用方式，不能改写、重排或追加缺陷词。</p></article>
             <article class="safeguard-card"><code>date-skc-four-row-v3</code><strong>日期 → SKC → 四视角 → 主图 / 补图</strong><p>日期横向排列，同日 SKC 纵向堆叠；每个 SKC 固定正面、侧面、背面、全身四行，每行先 5 个主槽再 5 个补图槽。</p></article>
           </div>
           <div class="quality-grid">
@@ -784,7 +785,7 @@
     const stages = [
       {n:'01', name:'扫描目录', tag:'inventory', title:'发现 SKC 与四视角目录', text:'记录图片路径、哈希与重复组；所有语义角色先保持 unclassified。'},
       {n:'02', name:'视觉分类', tag:'manifest', title:'把每张图分配到唯一语义角色', text:'人物、产品、场景为必需角色；低于 0.7 的置信度或多候选会只阻塞当前视角。'},
-      {n:'03', name:'生成提示词', tag:'4 × 5', title:'按四套模板生成 20 个独立动作', text:'每个视角恰好五条英文提示词，并带 SKC、VIEW、ACTION、ATTEMPT 可检索前缀。'},
+      {n:'03', name:'生成提示词', tag:'4 × 5', title:'按四套模板生成 20 个独立动作', text:'每个视角恰好五条英文提示词，并带 SKC、VIEW、ACTION、ATTEMPT 可检索前缀；Negative Prompt 由脚本生成且不可编辑。'},
       {n:'04', name:'月份验证', tag:'hard gate', title:'路径月份必须等于 Lovart 项目', text:'不匹配时立即暂停并反馈；用户修正后重新读取项目名，通过验证才继续。'},
       {n:'05', name:'初始化状态', tag:'resume', title:'创建或读取 run-state.json', text:'保存月份验证、日期区、任务历史与排版位置；完成的视角不会重启。'},
       {n:'06', name:'准备参考图', tag:'ASCII', title:'建立去重的临时上传包', text:'按 identity_model_01（正面/1.jpg，第一位）→ pose_model_01（仅哈希不同时，可选第二位）→ product_01 → scene_01 → composition_01 → accessory_01 排序；使用 ASCII 路径，原始素材不移动。'},

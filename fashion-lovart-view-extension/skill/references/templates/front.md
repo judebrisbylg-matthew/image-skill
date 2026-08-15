@@ -34,9 +34,7 @@ Noncanonical local pose/composition sources must not control or override `body_p
 
 ## 通用负面提示词
 
-```text
-(text, logo, watermark, signature, words, military stance, both hands hanging down, standing at attention:1.5), (pasted on, cutout, photo composite, mismatched lighting, edge glow, halo around person, green screen, chroma key, fake background, white outline:1.4), holding phone, selfie, bag on ground, bag placed on floor, blurry fabric, distorted limbs, extra fingers, deformed body, oversaturated color, low detail, ugly, grainy, cartoon, illustration, white background
-```
+Negative Prompt is script-generated and immutable. Set every action's `negative_prompt` to the unmodified result of `render_negative_prompt(view_contract, identity_contract, garment_contract)`, where `view_contract.name` is `front` and `footwear_required` comes from the active validated manifest view. Do not compose, paraphrase, reorder, trim, append, or remove negative-prompt text in this Markdown template.
 
 ## 输出参数
 

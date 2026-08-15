@@ -82,7 +82,8 @@ Noncanonical local pose/composition sources must not control or override `body_p
 ---
 
 ## 二、通用负面提示词（Negative Prompt，全方案共用）
-`(text, logo, watermark, signature, words, military stance, both hands hanging down, standing at attention:1.5), (pasted on, cutout, photo composite, mismatched lighting, edge glow, halo around person, green screen, chroma key, fake background, white outline:1.4), cropped head, cut-off head, incomplete head, missing top of head, missing hair crown, hair touching frame edge, missing face, cropped face, cropped chin, partial body, half body, three-quarter body, seven-eighth body, cropped legs, cropped ankles, cropped feet, cut-off feet, missing toes, cropped shoes, missing shoe soles, feet touching frame edge, shoes touching frame edge, body touching image edge, out of frame, bag on ground, bag placed on floor, holding phone, selfie, collage, split screen, multiple panels, multiple people, blurry fabric, distorted limbs, extra limbs, extra fingers, deformed hands, deformed body, oversaturated color, low detail, ugly, grainy, cartoon, illustration, white background`
+
+Negative Prompt is script-generated and immutable. Set every action's `negative_prompt` to the unmodified result of `render_negative_prompt(view_contract, identity_contract, garment_contract)`, where `view_contract.name` is `full` and `footwear_required` comes from the active validated manifest view. Do not compose, paraphrase, reorder, trim, append, or remove negative-prompt text in this Markdown template.
 
 ---
 
@@ -191,5 +192,5 @@ Generate one complete and independently executable English prompt. Clearly expla
 - 头发、头顶、脸部、下巴、脚踝、脚趾、鞋子和鞋底均不得触碰、越过或被画面边缘裁切；
 - 如果动作、近景或机位与完整全身构图冲突，必须拉远摄影机；任何未完整呈现头顶至脚底范围的图片都必须判定为不合格；
 - 所有方案统一使用2:3比例、4K画质和Nano Banana Pro模型；
-- 通用负面提示词需全部加入Negative Prompt；
+- 每个动作的 Negative Prompt 必须直接使用 `render_negative_prompt` 的 script-generated and immutable 返回值；
 - 画面中禁止出现文字、logo、水印、签名、拼图、多画面、多人、贴图白边、异常轮廓光、抠图痕迹、站军姿、双手同时垂下、头部裁切或脚部裁切。
