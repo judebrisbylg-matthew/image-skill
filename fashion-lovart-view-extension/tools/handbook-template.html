@@ -248,10 +248,27 @@
     }
     .tree strong { color: #fff; }
     .tree .folder { color: #9aa5ff; }
+    .route-card {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-top: 18px;
+      padding: 16px;
+      color: var(--ink);
+      background: var(--warning-soft);
+      border: 1px solid #f2d4a8;
+      border-radius: var(--radius);
+    }
+    .route-node { min-width: 0; padding: 11px; background: #fff; border: 1px solid #f0dcc0; border-radius: 8px; }
+    .route-node small { display: block; margin-bottom: 5px; color: var(--warning); font: 700 9px/1 var(--mono); letter-spacing: .05em; }
+    .route-node strong { display: block; overflow-wrap: anywhere; font-size: 12px; }
+    .route-arrow { color: var(--warning); font-weight: 900; }
+    .route-stop { grid-column: 1 / -1; margin: 0; color: #71420f; font-size: 11px; }
 
     .pipeline {
       display: grid;
-      grid-template-columns: repeat(7, minmax(88px, 1fr));
+      grid-template-columns: repeat(8, minmax(78px, 1fr));
       gap: 7px;
       margin: 28px 0 18px;
       padding: 6px;
@@ -480,6 +497,8 @@
       .system-map { grid-template-columns: 1fr; }
       .system-node:not(:last-child)::after { content: "↓"; top: auto; right: 50%; bottom: -13px; transform: translateX(50%); }
       .pipeline { grid-template-columns: repeat(4, 1fr); }
+      .route-card { grid-template-columns: 1fr; }
+      .route-arrow { text-align: center; transform: rotate(90deg); }
       .stage-detail { grid-template-columns: 48px 1fr; }
       .stage-tag { display: none; }
       .lane { grid-template-columns: 48px minmax(290px, 1fr) 100px; min-width: 590px; }
@@ -505,7 +524,7 @@
         <a href="#overview" class="active"><span>概览</span><span>01</span></a>
         <a href="#architecture"><span>智能体组成</span><span>02</span></a>
         <a href="#input"><span>输入与识别</span><span>03</span></a>
-        <a href="#workflow"><span>七阶段流程</span><span>04</span></a>
+        <a href="#workflow"><span>八阶段流程</span><span>04</span></a>
         <a href="#concurrency"><span>并发调度</span><span>05</span></a>
         <a href="#canvas"><span>即时排版</span><span>06</span></a>
         <a href="#quality"><span>质检与重试</span><span>07</span></a>
@@ -558,12 +577,21 @@
           <h2>输入不是编号，是视觉证据</h2>
           <p class="section-intro">Skill 接受单个 SKC 或批次根目录。图片保留原名称与位置，系统通过实际画面判断语义角色；数字文件名不会被当成角色规则。</p>
           <div class="tree"><strong>8月/</strong>
-└── <span class="folder">ds726301071/</span>
-    ├── <span class="folder">正面/</span>     1.jpg · 2.jpg · 3.jpg · 4.jpg
-    ├── <span class="folder">侧面/</span>
-    ├── <span class="folder">背面/</span>
-    ├── <span class="folder">全身/</span>     配饰图可以是鞋，而不是构图图
-    └── <span class="folder">_codex/</span>   manifest · prompts · run-state · run-log</div>
+└── <span class="folder">8月15日/</span>
+    └── <span class="folder">ds726301071/</span>
+        ├── <span class="folder">正面/</span>   1.jpg · 2.jpg · 3.jpg · 4.jpg
+        ├── <span class="folder">侧面/</span>
+        ├── <span class="folder">背面/</span>
+        ├── <span class="folder">全身/</span>   配饰图可以是鞋，而不是构图图
+        └── <span class="folder">_codex/</span> manifest · prompts · run-state · run-log</div>
+          <div class="route-card">
+            <div class="route-node"><small>INPUT PATH</small><strong>/8月/8月15日</strong></div>
+            <span class="route-arrow">→</span>
+            <div class="route-node"><small>LOVART PROJECT</small><strong>8月</strong></div>
+            <span class="route-arrow">→</span>
+            <div class="route-node"><small>DATE REGION</small><strong>8月15日</strong></div>
+            <p class="route-stop"><strong>强制门禁：</strong>当前项目不匹配或无法确认时，立即暂停并反馈预期项目与当前项目；不上传、不提交。用户修正后必须重新读取项目名再继续。</p>
+          </div>
           <div class="role-table" style="margin-top:18px">
             <div class="role-row"><code>model_source</code><p>模特身份、人体和基础穿搭参考</p></div>
             <div class="role-row"><code>product_source</code><p>颜色、版型、领口、袖型、长度与面料证据</p></div>
@@ -575,7 +603,7 @@
 
         <section id="workflow">
           <span class="section-kicker">04 / WORKFLOW</span>
-          <h2>七个阶段，一条可恢复的生产轨道</h2>
+          <h2>八个阶段，一条可恢复的生产轨道</h2>
           <p class="section-intro">点击阶段查看该阶段的产物与停止条件。每个动作都有明确标签、状态和历史，不靠浏览器记忆维持进度。</p>
           <div class="pipeline" id="pipeline"></div>
           <div class="stage-detail" id="stageDetail" aria-live="polite"></div>
@@ -628,7 +656,7 @@
                 </div>
               </article>
             </div>
-            <p class="hierarchy-rule">定位键：日期 → SKC → 视角 → 动作/尝试。新日期从前一日期的实际最右边界加安全间距开始；新 SKC 从同日上一 SKC 的实际最下边界加安全间距开始。</p>
+            <p class="hierarchy-rule">定位键：日期 → SKC → 视角 → 动作/尝试。图片等宽且保持原始比例；行内水平间距约为图片宽度的 8%，视角行间距约为图片高度的 8%，SKC 区块间距约为图片高度的 25%。新日期从前一日期的实际最右边界加安全间距开始。</p>
           </div>
           <div class="canvas-demo">
             <div class="canvas-toolbar">
@@ -692,6 +720,8 @@
             <div class="done-item"><i class="check">✓</i><span>所有生成尝试都有已验证的画布位置</span><code>PLACED</code></div>
             <div class="done-item"><i class="check">✓</i><span>日期横向、同日 SKC 纵向；标签和区域互不重叠</span><code>DATE × SKC</code></div>
             <div class="done-item"><i class="check">✓</i><span>四行主图区顺序正确，补图留在所属视角右侧</span><code>4 × 10 CELLS</code></div>
+            <div class="done-item"><i class="check">✓</i><span>月份项目与日期路径验证一致；不匹配已即时反馈</span><code>MONTH VERIFIED</code></div>
+            <div class="done-item"><i class="check">✓</i><span>紧凑排版符合行内 8% · 行间 8% · SKC 间 25%</span><code>8 / 8 / 25</code></div>
             <div class="done-item"><i class="check">✓</i><span>没有使用积分、付费加速或自动下载</span><code>FREE QUEUE</code></div>
             <div class="done-item"><i class="check">✓</i><span>全身图均从头顶到脚底完整入镜</span><code>HEAD-TO-TOE</code></div>
             <div class="done-item"><i class="check">✓</i><span>每个视角累计不超过10张候选图</span><code>≤10 / VIEW</code></div>
@@ -708,7 +738,7 @@
         <div class="spec-list">
           <div class="spec-row"><span>模型</span><strong>Nano Banana Pro</strong></div>
           <div class="spec-row"><span>输出</span><strong>4K · 2:3</strong></div>
-          <div class="spec-row"><span>项目</span><strong>YYYY年M月</strong></div>
+          <div class="spec-row"><span>项目</span><strong>取日期路径父目录</strong></div>
           <div class="spec-row"><span>浏览器</span><strong>一个 Chrome 标签</strong></div>
           <div class="spec-row"><span>结果</span><strong>留在 Lovart 画布</strong></div>
         </div>
@@ -725,7 +755,7 @@
       </div>
       <div class="context-card context-alert">
         <h3>最容易漏掉的规则</h3>
-        <p>日期横向、同日 SKC 纵向。必须按完整 10 槽宽度预留日期区；每张图片一完成就立即归位，禁止最后统一排列。</p>
+        <p>日期横向、同日 SKC 纵向；行内 8%、行间 8%、SKC 间 25%。项目名必须等于日期路径的月份父目录，不匹配时立即暂停反馈。</p>
       </div>
       <div class="context-card">
         <h3>状态文件</h3>
@@ -744,10 +774,11 @@
       {n:'01', name:'扫描目录', tag:'inventory', title:'发现 SKC 与四视角目录', text:'记录图片路径、哈希与重复组；所有语义角色先保持 unclassified。'},
       {n:'02', name:'视觉分类', tag:'manifest', title:'把每张图分配到唯一语义角色', text:'人物、产品、场景为必需角色；低于 0.7 的置信度或多候选会只阻塞当前视角。'},
       {n:'03', name:'生成提示词', tag:'4 × 5', title:'按四套模板生成 20 个独立动作', text:'每个视角恰好五条英文提示词，并带 SKC、VIEW、ACTION、ATTEMPT 可检索前缀。'},
-      {n:'04', name:'初始化状态', tag:'resume', title:'创建或读取 run-state.json', text:'合格项跳过、排队项先查找、失败项按尝试次数继续；完成的视角不会重启。'},
-      {n:'05', name:'准备参考图', tag:'ASCII', title:'建立去重的临时上传包', text:'按人物 → 产品 → 场景 → 构图 → 配饰排序，使用 ASCII 路径，原始素材不移动。'},
-      {n:'06', name:'Lovart 执行', tag:'10 slots', title:'在一个标签页内持续填充免费队列', text:'每个动作独立对话；任何结果完成后先即时排版并确认，再填充释放的并发位。'},
-      {n:'07', name:'统一质检', tag:'10 / view', title:'20 张基础图完成后逐张核验', text:'每个视角最多生成10张：5张基础图加最多5张补图；达到5张合格图或10张总量即停止。'}
+      {n:'04', name:'月份验证', tag:'hard gate', title:'路径月份必须等于 Lovart 项目', text:'不匹配时立即暂停并反馈；用户修正后重新读取项目名，通过验证才继续。'},
+      {n:'05', name:'初始化状态', tag:'resume', title:'创建或读取 run-state.json', text:'保存月份验证、日期区、任务历史与排版位置；完成的视角不会重启。'},
+      {n:'06', name:'准备参考图', tag:'ASCII', title:'建立去重的临时上传包', text:'按人物 → 产品 → 场景 → 构图 → 配饰排序，使用 ASCII 路径，原始素材不移动。'},
+      {n:'07', name:'Lovart 执行', tag:'10 slots', title:'在一个标签页内持续填充免费队列', text:'每个动作独立对话；任何结果完成后先按 8% / 8% / 25% 排版并确认，再填充释放的并发位。'},
+      {n:'08', name:'统一质检', tag:'10 / view', title:'20 张基础图完成后逐张核验', text:'每个视角最多生成10张：5张基础图加最多5张补图；达到5张合格图或10张总量即停止。'}
     ];
 
     const pipeline = document.getElementById('pipeline');
