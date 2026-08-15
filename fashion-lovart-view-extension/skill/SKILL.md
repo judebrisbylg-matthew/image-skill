@@ -63,14 +63,32 @@ Each assignment contains `role`, numeric `confidence` from 0 to 1, and a concret
 Apply these rules:
 
 - Each ready view has exactly one model, product, and scene source.
-- Attach the schema-2 `identity_profile` from visible evidence in `正面/1.jpg`, including head visibility, skin tone and visible ancestry cues, visible face features, hair evidence, age impression, and body profile. Never let a `侧面`, `背面`, or `全身` pose model override these canonical identity characteristics.
+- Attach the schema-2 `identity_profile` from visible evidence in `正面/1.jpg`, including head visibility, skin tone and visible ancestry cues, visible face features, hair evidence, age impression, and body profile. Never let a `侧面`, `背面`, or `全身` pose model override these canonical identity characteristics. Noncanonical local pose/composition sources must not control or override `body_profile`; they control only pose, crop, body direction, camera, and composition.
 - Inspect the product evidence and attach `garment_profile`. Set `requires_full_garment_frame: true` only when the garment is visually confirmed as a below-knee dress.
 - If composition is absent and the model source clearly controls crop, reuse the model source as composition fallback.
 - Accessories are optional. In the full-body workflow, shoes are normally an accessory source.
 - Each path has one primary role. The only multi-role rule is the explicit unique-model-to-composition fallback. Images with identical hashes upload only once.
 - Every classified file with confidence below 0.7—including optional `accessory_source` and `unused` files—triggers `blocked:role-ambiguous`; unclassified images and multiple candidates for a required role also block that view. The canonical identity file may legitimately expose less than a complete head: `partial` or `absent` head_visibility is not itself a confidence penalty. Therefore head_visibility of `partial` or `absent` alone never lowers a view's ready status and never triggers `blocked:role-ambiguous`.
 
-Apply assignments using `apply_role_assignments()` from `scripts/scan_skc.py`, save the resulting single-SKC object as `_codex/manifest.json`, then validate:
+Supply both visual profiles as Python dictionaries created from direct image inspection. `identity_profile` must contain nonblank `head_visibility`, `skin_tone_and_visible_ancestry_cues`, `visible_face_features`, `hair_evidence`, `age_impression`, `body_profile`, `reason`, and numeric `confidence` from 0 to 1. `garment_profile` must contain nonblank `garment_type`, valid `hem_position`, boolean `requires_full_garment_frame`, and nonblank `reason`. A `below_knee` hem is valid only for a `dress`, and that combination must set the frame lock to `true`.
+
+Invoke the schema migration in this order after visual classification:
+
+```python
+from scripts.scan_skc import apply_role_assignments, attach_visual_contracts
+
+manifest = apply_role_assignments(inventory, assignments)
+manifest = attach_visual_contracts(
+    manifest,
+    identity_profile=identity_profile,
+    garment_profile=garment_profile,
+)
+```
+
+- **New run migration:** `scan_skc.py` deliberately emits a schema-1 inventory. Build `identity_profile` only from `正面/1.jpg`, build `garment_profile` from the active product evidence, call `apply_role_assignments(inventory, assignments)`, then call `attach_visual_contracts(...)` to produce schema-2 before saving `_codex/manifest.json`.
+- **Resume migration:** Load the existing manifest before reusing prompts or browser state. If it is schema-1, or schema-2 with missing/invalid identity or garment evidence, reopen the canonical identity and product sources, rebuild both visual-profile dictionaries, rerun the two calls above, save schema-2, and regenerate prompts. If it is already schema-2, validate it and keep its exact canonical hash/profile contracts. A legacy/status-only layout reservation never clears submission; run `reserve-layout` again to record the complete v3 reservation.
+
+Save the resulting single-SKC schema-2 object as `_codex/manifest.json`, then validate:
 
 ```bash
 python3 scripts/validate_manifest.py manifest <skc>/_codex/manifest.json
@@ -93,12 +111,14 @@ Fill the template from visual evidence. Save the completed Chinese analysis in `
 SKC <skc_id> | VIEW <view> | ACTION <action_id> | ATTEMPT <n>
 ```
 
-Every action must contain `IDENTITY LOCK:` and preserve the `identity_profile` from `正面/1.jpg`, while any local view model controls pose/composition only. Every front, side, and back action must contain `HEAD CROP FLOOR:` and retain at least half the head; a complete head is allowed. Every full action must contain `FULL-BODY HEAD COMPLETION:` and reconstruct a natural complete head from the canonical visible evidence when the source head is partial or absent. When `garment_contract.requires_full_garment_frame` is true, every action must contain `GARMENT FRAME LOCK:` and keep the complete neckline-to-hem dress inside the frame. Do not add that lock for a garment that is not visually confirmed as a below-knee dress.
+Every standalone action must contain exactly one actionable `IDENTITY LOCK:` section. Copy the active manifest values into that section as `canonical_source=正面/1.jpg`, `head_visibility=...`, `skin_tone_and_visible_ancestry_cues=...`, `visible_face_features=...`, `hair_evidence=...`, `age_impression=...`, and `body_profile=...`. State inside the same lock that noncanonical local pose/composition sources must not control or override `body_profile`. A generic instruction such as “preserve identity,” an empty marker, or values placed elsewhere in the prompt is invalid.
 
-Validate each prompt JSON before browser work:
+Every front, side, and back action must contain one actionable `HEAD CROP FLOOR:` section and retain at least half the head; a complete head is allowed. Every full action must contain one actionable `FULL-BODY HEAD COMPLETION:` section and reconstruct a natural complete head from the canonical visible evidence when the source head is partial or absent. When `garment_contract.requires_full_garment_frame` is true, every action must contain one actionable `GARMENT FRAME LOCK:` section: keep the below-knee dress continuously visible from the shoulder/neckline through the lowest hem point, leave visible safety margin below the hem, the hem must not touch or cross an image edge, keep the major hem silhouette unobscured, and keep the apparent garment length unchanged. Do not add that lock for any active garment contract that is not a visually confirmed below-knee dress.
+
+Validate each prompt JSON against its active schema-2 manifest before browser work. The prompt `skc_id`, complete canonical identity path/hash/profile, and garment contract must match that manifest exactly:
 
 ```bash
-python3 scripts/validate_manifest.py prompt <skc>/_codex/prompts/<view>.json
+python3 scripts/validate_manifest.py prompt <skc>/_codex/prompts/<view>.json <skc>/_codex/manifest.json
 ```
 
 ### 4. Resolve and verify the dated Lovart context
@@ -207,7 +227,7 @@ A candidate qualifies only when all are true:
 - Front, side, back, and full-body purposes are not confused.
 - Identity matches `正面/1.jpg`; reject drift with `identity-drift`.
 - Front, side, and back retain at least half the model's head; reject a lower crop with `head-crop-below-minimum`. A complete head or complete face is acceptable.
-- When the manifest visually confirms a below-knee dress and requires a full garment frame, the entire neckline-to-hem garment is visible; reject a cropped hem with `long-dress-hem-cropped`.
+- When the manifest visually confirms a below-knee dress and requires a full garment frame, keep it continuously visible from the shoulder/neckline through the lowest hem point, leave visible safety margin below the hem, require that the hem must not touch or cross an image edge, keep the major hem silhouette unobscured, and keep the apparent garment length unchanged. Reject any violation with `long-dress-hem-cropped`.
 - For every full-body action, the frame contains the complete model continuously from the very top of the hair/head to the bottom of both feet, including the complete face, both shoes, toes, and soles. Leave visible safety margin above the hair and below the footwear; no part of the head, chin, ankles, feet, or shoes may touch or cross the image edge. Reject an incomplete reconstructed head with `full-head-incomplete`.
 
 On failure, record a specific reason and resubmit the same action with a concise correction only when the view still has generation capacity. Append each exact correction prompt and visible Lovart label to `run-log.md`; `run-state.json` retains structured attempt and rejection history plus the view-level generated count. There is no per-action three-attempt rule. The view stops at five qualified actions or 10 generated candidates; unresolved actions then become `blocked:quality-cap`.

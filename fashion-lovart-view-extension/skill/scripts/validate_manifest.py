@@ -42,6 +42,31 @@ GARMENT_FIELDS = (
     "requires_full_garment_frame",
     "reason",
 )
+IDENTITY_PROMPT_FIELDS = (
+    "head_visibility",
+    "skin_tone_and_visible_ancestry_cues",
+    "visible_face_features",
+    "hair_evidence",
+    "age_impression",
+    "body_profile",
+)
+IDENTITY_BODY_PROFILE_GUARD = (
+    "noncanonical local pose/composition sources must not control or override "
+    "body_profile"
+)
+GARMENT_FRAME_REQUIREMENTS = (
+    "shoulder/neckline through the lowest hem point",
+    "visible safety margin below the hem",
+    "must not touch or cross an image edge",
+    "major hem silhouette unobscured",
+    "apparent garment length unchanged",
+)
+PROMPT_MARKERS = (
+    IDENTITY_MARKER,
+    HEAD_CROP_MARKER,
+    FULL_HEAD_MARKER,
+    GARMENT_FRAME_MARKER,
+)
 
 
 def _validate_canonical_source(source: object, field: str) -> list[str]:
@@ -106,6 +131,70 @@ def _validate_garment_profile(profile: object, field: str) -> list[str]:
             f"{field}.requires_full_garment_frame contradicts garment type and hem"
         )
     return errors
+
+
+def _marker_section(prompt: str, marker: str) -> str | None:
+    if prompt.count(marker) != 1:
+        return None
+    start = prompt.index(marker) + len(marker)
+    following = [
+        prompt.find(candidate, start)
+        for candidate in PROMPT_MARKERS
+        if candidate != marker and prompt.find(candidate, start) >= 0
+    ]
+    end = min(following) if following else len(prompt)
+    return prompt[start:end].strip()
+
+
+def _validate_identity_lock(prompt: str, profile: object, action_index: int) -> list[str]:
+    if prompt.count(IDENTITY_MARKER) != 1:
+        return [
+            f"action {action_index}: prompt_en must contain exactly one actionable "
+            f"{IDENTITY_MARKER} section"
+        ]
+    section = _marker_section(prompt, IDENTITY_MARKER) or ""
+    if not isinstance(profile, dict):
+        return [f"action {action_index}: active identity_profile is unavailable"]
+    expected = {"canonical_source": f"canonical_source={CANONICAL_IDENTITY_PATH}"}
+    for field in IDENTITY_PROMPT_FIELDS:
+        expected[field] = f"{field}={profile.get(field)}"
+    lowered = section.casefold()
+    missing = [
+        field for field, token in expected.items() if token.casefold() not in lowered
+    ]
+    errors = []
+    if missing:
+        errors.append(
+            f"action {action_index}: {IDENTITY_MARKER} must contain concrete active "
+            "identity_profile values for " + ", ".join(missing)
+        )
+    if IDENTITY_BODY_PROFILE_GUARD not in lowered:
+        errors.append(
+            f"action {action_index}: {IDENTITY_MARKER} must state that noncanonical "
+            "local pose/composition sources must not control or override body_profile"
+        )
+    return errors
+
+
+def _validate_actionable_marker(
+    prompt: str,
+    marker: str,
+    required_phrases: tuple[str, ...],
+    action_index: int,
+) -> list[str]:
+    if prompt.count(marker) != 1:
+        return [
+            f"action {action_index}: prompt_en must contain exactly one actionable "
+            f"{marker} section"
+        ]
+    section = (_marker_section(prompt, marker) or "").casefold()
+    missing = [phrase for phrase in required_phrases if phrase.casefold() not in section]
+    if not missing:
+        return []
+    return [
+        f"action {action_index}: {marker} section must be actionable and include: "
+        + "; ".join(missing)
+    ]
 
 
 def validate_manifest_data(data: dict) -> list[str]:
@@ -209,14 +298,50 @@ def validate_prompt_data(data: dict, active_manifest: dict) -> list[str]:
             "nano banana pro" in lowered and "4k" in lowered and "2:3" in lowered
         ):
             errors.append(f"action {index}: prompt_en must mention Nano Banana Pro, 4K, and 2:3")
-        if IDENTITY_MARKER not in prompt:
-            errors.append(f"action {index}: prompt_en must contain {IDENTITY_MARKER}")
-        if view in {"front", "side", "back"} and HEAD_CROP_MARKER not in prompt:
-            errors.append(f"action {index}: prompt_en must contain {HEAD_CROP_MARKER}")
-        if view == "full" and FULL_HEAD_MARKER not in prompt:
-            errors.append(f"action {index}: prompt_en must contain {FULL_HEAD_MARKER}")
-        if isinstance(garment_contract, dict) and garment_contract.get("requires_full_garment_frame") is True and GARMENT_FRAME_MARKER not in prompt:
-            errors.append(f"action {index}: prompt_en must contain {GARMENT_FRAME_MARKER}")
+        errors.extend(
+            _validate_identity_lock(
+                prompt,
+                active_manifest.get("identity_profile"),
+                index,
+            )
+        )
+        if view in {"front", "side", "back"}:
+            errors.extend(
+                _validate_actionable_marker(
+                    prompt,
+                    HEAD_CROP_MARKER,
+                    ("at least half", "head"),
+                    index,
+                )
+            )
+        if view == "full":
+            errors.extend(
+                _validate_actionable_marker(
+                    prompt,
+                    FULL_HEAD_MARKER,
+                    ("complete", "head"),
+                    index,
+                )
+            )
+        active_garment_profile = active_manifest.get("garment_profile")
+        full_garment_frame = (
+            isinstance(active_garment_profile, dict)
+            and active_garment_profile.get("requires_full_garment_frame") is True
+        )
+        if full_garment_frame:
+            errors.extend(
+                _validate_actionable_marker(
+                    prompt,
+                    GARMENT_FRAME_MARKER,
+                    GARMENT_FRAME_REQUIREMENTS,
+                    index,
+                )
+            )
+        elif GARMENT_FRAME_MARKER in prompt:
+            errors.append(
+                f"action {index}: {GARMENT_FRAME_MARKER} is forbidden when the active "
+                "garment contract does not require a full garment frame"
+            )
     if len(set(ids)) != len(ids):
         errors.append("action_id values must be unique")
     if expected_ids and ids != expected_ids:

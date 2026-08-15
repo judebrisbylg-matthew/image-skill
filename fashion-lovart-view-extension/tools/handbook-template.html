@@ -379,7 +379,7 @@
     .lanes { padding: 14px; }
     .lane {
       display: grid;
-      grid-template-columns: 66px minmax(330px, 1fr) minmax(120px, .42fr);
+      grid-template-columns: 66px minmax(660px, 1fr);
       gap: 10px;
       align-items: center;
       min-height: 76px;
@@ -390,7 +390,7 @@
     .lane:last-child { border-bottom: 0; }
     .lane.focus { background: var(--surface-blue); box-shadow: inset 3px 0 var(--accent); }
     .lane-name { font-size: 12px; font-weight: 750; }
-    .primary-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
+    .cell-strip { display: grid; grid-template-columns: repeat(10, 1fr); gap: 7px; }
     .image-cell {
       position: relative;
       aspect-ratio: 2 / 3;
@@ -420,9 +420,7 @@
       border-radius: 3px;
       font: 700 7px/1 var(--mono);
     }
-    .supplemental { display: flex; align-items: center; gap: 5px; min-height: 56px; padding-left: 9px; border-left: 1px dashed #cad0da; }
-    .retry-cell { width: 31px; aspect-ratio: 2/3; background: #efe7d4; border: 1px solid #d9cdb6; border-radius: 4px; }
-    .retry-label { color: var(--faint); font: 9px/1.35 var(--mono); }
+    .image-cell.supplemental-cell { background: #efe7d4; border-color: #d9cdb6; }
 
     .immediate-rule {
       display: grid;
@@ -506,7 +504,7 @@
       .route-arrow { text-align: center; transform: rotate(90deg); }
       .stage-detail { grid-template-columns: 48px 1fr; }
       .stage-tag { display: none; }
-      .lane { grid-template-columns: 48px minmax(290px, 1fr) 100px; min-width: 590px; }
+      .lane { grid-template-columns: 48px minmax(600px, 1fr); min-width: 680px; }
       .lanes { overflow-x: auto; }
       .immediate-rule { grid-template-columns: 1fr 1fr; }
       .rule-step:nth-child(2)::after { display: none; }
@@ -666,7 +664,7 @@
           <div class="canvas-demo">
             <div class="canvas-toolbar">
               <div class="view-tabs" id="viewTabs"></div>
-              <span class="canvas-hint">左：5 个主槽 · 右：同视角补图带</span>
+              <span class="canvas-hint">连续等宽 10 格 · 前 5 主槽 · 后 5 同视角补图槽</span>
             </div>
             <div class="lanes" id="lanes"></div>
           </div>
@@ -687,7 +685,7 @@
             <article class="safeguard-card"><code>PARTIAL / HEADLESS SOURCE</code><strong>源图缺头，也要完成身份</strong><p>源图只露部分头部或完全无头时，依据可见肤色、发型、年龄感、颈肩与体态证据自然补全，不凭空更换模特。</p></article>
             <article class="safeguard-card"><code>HEAD CROP FLOOR</code><strong>正面 / 侧面 / 背面至少半个头部</strong><p>最终画面最少保留半个头部；完整头部允许。低于边界时按 <code>head-crop-below-minimum</code> 拒绝。</p></article>
             <article class="safeguard-card"><code>COMPLETE FULL BODY</code><strong>全身图必须从头顶到鞋底完整</strong><p>完整发冠、脸、身体、服装、双脚与鞋底连续入镜，并在头顶和鞋底外留出安全边距。</p></article>
-            <article class="safeguard-card"><code>CONDITIONAL DRESS FRAME</code><strong>确认膝下连衣裙才锁定完整裙摆</strong><p>仅当视觉证据确认膝下连衣裙时，要求领口至完整裙摆全部入镜；裙摆被裁切以 <code>long-dress-hem-cropped</code> 拒绝。</p></article>
+            <article class="safeguard-card"><code>CONDITIONAL DRESS FRAME</code><strong>确认膝下连衣裙才锁定完整裙摆</strong><p>从肩部/领口连续展示至完整裙摆最低点，裙摆下方保留可见安全边距，不接触边缘、不遮蔽主要轮廓、不改变视觉长度；任一违反以 <code>long-dress-hem-cropped</code> 拒绝。</p></article>
             <article class="safeguard-card"><code>date-skc-four-row-v3</code><strong>日期 → SKC → 四视角 → 主图 / 补图</strong><p>日期横向排列，同日 SKC 纵向堆叠；每个 SKC 固定正面、侧面、背面、全身四行，每行先 5 个主槽再 5 个补图槽。</p></article>
           </div>
           <div class="quality-grid">
@@ -789,7 +787,7 @@
       {n:'03', name:'生成提示词', tag:'4 × 5', title:'按四套模板生成 20 个独立动作', text:'每个视角恰好五条英文提示词，并带 SKC、VIEW、ACTION、ATTEMPT 可检索前缀。'},
       {n:'04', name:'月份验证', tag:'hard gate', title:'路径月份必须等于 Lovart 项目', text:'不匹配时立即暂停并反馈；用户修正后重新读取项目名，通过验证才继续。'},
       {n:'05', name:'初始化状态', tag:'resume', title:'创建或读取 run-state.json', text:'保存月份验证、日期区、任务历史与排版位置；完成的视角不会重启。'},
-      {n:'06', name:'准备参考图', tag:'ASCII', title:'建立去重的临时上传包', text:'按人物 → 产品 → 场景 → 构图 → 配饰排序，使用 ASCII 路径，原始素材不移动。'},
+      {n:'06', name:'准备参考图', tag:'ASCII', title:'建立去重的临时上传包', text:'按 identity_model_01（正面/1.jpg，第一位）→ pose_model_01（仅哈希不同时，可选第二位）→ product_01 → scene_01 → composition_01 → accessory_01 排序；使用 ASCII 路径，原始素材不移动。'},
       {n:'07', name:'Lovart 执行', tag:'10 slots', title:'在一个标签页内持续填充免费队列', text:'每个动作独立对话；任何结果完成后先按 8% / 8% / 25% 排版并确认，再填充释放的并发位。'},
       {n:'08', name:'统一质检', tag:'10 / view', title:'20 张基础图完成后逐张核验', text:'每个视角最多生成10张：5张基础图加最多5张补图；达到5张合格图或10张总量即停止。'}
     ];
@@ -811,10 +809,10 @@
     renderStage(0);
 
     const viewData = [
-      {key:'FR', name:'正面', retries:5},
-      {key:'SI', name:'侧面', retries:5},
-      {key:'BA', name:'背面', retries:5},
-      {key:'FU', name:'全身', retries:5}
+      {key:'FR', name:'正面'},
+      {key:'SI', name:'侧面'},
+      {key:'BA', name:'背面'},
+      {key:'FU', name:'全身'}
     ];
     const tabs = document.getElementById('viewTabs');
     const lanes = document.getElementById('lanes');
@@ -827,7 +825,7 @@
       const lane = document.createElement('div');
       lane.className = 'lane' + (idx === 0 ? ' focus' : '');
       lane.dataset.index = idx;
-      lane.innerHTML = `<div class="lane-name">${idx + 1} · ${view.name}</div><div class="primary-strip">${[1,2,3,4,5].map(n => `<div class="image-cell" data-id="${view.key}0${n}"></div>`).join('')}</div><div class="supplemental">${Array.from({length:view.retries},(_,n)=>`<div class="retry-cell" title="${view.key} 补图 ${n+1}"></div>`).join('')}<span class="retry-label">补图带<br>同视角</span></div>`;
+      lane.innerHTML = `<div class="lane-name">${idx + 1} · ${view.name}</div><div class="cell-strip">${Array.from({length:10},(_,n)=>{ const supplemental = n >= 5; const label = supplemental ? `${view.key}补${String(n - 4).padStart(2,'0')}` : `${view.key}0${n + 1}`; return `<div class="image-cell${supplemental ? ' supplemental-cell' : ''}" data-id="${label}" title="${supplemental ? '同视角补图槽' : '基础动作主槽'} ${n + 1}"></div>`; }).join('')}</div>`;
       lanes.appendChild(lane);
     });
     function focusLane(i) {

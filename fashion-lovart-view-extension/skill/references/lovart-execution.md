@@ -10,8 +10,9 @@
 6. After the user replies `已修正`, re-read the visible project name and verify it again. Do not resume from the user's statement alone.
 7. When verification passes, locate/create the correct date region, then the SKC area inside it, then the active view row. Dates run left-to-right; SKCs within the same date run top-to-bottom.
 8. Before upload, reserve the entire destination using layout contract `date-skc-four-row-v3`: visible date/SKC labels, four view rows, and 10 cells per row. Record the verified reservation. Do not submit into an improvised or partially measured area.
-9. Start a fresh conversation for the action. Keep all actions in one Chrome tab, but never reuse a conversation for another unfinished action.
-10. Confirm the visible model is Nano Banana Pro, output is 4K, ratio is 2:3, and no points acceleration is enabled.
+9. On resume, inspect the stored reservation as data, not status text. A legacy/status-only or incomplete reservation must be invalidated operationally by running `reserve-layout` again; submission requires the v3 version, active date/SKC, exact four-row order, cells 1–10, verification timestamp, and 0.08/0.08/0.25 ratios.
+10. Start a fresh conversation for the action. Keep all actions in one Chrome tab, but never reuse a conversation for another unfinished action.
+11. Confirm the visible model is Nano Banana Pro, output is 4K, ratio is 2:3, and no points acceleration is enabled.
 
 Project verification is a hard gate. No reference upload, prompt submission, or concurrency-slot reservation may occur while it is pending or blocked.
 
@@ -36,9 +37,9 @@ Project verification is a hard gate. No reference upload, prompt submission, or 
 
 After the base-count gate passes, inspect every candidate in this fixed priority order before ordinary styling quality:
 
-1. **Identity:** compare the candidate with the schema-2 `identity_profile` derived only from `正面/1.jpg`. A local pose model never overrides identity. Reject drift with `identity-drift`.
+1. **Identity:** compare the candidate with the schema-2 `identity_profile` derived only from `正面/1.jpg`. Noncanonical local pose/composition sources must not control or override `body_profile`; they control only pose, crop, body direction, camera, and composition. Reject drift with `identity-drift`.
 2. **Crop/head:** front, side, and back retain at least half the head; a complete head and complete face are allowed. Full-body results retain the complete reconstructed head and hair crown. Reject violations with `head-crop-below-minimum` or `full-head-incomplete`.
-3. **Conditional dress frame:** only when the product is a visually confirmed below-knee dress and `requires_full_garment_frame` is true, require the complete neckline-to-hem garment in frame. Reject a cropped hem with `long-dress-hem-cropped`.
+3. **Conditional dress frame:** only when the product is a visually confirmed below-knee dress and `requires_full_garment_frame` is true, keep it continuously visible from the shoulder/neckline through the lowest hem point, leave visible safety margin below the hem, require that the hem must not touch or cross an image edge, keep the major hem silhouette unobscured, and keep the apparent garment length unchanged. Reject any crop, edge contact, major occlusion, or apparent length change with `long-dress-hem-cropped`.
 4. **Ordinary quality:** then inspect garment construction, action, hands, accessories, scene, lighting, anatomy, and artifacts.
 
 Use `--reason-code` only for these four hard-rule failures and always pair it with an evidence-based `--reason`:
@@ -103,7 +104,7 @@ Inside the assigned date/SKC region, create the four row lanes before the first 
 Each row has two horizontal zones:
 
 - **Primary strip:** five equal cells for action `01`–`05`.
-- **Supplemental strip:** five fixed cells after one clearly visible gap to the right of the primary strip; contains replaced, rejected, and retry candidates for that same view only. A row therefore contains at most 10 generated images.
+- **Supplemental strip:** five equal-width fixed cells immediately after the five primary cells using the same approximately 8% inter-cell gap, with no separator or widened break; contains replaced, rejected, and retry candidates for that same view only. A row therefore contains one continuous sequence of at most 10 generated images.
 
 Normalize at placement time: every image in the SKC uses the same displayed width while retaining its original aspect ratio; images within a row share a top edge; all four rows share a left edge. Use a horizontal gap approximately 8% of image width and a vertical gap approximately 8% of image height. Small operational tolerance is acceptable, but inconsistent spacing, large holes, overlap, stretching, and crop changes are not.
 

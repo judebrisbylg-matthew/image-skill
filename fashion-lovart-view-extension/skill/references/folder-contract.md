@@ -23,7 +23,9 @@ Model, product, and scene must each resolve to exactly one source. Composition m
 
 Each file path has exactly one primary role. The only supported multi-role behavior is `composition_fallback: model_source` when no separate composition source exists.
 
-Attach `canonical_identity_source` and `identity_profile` to the schema-2 manifest. Derive `head_visibility`, skin tone and visible ancestry cues, visible face features, hair evidence, age impression, and body profile only from visible evidence in `正面/1.jpg`. A model image in `侧面`, `背面`, or `全身` may control that view's pose, crop, body scale, or composition, but it must never override the canonical identity characteristics.
+Attach `canonical_identity_source`, `identity_profile`, and `garment_profile` to the schema-2 manifest. Derive `head_visibility`, `skin_tone_and_visible_ancestry_cues`, `visible_face_features`, `hair_evidence`, `age_impression`, and `body_profile` only from visible evidence in `正面/1.jpg`; require numeric `confidence` from 0 to 1 and a nonblank visual `reason`. Noncanonical local pose/composition sources must not control or override `body_profile`; they may control only pose, crop, body direction, camera, and composition.
+
+Require all garment fields: nonblank `garment_type`, valid `hem_position`, boolean `requires_full_garment_frame`, and nonblank visual `reason`. `hem_position: below_knee` is valid only with `garment_type: dress`, and that combination always requires `requires_full_garment_frame: true`.
 
 ## Role assignment JSON
 

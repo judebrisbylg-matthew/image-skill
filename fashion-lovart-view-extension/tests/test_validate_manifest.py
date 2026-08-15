@@ -43,11 +43,40 @@ def valid_manifest():
     }
 
 
+def identity_lock_text(manifest):
+    profile = manifest["identity_profile"]
+    return (
+        "IDENTITY LOCK: canonical_source=正面/1.jpg; "
+        f"head_visibility={profile['head_visibility']}; "
+        f"skin_tone_and_visible_ancestry_cues={profile['skin_tone_and_visible_ancestry_cues']}; "
+        f"visible_face_features={profile['visible_face_features']}; "
+        f"hair_evidence={profile['hair_evidence']}; "
+        f"age_impression={profile['age_impression']}; "
+        f"body_profile={profile['body_profile']}; "
+        "Noncanonical local pose/composition sources must not control or override "
+        "body_profile."
+    )
+
+
 def valid_prompt(view="front", manifest=None):
     manifest = manifest or valid_manifest()
     prefix = {"front": "FR", "side": "SI", "back": "BA", "full": "FU"}[view]
-    markers = ["IDENTITY LOCK:", "GARMENT FRAME LOCK:"]
-    markers.append("FULL-BODY HEAD COMPLETION:" if view == "full" else "HEAD CROP FLOOR:")
+    head_lock = (
+        "FULL-BODY HEAD COMPLETION: complete the canonical head."
+        if view == "full"
+        else "HEAD CROP FLOOR: retain at least half the head."
+    )
+    markers = [
+        identity_lock_text(manifest),
+        head_lock,
+        (
+            "GARMENT FRAME LOCK: keep the below-knee dress continuously visible "
+            "from the shoulder/neckline through the lowest hem point; leave visible "
+            "safety margin below the hem; the hem must not touch or cross an image "
+            "edge; keep the major hem silhouette unobscured; keep the apparent "
+            "garment length unchanged."
+        ),
+    ]
     return {
         "schema_version": 2,
         "skc_id": manifest["skc_id"],
@@ -179,6 +208,30 @@ class PromptSubmissionGateTests(unittest.TestCase):
         prompt["actions"][0]["prompt_en"] = prompt["actions"][0]["prompt_en"].replace("GARMENT FRAME LOCK: ", "")
         self.assertTrue(validate_manifest.validate_prompt_data(prompt, valid_manifest()))
 
+    def test_rejects_empty_or_generic_required_framing_marker_sections(self):
+        cases = (
+            ("front", "HEAD CROP FLOOR:", "GARMENT FRAME LOCK:"),
+            ("full", "FULL-BODY HEAD COMPLETION:", "GARMENT FRAME LOCK:"),
+            ("front", "GARMENT FRAME LOCK:", None),
+        )
+        for view, marker, next_marker in cases:
+            with self.subTest(view=view, marker=marker):
+                manifest = valid_manifest()
+                prompt = valid_prompt(view, manifest)
+                original = prompt["actions"][0]["prompt_en"]
+                start = original.index(marker)
+                end = original.index(next_marker, start + len(marker)) if next_marker else len(original)
+                prompt["actions"][0]["prompt_en"] = (
+                    original[:start]
+                    + marker
+                    + " Preserve framing. "
+                    + original[end:]
+                )
+
+                errors = validate_manifest.validate_prompt_data(prompt, manifest)
+
+                self.assertTrue(any("actionable" in error for error in errors))
+
     def test_rejects_prompt_whose_skc_id_differs_from_active_manifest(self):
         manifest = valid_manifest()
         prompt = valid_prompt(manifest=manifest)
@@ -238,6 +291,110 @@ class PromptSubmissionGateTests(unittest.TestCase):
         errors = validate_manifest.validate_prompt_data(prompt, manifest)
 
         self.assertTrue(any("garment_contract" in error and "active manifest" in error for error in errors))
+
+    def test_active_manifest_still_requires_dress_lock_after_prompt_self_declares_shirt(self):
+        manifest = valid_manifest()
+        prompt = valid_prompt(manifest=manifest)
+        prompt["garment_contract"] = {
+            "garment_type": "shirt",
+            "hem_position": "not_applicable",
+            "requires_full_garment_frame": False,
+            "reason": "Prompt attempts to weaken the active dress contract.",
+        }
+        for action in prompt["actions"]:
+            action["prompt_en"] = action["prompt_en"].replace(
+                "GARMENT FRAME LOCK:", "UNBOUND GARMENT NOTE:"
+            )
+
+        errors = validate_manifest.validate_prompt_data(prompt, manifest)
+
+        self.assertTrue(
+            any(
+                "GARMENT FRAME LOCK:" in error and "actionable" in error
+                for error in errors
+            )
+        )
+
+    def test_rejects_empty_or_generic_identity_lock_sections(self):
+        manifest = valid_manifest()
+        for replacement in (
+            "IDENTITY LOCK: ",
+            "IDENTITY LOCK: Preserve the same person. ",
+        ):
+            with self.subTest(replacement=replacement):
+                prompt = valid_prompt(manifest=manifest)
+                original = prompt["actions"][0]["prompt_en"]
+                section_start = original.index("IDENTITY LOCK:")
+                section_end = original.index("HEAD CROP FLOOR:")
+                prompt["actions"][0]["prompt_en"] = (
+                    original[:section_start] + replacement + original[section_end:]
+                )
+
+                errors = validate_manifest.validate_prompt_data(prompt, manifest)
+
+                self.assertTrue(
+                    any("concrete active identity_profile" in error for error in errors)
+                )
+
+    def test_rejects_identity_values_placed_outside_the_identity_lock_section(self):
+        manifest = valid_manifest()
+        prompt = valid_prompt(manifest=manifest)
+        original = prompt["actions"][0]["prompt_en"]
+        section_start = original.index("IDENTITY LOCK:")
+        section_end = original.index("HEAD CROP FLOOR:")
+        concrete_values = original[
+            section_start + len("IDENTITY LOCK:") : section_end
+        ]
+        prompt["actions"][0]["prompt_en"] = (
+            original[:section_start]
+            + "IDENTITY LOCK: Preserve the same person. "
+            + original[section_end:]
+            + " "
+            + concrete_values
+        )
+
+        errors = validate_manifest.validate_prompt_data(prompt, manifest)
+
+        self.assertTrue(
+            any("concrete active identity_profile" in error for error in errors)
+        )
+
+    def test_rejects_identity_lock_missing_any_concrete_profile_value(self):
+        manifest = valid_manifest()
+        for field in (
+            "head_visibility",
+            "skin_tone_and_visible_ancestry_cues",
+            "visible_face_features",
+            "hair_evidence",
+            "age_impression",
+            "body_profile",
+        ):
+            with self.subTest(field=field):
+                prompt = valid_prompt(manifest=manifest)
+                value = str(manifest["identity_profile"][field])
+                prompt["actions"][0]["prompt_en"] = prompt["actions"][0][
+                    "prompt_en"
+                ].replace(value, "[omitted]", 1)
+
+                errors = validate_manifest.validate_prompt_data(prompt, manifest)
+
+                self.assertTrue(any(field in error for error in errors))
+
+    def test_rejects_identity_lock_without_local_body_profile_authority_guard(self):
+        manifest = valid_manifest()
+        prompt = valid_prompt(manifest=manifest)
+        prompt["actions"][0]["prompt_en"] = prompt["actions"][0][
+            "prompt_en"
+        ].replace(
+            "Noncanonical local pose/composition sources must not control or override body_profile.",
+            "Local pose/composition sources control body_profile.",
+        )
+
+        errors = validate_manifest.validate_prompt_data(prompt, manifest)
+
+        self.assertTrue(
+            any("must not control or override body_profile" in error for error in errors)
+        )
 
     def test_rejects_prompt_when_active_manifest_itself_is_invalid(self):
         manifest = valid_manifest()
