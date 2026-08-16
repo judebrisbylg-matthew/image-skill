@@ -8,6 +8,22 @@ Supported images: `.jpg`, `.jpeg`, `.png`, `.webp`.
 
 Ignore `.DS_Store`, hidden metadata, existing `_codex`, and unsupported files.
 
+## Scanner batch contract
+
+Every scanner invocation creates one authoritative `batch_contract` and copies it unchanged into the batch wrapper and every member inventory:
+
+```json
+{
+  "schema_version": 1,
+  "member_skc_ids": ["SKC-A", "SKC-B"],
+  "digest": "<lowercase SHA-256>"
+}
+```
+
+`member_skc_ids` is the scanner's deterministic ordered, non-empty, unique list. Compute `digest` from canonical compact JSON containing only schema version and those IDs, with sorted object keys. Classification and visual-contract attachment preserve this object exactly. State initialization copies it into run-state schema `6`; submission requires the original inventory and every authoritative member state, all with the same digest. A reduced inventory, omitted member, reordered IDs/states, changed digest, or legacy state without `batch_contract` fails closed before unfinished work is counted.
+
+Batch membership is not the global-concurrency authority. The state transition runtime and CLI derive the shared monthly registry `_codex/lovart-submissions.json` from the verified source path's date-region ancestor and month-project evidence and use an exclusive OS file lock, so independent scanner batches and concurrent singleton runs cannot create separate 10-slot windows. One persistent state lock covers every state-file CLI command's complete read-mutate-atomic-write transaction, including durable comparison and registry release. Finished work releases its reservation only after the updated state is atomically persisted and `fsync`ed; direct file-coordinator callers use `release_submission_slot` after their own durable write, and that API acquires the same state lock before comparing and releasing.
+
 ## Role contract
 
 Assign roles from visual content, with one filename-based exception: `正面/1.jpg` is always the canonical **IDENTITY MODEL SOURCE** for identity only. Inspect this file visually before continuing; the filename selects the source but does not replace evidence-based analysis.

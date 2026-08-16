@@ -1,6 +1,8 @@
 import copy
+import hashlib
 import importlib.util
 import inspect
+import json
 import unittest
 from pathlib import Path
 
@@ -15,6 +17,8 @@ def load_module(name, path):
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
+    if path == STATE_PATH:
+        module._SUBMISSION_COORDINATOR = module._InMemorySubmissionCoordinator()
     return module
 
 
@@ -51,6 +55,106 @@ SHARED_NEGATIVE_DEFECTS = (
     "bag on ground",
     "military stance",
     "both hands hanging straight down",
+)
+ACTION_CODES = (
+    "catalogue-neutral",
+    "weight-shift",
+    "controlled-step",
+    "detail-gesture",
+    "soft-turn",
+)
+CAMERA_CODES = (
+    "eye-level-standard",
+    "eye-level-close",
+    "slight-high-angle",
+    "eye-level-standard",
+    "eye-level-close",
+)
+COMPOSITION_CODES = (
+    "product-balanced",
+    "asymmetrical-space",
+    "detail-priority",
+    "product-balanced",
+    "asymmetrical-space",
+)
+SCENE_CODES = (
+    "bound-scene-coherent",
+    "bound-scene-depth",
+    "bound-scene-coherent",
+    "bound-scene-depth",
+    "bound-scene-coherent",
+)
+ACTION_SENTENCES = {
+    "catalogue-neutral": (
+        "Hold a balanced catalogue stance with the torso aligned to the requested "
+        "view and both arms separated naturally from the garment"
+    ),
+    "weight-shift": (
+        "Shift weight onto one leg, relax the opposite knee, and keep both hands "
+        "clear of the product silhouette"
+    ),
+    "controlled-step": (
+        "Take one controlled half-step while keeping the torso orientation and "
+        "product structure readable"
+    ),
+    "detail-gesture": (
+        "Lift one hand near an upper-garment detail while the other arm stays "
+        "relaxed and clear of the garment"
+    ),
+    "soft-turn": (
+        "Turn the torso slightly off-axis while preserving the requested view and "
+        "unobstructed product structure"
+    ),
+}
+CAMERA_SENTENCES = {
+    "eye-level-standard": (
+        "Use an eye-level ecommerce camera with natural perspective and no "
+        "wide-angle distortion"
+    ),
+    "eye-level-close": (
+        "Use a slightly closer eye-level ecommerce camera while retaining every "
+        "active crop and garment-frame requirement"
+    ),
+    "slight-high-angle": (
+        "Use a mildly elevated ecommerce camera while retaining natural "
+        "proportions and every active framing requirement"
+    ),
+}
+COMPOSITION_SENTENCES = {
+    "product-balanced": (
+        "Center the model and keep the complete product silhouette legible with "
+        "clean edge separation"
+    ),
+    "asymmetrical-space": (
+        "Use controlled asymmetrical negative space while keeping the model and "
+        "product fully readable"
+    ),
+    "detail-priority": (
+        "Prioritize visible product construction details without violating the "
+        "active crop or garment-frame contract"
+    ),
+}
+SCENE_SENTENCES = {
+    "bound-scene-coherent": (
+        "Extend only the scanner-bound scene coherently, matching its lighting, "
+        "color temperature, shadows, and background geometry"
+    ),
+    "bound-scene-depth": (
+        "Preserve the scanner-bound scene identity while extending its depth, "
+        "lighting direction, shadows, and background geometry coherently"
+    ),
+}
+CORRECTION_FIX_SENTENCES = {
+    "identity-drift": "Restore the canonical identity evidence exactly",
+    "head-crop-below-minimum": "Restore the required half-head-or-more framing",
+    "full-head-incomplete": "Restore the complete reconstructed head within the frame",
+    "long-dress-hem-cropped": (
+        "Restore the complete below-knee dress hem and its lower safety margin"
+    ),
+}
+CORRECTION_PRESERVE_SENTENCE = (
+    "Preserve the scanner-bound product, scene, pose/composition, action, camera, "
+    "and all accepted contract-compliant details"
 )
 
 
@@ -237,10 +341,10 @@ def canonical_negative_prompt(view, manifest):
 
 def action_directives(view, index):
     return {
-        "action": f"Perform distinct {view} ecommerce action {index}",
-        "camera": f"Use camera setup {index} for the requested {view} view",
-        "composition": f"Compose action {index} with the complete product visible",
-        "scene": f"Extend the bound scene coherently for action {index}",
+        "action": ACTION_CODES[index - 1],
+        "camera": CAMERA_CODES[index - 1],
+        "composition": COMPOSITION_CODES[index - 1],
+        "scene": SCENE_CODES[index - 1],
     }
 
 
@@ -285,17 +389,24 @@ def expected_positive_prompt(manifest, view, action):
         )
     parts.extend(
         (
-            f"ACTION: {directives['action']}.",
-            f"CAMERA: {directives['camera']}.",
-            f"COMPOSITION: {directives['composition']}.",
-            f"SCENE: {directives['scene']}.",
+            f"ACTION [{directives['action']}]: {ACTION_SENTENCES[directives['action']] }.",
+            f"CAMERA [{directives['camera']}]: {CAMERA_SENTENCES[directives['camera']] }.",
+            (
+                f"POSE/COMPOSITION [{directives['composition']}]: "
+                f"{COMPOSITION_SENTENCES[directives['composition']]}."
+            ),
+            (
+                f"SCENE EXTENSION [{directives['scene']}]: "
+                f"{SCENE_SENTENCES[directives['scene']]}."
+            ),
         )
     )
     correction = action.get("correction")
     if correction is not None:
         parts.append(
-            f"CORRECTION FOR ATTEMPT {action['attempt']}: "
-            f"Fix only: {correction['fix']}. Preserve: {correction['preserve']}."
+            f"CORRECTION FOR ATTEMPT {action['attempt']} [{correction['fix']}]: "
+            f"Fix only: {CORRECTION_FIX_SENTENCES[correction['fix']]}. "
+            f"Preserve: {CORRECTION_PRESERVE_SENTENCE}."
         )
     parts.extend(
         (
@@ -353,12 +464,32 @@ def retry_run_state(manifest, view="front"):
     action["attempt_history"] = [
         {
             "attempt": 1,
+            "submitted_at": "2026-08-16T00:00:00+00:00",
             "task_label": (
                 f"SKC {manifest['skc_id']} | VIEW {view} | ACTION {prefix}01 | "
                 "ATTEMPT 1"
             ),
+            "artifact_id": "retry-artifact-attempt-1",
+            "rejection_reason": "The complete long-dress hem was cropped.",
+            "rejection_reason_code": "long-dress-hem-cropped",
+            "result_recorded_at": "2026-08-16T00:01:00+00:00",
+            "result_status": "rejected",
         }
     ]
+    action["canvas"] = {
+        "primary_slot": 1,
+        "current_attempt": 1,
+        "placements": [
+            {
+                "attempt": 1,
+                "area": "primary",
+                "slot": 1,
+                "row_slot": 1,
+                "verified": True,
+                "placement_status": "verified",
+            }
+        ],
+    }
     return {
         "skc_id": manifest["skc_id"],
         "views": {view: {"actions": actions}},
@@ -493,9 +624,6 @@ class DeterministicPositivePromptContractTests(unittest.TestCase):
         )
         for action, directive in zip(prompt["actions"], variants):
             action["action_directives"]["action"] = directive
-            action["prompt_en"] = expected_positive_prompt(
-                manifest, "front", action
-            )
 
         self.assertTrue(validate_manifest.validate_prompt_data(prompt, manifest))
 
@@ -583,8 +711,8 @@ class DeterministicPositivePromptContractTests(unittest.TestCase):
         retry = prompt["actions"][0]
         retry["attempt"] = 2
         retry["correction"] = {
-            "fix": "restore the complete long-dress hem",
-            "preserve": "the accepted identity product scene pose and camera",
+            "fix": "long-dress-hem-cropped",
+            "preserve": "accepted-contracts",
         }
         retry["prompt_en"] = expected_positive_prompt(manifest, "front", retry)
 
@@ -630,8 +758,8 @@ class DeterministicPositivePromptContractTests(unittest.TestCase):
         action = prompt["actions"][0]
         action["attempt"] = 2
         action["correction"] = {
-            "fix": "Restore the verified hem framing",
-            "preserve": "Keep identity product scene and action unchanged",
+            "fix": "long-dress-hem-cropped",
+            "preserve": "accepted-contracts",
         }
         action["prompt_en"] = expected_positive_prompt(manifest, "front", action)
         state = retry_run_state(manifest)
@@ -657,10 +785,33 @@ def verified_execution_context():
     }
 
 
-def state_with_views(module, skc_id="ds-final-review", views=("front",)):
+def batch_contract(*skc_ids):
+    digest_payload = {
+        "schema_version": 1,
+        "member_skc_ids": list(skc_ids),
+    }
+    digest = hashlib.sha256(
+        json.dumps(
+            digest_payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return {**digest_payload, "digest": digest}
+
+
+def state_with_views(
+    module,
+    skc_id="ds-final-review",
+    views=("front",),
+    batch_member_ids=None,
+):
+    member_ids = tuple(batch_member_ids or (skc_id,))
     state = module.initialize_state(
         {
             "skc_id": skc_id,
+            "batch_contract": batch_contract(*member_ids),
             "views": {view: {"status": "ready"} for view in views},
         },
         verified_execution_context(),
@@ -776,8 +927,13 @@ class RunStateFinalReviewContractTests(unittest.TestCase):
         self.assertIn("batch_context", parameters)
         if "batch_context" not in parameters:
             return
-        current = state_with_views(self.module, "ds-current")
-        other = state_with_views(self.module, "ds-other")
+        members = ("ds-current", "ds-other")
+        current = state_with_views(
+            self.module, "ds-current", batch_member_ids=members
+        )
+        other = state_with_views(
+            self.module, "ds-other", batch_member_ids=members
+        )
         incomplete = {
             "schema_version": 1,
             "skc_ids": ["ds-current", "ds-other"],
@@ -795,10 +951,19 @@ class RunStateFinalReviewContractTests(unittest.TestCase):
             )
 
     def test_global_unfinished_limit_counts_every_skc_in_the_batch(self):
+        members = ("ds-first", "ds-second")
         first = state_with_views(
-            self.module, "ds-first", views=("front", "side")
+            self.module,
+            "ds-first",
+            views=("front", "side"),
+            batch_member_ids=members,
         )
-        second = state_with_views(self.module, "ds-second", views=("back",))
+        second = state_with_views(
+            self.module,
+            "ds-second",
+            views=("back",),
+            batch_member_ids=members,
+        )
         states = (first, second)
         for view in ("front", "side"):
             prefix = PREFIXES[view]
@@ -815,15 +980,24 @@ class RunStateFinalReviewContractTests(unittest.TestCase):
             submit(self.module, second, "back", "BA01", *states)
 
     def test_every_batch_state_must_have_consistent_verified_project_evidence(self):
-        current = state_with_views(self.module, "ds-current")
-        other = state_with_views(self.module, "ds-other")
+        members = ("ds-current", "ds-other")
+        current = state_with_views(
+            self.module, "ds-current", batch_member_ids=members
+        )
+        other = state_with_views(
+            self.module, "ds-other", batch_member_ids=members
+        )
         other["execution_context"]["verified_month_project"] = "7月"
 
         with self.assertRaisesRegex(ValueError, "batch context|month project"):
             submit(self.module, current, "front", "FR01", current, other)
 
-        current = state_with_views(self.module, "ds-current")
-        malformed = state_with_views(self.module, "ds-other")
+        current = state_with_views(
+            self.module, "ds-current", batch_member_ids=members
+        )
+        malformed = state_with_views(
+            self.module, "ds-other", batch_member_ids=members
+        )
         malformed["views"] = {}
         with self.assertRaisesRegex(ValueError, "batch context|run-state"):
             submit(self.module, current, "front", "FR01", current, malformed)
@@ -887,14 +1061,14 @@ class RunStateFinalReviewContractTests(unittest.TestCase):
                 label="wrong",
             )
 
-        direct_quality = state_with_views(self.module)
+        direct_quality = state_with_views(self.module, "direct-quality")
         submit(self.module, direct_quality, "front", "FR01")
         with self.assertRaisesRegex(ValueError, "invalid transition"):
             self.module.transition_action(
                 direct_quality, "front", "FR01", "qualified"
             )
 
-        before_review = state_with_views(self.module)
+        before_review = state_with_views(self.module, "before-review")
         submit(self.module, before_review, "front", "FR01")
         record_result(
             self.module,
@@ -917,7 +1091,7 @@ class RunStateFinalReviewContractTests(unittest.TestCase):
                 before_review, "front", "FR01", "qualified"
             )
 
-        padded_artifact = state_with_views(self.module)
+        padded_artifact = state_with_views(self.module, "padded-artifact")
         submit(self.module, padded_artifact, "front", "FR01")
         with self.assertRaisesRegex(ValueError, "artifact"):
             record_result(

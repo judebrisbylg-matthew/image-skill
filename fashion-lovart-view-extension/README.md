@@ -26,10 +26,12 @@ tools/build_handbook.mjs      文档构建器：从 skill/ 重新生成 HTML
 - 支持单个 SKC 和批次根目录。
 - 除唯一身份例外 `正面/1.jpg` 外，不按 `1/2/3/4` 猜图片作用，而是根据画面分配人物、产品、场景、构图和配饰角色；`正面/1.jpg` 必须先目视检查并作为所有视角的 canonical identity source。
 - 正面、侧面、背面、全身各生成 5 个独立动作。
-- 每条动作使用 scanner-backed `source_bindings`、四项 `action_directives` 和确定性 `render_positive_prompt`；五条动作必须真实不同且能独立执行，重试的 `ATTEMPT n` 与 run-state 严格绑定。
+- 每条动作使用 scanner-backed `source_bindings`、受控 code 枚举和确定性 `render_positive_prompt`；动作固定采用 `catalogue-neutral`、`weight-shift`、`controlled-step`、`detail-gesture`、`soft-turn` 五种独立语义，不接受 free authority prose。重试仅接受四种拒绝码和 `accepted-contracts` 保留码，并与 run-state 的完整前序拒绝证据严格绑定。
 - Nano Banana Pro、4K、2:3。
 - Lovart 最多同时保留 10 个未完成任务，不提交第 11 个。
-- 提交时必须提供 `--batch-inventory`，并为同批其他 SKC 重复提供 `--batch-state`；缺少完整批次上下文会关闭提交闸门，10 个未完成任务按所有当前批次 SKC state 合计。
+- scanner 会把同一个 authoritative `batch_contract` 写入批次 wrapper 和每个 SKC manifest，其中包含有序 `member_skc_ids` 与确定性 SHA-256 `digest`。run-state schema 6 原样绑定该合同。
+- 提交时必须提供原始 `--batch-inventory`，并为合同内其他 SKC 重复提供 `--batch-state`；缩减、缺失、重排、digest 不一致或缺少合同的 legacy state 都会关闭提交闸门，10 个未完成任务按所有 authoritative member state 合计。
+- state API 与 CLI 还会从已验证源路径的日期祖先确定性定位 `<month-root>/_codex/lovart-submissions.json`，在每次提交前用 exclusive OS file lock 原子预留 canonical task label；同一 state 的所有 state-file CLI 命令共用一个持久锁，并在锁内完成 read-mutate-atomic-write、落盘内容比对与 registry release。state 原子落盘并 `fsync` 后才释放已完成槽位，写入失败或崩溃则保守保留预留。直接调用 file-coordinator API 时也必须先持久化 state，再调用 `release_submission_slot(state, view, action_id, persisted_state_path)`；该 API 会取得同一个 state lock 后严格比对落盘内容。因此 independent scanner batches（包括各自扫描的 singleton）和并发进程共用同一个月度 10 槽上限，不能各自重置计数。
 - 每张图完成后立即放入对应视角行，不等最后再批量整理。
 - 月度画布使用 `date-skc-four-row-v3`：确认截图按 `date -> SKC -> front/side/back/full -> primary/supplemental` 映射，日期从左到右，同一天的不同 SKC 从上到下，绝不左右并排。
 - 每个 SKC 固定四行；每行预留 5 个主图槽和 5 个补图槽，日期分区按完整 10 槽宽度预留。

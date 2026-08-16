@@ -4,7 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
+import hashlib
 import json
+import os
+import re
+import tempfile
+import threading
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +30,10 @@ LAYOUT_VIEW_ORDER = ("front", "side", "back", "full")
 PRIMARY_ROW_SLOTS = tuple(range(1, 6))
 SUPPLEMENTAL_ROW_SLOTS = tuple(range(6, 11))
 BATCH_CONTEXT_SCHEMA_VERSION = 1
+BATCH_CONTRACT_SCHEMA_VERSION = 1
+SUBMISSION_REGISTRY_SCHEMA_VERSION = 1
+SUBMISSION_SCOPE_SCHEMA_VERSION = 1
+RUN_STATE_SCHEMA_VERSION = 6
 QUALITY_REASON_CODES = {
     "identity-drift",
     "head-crop-below-minimum",
@@ -65,6 +75,21 @@ def _strict_positive_int(value: object) -> bool:
     return type(value) is int and value >= 1
 
 
+def _strict_json_equal(left: object, right: object) -> bool:
+    if type(left) is not type(right):
+        return False
+    if type(left) is dict:
+        return left.keys() == right.keys() and all(
+            _strict_json_equal(left[key], right[key]) for key in left
+        )
+    if type(left) is list:
+        return len(left) == len(right) and all(
+            _strict_json_equal(left_item, right_item)
+            for left_item, right_item in zip(left, right)
+        )
+    return left == right
+
+
 def _attempt_record(action: dict, attempt: int) -> dict | None:
     history = action.get("attempt_history")
     if type(history) is not list:
@@ -102,7 +127,57 @@ def _all_artifact_records(state: dict) -> list[tuple[str, str, int, str]]:
     return records
 
 
+def _batch_contract_errors(contract: object) -> list[str]:
+    if type(contract) is not dict:
+        return ["batch_contract is required"]
+    if set(contract) != {"schema_version", "member_skc_ids", "digest"}:
+        return [
+            "batch_contract must contain exactly schema_version, member_skc_ids, and digest"
+        ]
+    errors = []
+    if (
+        type(contract.get("schema_version")) is not int
+        or contract["schema_version"] != BATCH_CONTRACT_SCHEMA_VERSION
+    ):
+        errors.append("batch_contract schema_version must be strict integer 1")
+    member_skc_ids = contract.get("member_skc_ids")
+    if (
+        type(member_skc_ids) is not list
+        or not member_skc_ids
+        or any(not _canonical_nonblank_string(item) for item in member_skc_ids)
+        or len(set(member_skc_ids)) != len(member_skc_ids)
+    ):
+        errors.append(
+            "batch_contract member_skc_ids must be unique canonical strings"
+        )
+        return errors
+    digest_payload = {
+        "schema_version": BATCH_CONTRACT_SCHEMA_VERSION,
+        "member_skc_ids": member_skc_ids,
+    }
+    expected_digest = hashlib.sha256(
+        json.dumps(
+            digest_payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    digest = contract.get("digest")
+    if (
+        type(digest) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+        or digest != expected_digest
+    ):
+        errors.append("batch_contract digest must match its authoritative member IDs")
+    return errors
+
+
 def _batch_context_errors(state: dict, batch_context: object) -> list[str]:
+    state_contract = state.get("batch_contract")
+    contract_errors = _batch_contract_errors(state_contract)
+    if contract_errors:
+        return ["current run-state " + error for error in contract_errors]
     if type(batch_context) is not dict:
         return ["batch context is required for submission"]
     if set(batch_context) != {"schema_version", "skc_ids", "states"}:
@@ -124,6 +199,10 @@ def _batch_context_errors(state: dict, batch_context: object) -> list[str]:
         or len(set(skc_ids)) != len(skc_ids)
     ):
         errors.append("batch context skc_ids must be unique canonical strings")
+    elif skc_ids != state_contract["member_skc_ids"]:
+        errors.append(
+            "batch context skc_ids must exactly match authoritative batch_contract membership"
+        )
     if type(states) is not list or type(skc_ids) is not list or len(states) != len(skc_ids):
         errors.append("batch context states must cover every declared SKC exactly once")
         return errors
@@ -140,7 +219,7 @@ def _batch_context_errors(state: dict, batch_context: object) -> list[str]:
         candidate_views = candidate.get("views")
         if (
             type(candidate.get("schema_version")) is not int
-            or candidate["schema_version"] < 5
+            or candidate["schema_version"] < RUN_STATE_SCHEMA_VERSION
             or type(candidate_views) is not dict
             or not candidate_views
         ):
@@ -159,6 +238,16 @@ def _batch_context_errors(state: dict, batch_context: object) -> list[str]:
         ):
             errors.append(
                 f"batch context state {expected_skc_id} has malformed action state"
+            )
+        candidate_contract = candidate.get("batch_contract")
+        candidate_contract_errors = _batch_contract_errors(candidate_contract)
+        if candidate_contract_errors:
+            errors.append(
+                f"batch context state {expected_skc_id} has invalid batch_contract"
+            )
+        elif candidate_contract != state_contract:
+            errors.append(
+                f"batch context state {expected_skc_id} has mismatched batch_contract"
             )
         candidate_context = candidate.get("execution_context")
         if type(candidate_context) is not dict:
@@ -197,6 +286,361 @@ def _batch_unfinished_candidate_count(batch_context: dict) -> int:
     )
 
 
+def _submission_scope(state: dict) -> dict:
+    """Return the deterministic monthly Lovart-project coordination scope."""
+    context = state.get("execution_context")
+    if type(context) is not dict:
+        raise ValueError("month project is not verified for global coordination")
+    source_path = context.get("source_path")
+    expected_project = context.get("expected_month_project")
+    verified_project = context.get("verified_month_project")
+    date_region = context.get("date_region")
+    if (
+        not _canonical_nonblank_string(source_path)
+        or not _canonical_nonblank_string(expected_project)
+        or not _canonical_nonblank_string(verified_project)
+        or not _canonical_nonblank_string(date_region)
+        or expected_project != verified_project
+    ):
+        raise ValueError("month project evidence is invalid for global coordination")
+    daily_path = Path(source_path).expanduser()
+    if not daily_path.is_absolute():
+        raise ValueError("source_path must be absolute for global coordination")
+    source = daily_path.resolve()
+    daily_path = next(
+        (
+            candidate
+            for candidate in (source, *source.parents)
+            if candidate.name == date_region
+            and candidate.parent.name == expected_project
+        ),
+        None,
+    )
+    if daily_path is None:
+        raise ValueError(
+            "source_path must bind the verified date region and month project"
+        )
+    month_root = daily_path.parent
+    digest_payload = {
+        "schema_version": SUBMISSION_SCOPE_SCHEMA_VERSION,
+        "expected_month_project": expected_project,
+        "source_month_root": str(month_root),
+    }
+    digest = hashlib.sha256(
+        json.dumps(
+            digest_payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return {**digest_payload, "digest": digest}
+
+
+def _submission_scope_errors(scope: object) -> list[str]:
+    if type(scope) is not dict or set(scope) != {
+        "schema_version",
+        "expected_month_project",
+        "source_month_root",
+        "digest",
+    }:
+        return ["submission scope has an invalid shape"]
+    errors = []
+    if (
+        type(scope.get("schema_version")) is not int
+        or scope["schema_version"] != SUBMISSION_SCOPE_SCHEMA_VERSION
+    ):
+        errors.append("submission scope schema_version must be strict integer 1")
+    for field in ("expected_month_project", "source_month_root"):
+        if not _canonical_nonblank_string(scope.get(field)):
+            errors.append(f"submission scope {field} must be canonical")
+    if errors:
+        return errors
+    digest_payload = {
+        "schema_version": SUBMISSION_SCOPE_SCHEMA_VERSION,
+        "expected_month_project": scope["expected_month_project"],
+        "source_month_root": scope["source_month_root"],
+    }
+    expected_digest = hashlib.sha256(
+        json.dumps(
+            digest_payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    if scope.get("digest") != expected_digest:
+        errors.append("submission scope digest must match the monthly project")
+    return errors
+
+
+def _submission_reservation_errors(reservation: object) -> list[str]:
+    if type(reservation) is not dict or set(reservation) != {
+        "task_label",
+        "skc_id",
+        "batch_digest",
+        "reserved_at",
+    }:
+        return ["submission reservation has an invalid shape"]
+    errors = []
+    for field in ("task_label", "skc_id"):
+        if not _canonical_nonblank_string(reservation.get(field)):
+            errors.append(f"submission reservation {field} must be canonical")
+    batch_digest = reservation.get("batch_digest")
+    if type(batch_digest) is not str or re.fullmatch(r"[0-9a-f]{64}", batch_digest) is None:
+        errors.append("submission reservation batch_digest must be lowercase SHA-256")
+    if not _has_aware_iso_timestamp(reservation.get("reserved_at")):
+        errors.append("submission reservation reserved_at must be timezone-aware")
+    return errors
+
+
+def _empty_submission_registry(scope: dict) -> dict:
+    return {
+        "schema_version": SUBMISSION_REGISTRY_SCHEMA_VERSION,
+        "scope": deepcopy(scope),
+        "reservations": {},
+    }
+
+
+def _submission_registry_errors(payload: object, scope: dict) -> list[str]:
+    if type(payload) is not dict or set(payload) != {
+        "schema_version",
+        "scope",
+        "reservations",
+    }:
+        return ["submission registry has an invalid shape"]
+    errors = []
+    if (
+        type(payload.get("schema_version")) is not int
+        or payload["schema_version"] != SUBMISSION_REGISTRY_SCHEMA_VERSION
+    ):
+        errors.append("submission registry schema_version must be strict integer 1")
+    if payload.get("scope") != scope or _submission_scope_errors(payload.get("scope")):
+        errors.append("submission registry scope does not match the monthly project")
+    reservations = payload.get("reservations")
+    if type(reservations) is not dict:
+        errors.append("submission registry reservations must be an object")
+        return errors
+    for task_label, reservation in reservations.items():
+        reservation_errors = _submission_reservation_errors(reservation)
+        if (
+            not _canonical_nonblank_string(task_label)
+            or reservation_errors
+            or reservation.get("task_label") != task_label
+        ):
+            errors.append("submission registry contains a malformed reservation")
+    if len(reservations) > GLOBAL_UNFINISHED_LIMIT:
+        errors.append("submission registry exceeds the global unfinished limit")
+    return errors
+
+
+class _InMemorySubmissionCoordinator:
+    """Process-local coordinator used by the importable state API."""
+
+    requires_durable_ack = False
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._registries: dict[str, dict] = {}
+
+    def reserve(self, scope: dict, reservation: dict) -> None:
+        scope_errors = _submission_scope_errors(scope)
+        reservation_errors = _submission_reservation_errors(reservation)
+        if scope_errors or reservation_errors:
+            raise ValueError(
+                "invalid global submission reservation: "
+                + "; ".join(scope_errors + reservation_errors)
+            )
+        with self._lock:
+            registry = self._registries.setdefault(
+                scope["digest"], _empty_submission_registry(scope)
+            )
+            errors = _submission_registry_errors(registry, scope)
+            if errors:
+                raise ValueError("invalid global submission registry: " + "; ".join(errors))
+            reservations = registry["reservations"]
+            task_label = reservation["task_label"]
+            if task_label in reservations:
+                raise ValueError("canonical task label already has a global reservation")
+            if len(reservations) >= GLOBAL_UNFINISHED_LIMIT:
+                raise ValueError("global unfinished limit reached")
+            reservations[task_label] = deepcopy(reservation)
+
+    def _validate_release_locked(
+        self,
+        scope: dict,
+        task_label: str,
+        skc_id: str,
+        batch_digest: str,
+    ) -> dict:
+        registry = self._registries.get(scope.get("digest"))
+        errors = _submission_registry_errors(registry, scope)
+        if errors:
+            raise ValueError("invalid global submission registry: " + "; ".join(errors))
+        if task_label not in registry["reservations"]:
+            raise ValueError("global submission reservation is missing")
+        reservation = registry["reservations"][task_label]
+        if (
+            reservation.get("skc_id") != skc_id
+            or reservation.get("batch_digest") != batch_digest
+        ):
+            raise ValueError("global submission reservation owner does not match")
+        return registry
+
+    def validate_release(
+        self,
+        scope: dict,
+        task_label: str,
+        skc_id: str,
+        batch_digest: str,
+    ) -> None:
+        with self._lock:
+            self._validate_release_locked(
+                scope, task_label, skc_id, batch_digest
+            )
+
+    def release(
+        self,
+        scope: dict,
+        task_label: str,
+        skc_id: str,
+        batch_digest: str,
+    ) -> None:
+        with self._lock:
+            registry = self._validate_release_locked(
+                scope, task_label, skc_id, batch_digest
+            )
+            del registry["reservations"][task_label]
+
+
+class _FileSubmissionCoordinator:
+    """Cross-process coordinator serialized by an exclusive OS file lock."""
+
+    requires_durable_ack = True
+
+    def __init__(self, path: Path) -> None:
+        self.path = Path(path).expanduser().resolve()
+
+    @staticmethod
+    def _read_locked(handle, scope: dict, *, allow_empty: bool) -> dict:
+        handle.seek(0)
+        serialized = handle.read()
+        if not serialized:
+            if allow_empty:
+                return _empty_submission_registry(scope)
+            raise ValueError("global submission registry is missing")
+        try:
+            payload = json.loads(serialized)
+        except json.JSONDecodeError as exc:
+            raise ValueError("global submission registry is malformed") from exc
+        errors = _submission_registry_errors(payload, scope)
+        if errors:
+            raise ValueError("invalid global submission registry: " + "; ".join(errors))
+        return payload
+
+    @staticmethod
+    def _write_locked(handle, payload: dict) -> None:
+        handle.seek(0)
+        handle.truncate()
+        handle.write(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+
+    def reserve(self, scope: dict, reservation: dict) -> None:
+        scope_errors = _submission_scope_errors(scope)
+        reservation_errors = _submission_reservation_errors(reservation)
+        if scope_errors or reservation_errors:
+            raise ValueError(
+                "invalid global submission reservation: "
+                + "; ".join(scope_errors + reservation_errors)
+            )
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a+", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                registry = self._read_locked(handle, scope, allow_empty=True)
+                reservations = registry["reservations"]
+                task_label = reservation["task_label"]
+                if task_label in reservations:
+                    raise ValueError(
+                        "canonical task label already has a global reservation"
+                    )
+                if len(reservations) >= GLOBAL_UNFINISHED_LIMIT:
+                    raise ValueError("global unfinished limit reached")
+                reservations[task_label] = deepcopy(reservation)
+                self._write_locked(handle, registry)
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+    def release(
+        self,
+        scope: dict,
+        task_label: str,
+        skc_id: str,
+        batch_digest: str,
+    ) -> None:
+        if not self.path.is_file():
+            raise ValueError("global submission registry is missing")
+        with self.path.open("r+", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                registry = self._read_locked(handle, scope, allow_empty=False)
+                if task_label not in registry["reservations"]:
+                    raise ValueError("global submission reservation is missing")
+                reservation = registry["reservations"][task_label]
+                if (
+                    reservation.get("skc_id") != skc_id
+                    or reservation.get("batch_digest") != batch_digest
+                ):
+                    raise ValueError(
+                        "global submission reservation owner does not match"
+                    )
+                del registry["reservations"][task_label]
+                self._write_locked(handle, registry)
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+    def validate_release(
+        self,
+        scope: dict,
+        task_label: str,
+        skc_id: str,
+        batch_digest: str,
+    ) -> None:
+        if not self.path.is_file():
+            raise ValueError("global submission registry is missing")
+        with self.path.open("r", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
+            try:
+                registry = self._read_locked(handle, scope, allow_empty=False)
+                if task_label not in registry["reservations"]:
+                    raise ValueError("global submission reservation is missing")
+                reservation = registry["reservations"][task_label]
+                if (
+                    reservation.get("skc_id") != skc_id
+                    or reservation.get("batch_digest") != batch_digest
+                ):
+                    raise ValueError(
+                        "global submission reservation owner does not match"
+                    )
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+_SUBMISSION_COORDINATOR = None
+
+
+def _submission_registry_path(state: dict) -> Path:
+    scope = _submission_scope(state)
+    return Path(scope["source_month_root"]) / "_codex" / "lovart-submissions.json"
+
+
+def _coordinator_for_state(state: dict):
+    if _SUBMISSION_COORDINATOR is not None:
+        return _SUBMISSION_COORDINATOR
+    return _FileSubmissionCoordinator(_submission_registry_path(state))
+
+
 def _layout_reservation(
     *,
     status: str,
@@ -221,6 +665,15 @@ def _layout_reservation(
 
 
 def initialize_state(manifest: dict, execution_context: dict | None = None) -> dict:
+    contract = manifest.get("batch_contract") if type(manifest) is dict else None
+    contract_errors = _batch_contract_errors(contract)
+    if contract_errors:
+        raise ValueError("invalid scanner batch_contract: " + "; ".join(contract_errors))
+    skc_id = manifest.get("skc_id")
+    if not _canonical_nonblank_string(skc_id):
+        raise ValueError("manifest skc_id must be a canonical nonblank string")
+    if skc_id not in contract["member_skc_ids"]:
+        raise ValueError("manifest skc_id must belong to batch_contract member_skc_ids")
     views = {}
     for view_key, view_manifest in manifest.get("views", {}).items():
         source_status = view_manifest.get("status", "blocked:manifest")
@@ -255,12 +708,13 @@ def initialize_state(manifest: dict, execution_context: dict | None = None) -> d
             "actions": actions,
         }
     return {
-        "schema_version": 5,
-        "skc_id": manifest["skc_id"],
+        "schema_version": RUN_STATE_SCHEMA_VERSION,
+        "skc_id": skc_id,
         "status": "pending",
         "updated_at": now_iso(),
         "execution_blocker": None,
         "execution_context": deepcopy(execution_context),
+        "batch_contract": deepcopy(contract),
         "layout_reservation": _layout_reservation(
             status="pending",
             date_region=None,
@@ -287,7 +741,9 @@ def record_layout_reservation(
         skc_label=skc_label,
         verified_at=now_iso() if verified else None,
     )
-    state["schema_version"] = max(5, state.get("schema_version", 1))
+    state["schema_version"] = max(
+        RUN_STATE_SCHEMA_VERSION, state.get("schema_version", 1)
+    )
     state["updated_at"] = now_iso()
     return state
 
@@ -628,7 +1084,9 @@ def record_project_verification(state: dict, context: dict) -> dict:
         state["execution_blocker"] = blocker
     elif context.get("project_verification_status") == "verified":
         state["execution_blocker"] = None
-    state["schema_version"] = max(5, state.get("schema_version", 1))
+    state["schema_version"] = max(
+        RUN_STATE_SCHEMA_VERSION, state.get("schema_version", 1)
+    )
     state["updated_at"] = now_iso()
     _recompute_state(state)
     return state
@@ -641,7 +1099,9 @@ def mark_project_feedback_sent(state: dict) -> dict:
         raise ValueError("no pending project feedback")
     context["feedback_required"] = False
     context["feedback_sent_at"] = now_iso()
-    state["schema_version"] = max(5, state.get("schema_version", 1))
+    state["schema_version"] = max(
+        RUN_STATE_SCHEMA_VERSION, state.get("schema_version", 1)
+    )
     state["updated_at"] = now_iso()
     return state
 
@@ -761,7 +1221,9 @@ def place_attempt(
     elif canvas.get("current_attempt") == attempt:
         canvas["current_attempt"] = None
     action["updated_at"] = now_iso()
-    state["schema_version"] = max(5, state.get("schema_version", 1))
+    state["schema_version"] = max(
+        RUN_STATE_SCHEMA_VERSION, state.get("schema_version", 1)
+    )
     state["updated_at"] = now_iso()
     return state
 
@@ -895,14 +1357,95 @@ def _attempt_has_verified_placement(
     primary_slot = int(action_id[-2:])
     return any(
         type(item) is dict
+        and type(item.get("attempt")) is int
         and item.get("attempt") == attempt
         and item.get("area") == "primary"
+        and type(item.get("slot")) is int
         and item.get("slot") == primary_slot
+        and type(item.get("row_slot")) is int
         and item.get("row_slot") == primary_slot
         and item.get("verified") is True
         and item.get("placement_status") == "verified"
         for item in _placement_records(action)
     )
+
+
+def _retry_predecessor_errors(
+    state: dict,
+    view_key: str,
+    action_id: str,
+    attempt: int,
+) -> list[str]:
+    """Validate the returned, placed, rejected record immediately before a retry."""
+    action = state["views"][view_key]["actions"][action_id]
+    predecessor_attempt = attempt - 1
+    history = action.get("attempt_history")
+    if type(history) is not list or not history:
+        return [f"attempt {predecessor_attempt} record is missing"]
+    if any(
+        type(item) is not dict or not _strict_positive_int(item.get("attempt"))
+        for item in history
+    ):
+        return [
+            "attempt history must contain only strict positive JSON-integer "
+            "attempt records before retry"
+        ]
+    history_attempts = [
+        item.get("attempt") if type(item) is dict else None
+        for item in history
+    ]
+    if history_attempts != list(range(1, attempt)):
+        return [
+            "attempt history must be the strict canonical sequence 1 through "
+            f"{predecessor_attempt} before retry"
+        ]
+    predecessor = history[-1]
+    matches = [
+        item
+        for item in history
+        if type(item) is dict
+        and type(item.get("attempt")) is int
+        and item.get("attempt") == predecessor_attempt
+    ]
+    if (
+        type(predecessor) is not dict
+        or type(predecessor.get("attempt")) is not int
+        or predecessor.get("attempt") != predecessor_attempt
+        or len(matches) != 1
+    ):
+        return [
+            f"attempt {predecessor_attempt} must be the unique immediately "
+            "preceding record"
+        ]
+    errors = []
+    expected_label = canonical_task_label(
+        state, view_key, action_id, predecessor_attempt
+    )
+    if predecessor.get("task_label") != expected_label:
+        errors.append("canonical task label")
+    if not _has_aware_iso_timestamp(predecessor.get("result_recorded_at")):
+        errors.append("returned result timestamp")
+    artifact_id = predecessor.get("artifact_id")
+    if not _canonical_nonblank_string(artifact_id):
+        errors.append("nonblank artifact identity")
+    elif sum(
+        record[3] == artifact_id for record in _all_artifact_records(state)
+    ) != 1:
+        errors.append("unique artifact identity")
+    if not _attempt_has_verified_placement(
+        action, predecessor_attempt, action_id
+    ):
+        errors.append("verified primary placement")
+    if action.get("status") != "rejected":
+        errors.append("rejected action status")
+    if predecessor.get("result_status") != "rejected":
+        errors.append("rejected result status")
+    rejection_code = predecessor.get("rejection_reason_code")
+    if type(rejection_code) is not str or rejection_code not in QUALITY_REASON_CODES:
+        errors.append("exact quality rejection code")
+    if not _canonical_nonblank_string(predecessor.get("rejection_reason")):
+        errors.append("nonblank rejection evidence")
+    return errors
 
 
 def transition_action(
@@ -917,6 +1460,7 @@ def transition_action(
     artifact_id: str | None = None,
     batch_context: dict | None = None,
 ) -> dict:
+    pending_release = None
     try:
         view = state["views"][view_key]
         action = view["actions"][action_id]
@@ -928,7 +1472,7 @@ def transition_action(
     if new_status not in TRANSITIONS.get(old_status, set()):
         raise ValueError(f"invalid transition: {old_status} -> {new_status}")
     if reason_code is not None:
-        if reason_code not in QUALITY_REASON_CODES:
+        if type(reason_code) is not str or reason_code not in QUALITY_REASON_CODES:
             raise ValueError(f"unknown quality reason code: {reason_code}")
         if new_status != "rejected":
             raise ValueError("reason_code is only allowed for rejected transitions")
@@ -950,6 +1494,14 @@ def transition_action(
         if type(attempts) is not int or isinstance(attempts, bool) or attempts < 0:
             raise ValueError("action attempts must be a nonnegative strict JSON integer")
         next_attempt = attempts + 1
+        if next_attempt > 1:
+            retry_errors = _retry_predecessor_errors(
+                state, view_key, action_id, next_attempt
+            )
+            if retry_errors:
+                raise ValueError(
+                    "invalid retry predecessor: " + "; ".join(retry_errors)
+                )
         _assert_submission_gate(
             state,
             view_key,
@@ -1019,6 +1571,47 @@ def transition_action(
             raise ValueError("quality review requires verified canvas placement")
 
     if new_status == "submitted":
+        coordinator_scope = _submission_scope(state)
+        coordinator = _coordinator_for_state(state)
+        coordinator.reserve(
+            coordinator_scope,
+            {
+                "task_label": task_label,
+                "skc_id": state["skc_id"],
+                "batch_digest": state["batch_contract"]["digest"],
+                "reserved_at": now_iso(),
+            },
+        )
+    elif (
+        old_status in GLOBAL_UNFINISHED_STATUSES
+        and new_status not in GLOBAL_UNFINISHED_STATUSES
+    ):
+        coordinator_scope = _submission_scope(state)
+        contract_errors = _batch_contract_errors(state.get("batch_contract"))
+        if contract_errors:
+            raise ValueError(
+                "invalid batch contract for global release: "
+                + "; ".join(contract_errors)
+            )
+        reserved_label = action.get("lovart_task_label")
+        if not _canonical_nonblank_string(reserved_label):
+            raise ValueError("unfinished action lacks its canonical global reservation label")
+        coordinator = _coordinator_for_state(state)
+        coordinator.validate_release(
+            coordinator_scope,
+            reserved_label,
+            state["skc_id"],
+            state["batch_contract"]["digest"],
+        )
+        pending_release = (
+            coordinator,
+            coordinator_scope,
+            reserved_label,
+            state["skc_id"],
+            state["batch_contract"]["digest"],
+        )
+
+    if new_status == "submitted":
         action["attempts"] = next_attempt
         action["submitted_at"] = now_iso()
         action["lovart_task_label"] = task_label
@@ -1053,10 +1646,83 @@ def transition_action(
     action["updated_at"] = now_iso()
     if new_status in {"qualified", "rejected"}:
         _block_view_at_generation_cap(view)
-    state["schema_version"] = max(5, state.get("schema_version", 1))
+    state["schema_version"] = max(
+        RUN_STATE_SCHEMA_VERSION, state.get("schema_version", 1)
+    )
     state["updated_at"] = now_iso()
     _recompute_state(state)
+    if pending_release is not None and not pending_release[0].requires_durable_ack:
+        coordinator, scope, label, skc_id, batch_digest = pending_release
+        coordinator.release(scope, label, skc_id, batch_digest)
     return state
+
+
+def _release_submission_slot_locked(
+    state: dict,
+    view_key: str,
+    action_id: str,
+    state_path: Path,
+) -> dict:
+    """Release after durable equality while the caller owns the state lock."""
+    if not state_path.is_file():
+        raise ValueError("persisted run-state is required before slot release")
+    try:
+        persisted_state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("persisted run-state is unreadable before slot release") from exc
+    if not _strict_json_equal(persisted_state, state):
+        raise ValueError("persisted run-state must exactly match before slot release")
+    try:
+        action = state["views"][view_key]["actions"][action_id]
+    except (KeyError, TypeError) as exc:
+        raise ValueError(f"unknown action {view_key}/{action_id}") from exc
+    if type(action) is not dict:
+        raise ValueError(f"unknown action {view_key}/{action_id}")
+    if action.get("status") in GLOBAL_UNFINISHED_STATUSES:
+        raise ValueError("cannot release a slot while the action is unfinished")
+    contract_errors = _batch_contract_errors(state.get("batch_contract"))
+    if contract_errors:
+        raise ValueError(
+            "invalid batch contract for global release: "
+            + "; ".join(contract_errors)
+        )
+    reserved_label = action.get("lovart_task_label")
+    if not _canonical_nonblank_string(reserved_label):
+        raise ValueError("finished action lacks its canonical global reservation label")
+    scope = _submission_scope(state)
+    coordinator = _coordinator_for_state(state)
+    coordinator.release(
+        scope,
+        reserved_label,
+        state["skc_id"],
+        state["batch_contract"]["digest"],
+    )
+    return state
+
+
+def release_submission_slot(
+    state: dict,
+    view_key: str,
+    action_id: str,
+    persisted_state_path: Path | str,
+) -> dict:
+    """Release a file-backed slot under the state lock after durable equality."""
+    state_path = Path(persisted_state_path).expanduser().resolve()
+    if not state_path.is_file():
+        raise ValueError("persisted run-state is required before slot release")
+    lock_path = state_path.with_name(f".{state_path.name}.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as state_lock:
+        fcntl.flock(state_lock.fileno(), fcntl.LOCK_EX)
+        try:
+            return _release_submission_slot_locked(
+                state,
+                view_key,
+                action_id,
+                state_path,
+            )
+        finally:
+            fcntl.flock(state_lock.fileno(), fcntl.LOCK_UN)
 
 
 def _recompute_state(state: dict) -> None:
@@ -1124,10 +1790,35 @@ def _load_batch_context(
     if batch_inventory_path is None:
         return None
     inventory = json.loads(batch_inventory_path.read_text(encoding="utf-8"))
+    if type(inventory) is not dict:
+        raise ValueError("batch inventory must be an object")
+    inventory_contract = inventory.get("batch_contract")
+    contract_errors = _batch_contract_errors(inventory_contract)
+    if contract_errors:
+        raise ValueError("invalid batch inventory contract: " + "; ".join(contract_errors))
+    state_contract_errors = _batch_contract_errors(current_state.get("batch_contract"))
+    if state_contract_errors:
+        raise ValueError("current run-state lacks a valid batch_contract")
+    if current_state["batch_contract"] != inventory_contract:
+        raise ValueError(
+            "batch inventory contract must match the current run-state exactly"
+        )
     skcs = inventory.get("skcs") if type(inventory) is dict else None
     if type(skcs) is not list:
         raise ValueError("batch inventory must contain a skcs list")
     skc_ids = [item.get("skc_id") if type(item) is dict else None for item in skcs]
+    authoritative_ids = inventory_contract["member_skc_ids"]
+    if skc_ids != authoritative_ids:
+        raise ValueError(
+            "batch inventory SKCs must exactly match authoritative batch_contract membership"
+        )
+    if any(
+        type(item) is not dict or item.get("batch_contract") != inventory_contract
+        for item in skcs
+    ):
+        raise ValueError(
+            "every batch inventory member must carry the authoritative batch_contract"
+        )
     paths = [current_state_path, *(other_state_paths or [])]
     resolved_paths = [path.expanduser().resolve() for path in paths]
     if len(set(resolved_paths)) != len(resolved_paths):
@@ -1138,20 +1829,54 @@ def _load_batch_context(
             states.append(current_state)
         else:
             states.append(json.loads(path.read_text(encoding="utf-8")))
+    loaded_skc_ids = [
+        item.get("skc_id") if type(item) is dict else None for item in states
+    ]
+    if (
+        any(not _canonical_nonblank_string(item) for item in loaded_skc_ids)
+        or len(set(loaded_skc_ids)) != len(loaded_skc_ids)
+    ):
+        raise ValueError("batch state files must contain unique canonical SKC IDs")
     state_by_skc = {
         item.get("skc_id"): item
         for item in states
         if type(item) is dict and _canonical_nonblank_string(item.get("skc_id"))
     }
-    ordered_states = [state_by_skc.get(skc_id) for skc_id in skc_ids]
+    ordered_states = [state_by_skc.get(skc_id) for skc_id in authoritative_ids]
     return {
         "schema_version": BATCH_CONTEXT_SCHEMA_VERSION,
-        "skc_ids": skc_ids,
+        "skc_ids": authoritative_ids,
         "states": ordered_states,
     }
 
 
+def _write_json_atomic(destination: Path, payload: dict) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    file_descriptor, temporary_name = tempfile.mkstemp(
+        dir=destination.parent,
+        prefix=f".{destination.name}.",
+        suffix=".tmp",
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(file_descriptor, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, destination)
+        directory_descriptor = os.open(destination.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
+
+
 def main() -> int:
+    global _SUBMISSION_COORDINATOR
+
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     init = sub.add_parser("init")
@@ -1192,6 +1917,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.command == "init":
+        destination = args.state.expanduser().resolve()
         execution_context = None
         if args.execution_context:
             execution_context = json.loads(
@@ -1201,63 +1927,86 @@ def main() -> int:
             json.loads(args.manifest.read_text(encoding="utf-8")),
             execution_context,
         )
-        destination = args.state
-    elif args.command == "transition":
-        destination = args.state
-        payload = json.loads(destination.read_text(encoding="utf-8"))
-        batch_context = _load_batch_context(
-            args.batch_inventory,
-            destination,
-            payload,
-            args.batch_state,
-        )
-        transition_action(
-            payload,
-            args.view,
-            args.action_id,
-            args.status,
-            reason=args.reason,
-            reason_code=args.reason_code,
-            task_label=args.task_label,
-            artifact_id=args.artifact_id,
-            batch_context=batch_context,
-        )
-    elif args.command == "place":
-        destination = args.state
-        payload = json.loads(destination.read_text(encoding="utf-8"))
-        place_attempt(
-            payload,
-            args.view,
-            args.action_id,
-            args.attempt,
-            area=args.area,
-            slot=args.slot,
-            verified=args.verified,
-        )
-    elif args.command == "project":
-        destination = args.state
-        payload = json.loads(destination.read_text(encoding="utf-8"))
-        context = json.loads(args.context.read_text(encoding="utf-8"))
-        record_project_verification(payload, context)
-    elif args.command == "feedback-sent":
-        destination = args.state
-        payload = json.loads(destination.read_text(encoding="utf-8"))
-        mark_project_feedback_sent(payload)
-    elif args.command == "reserve-layout":
-        destination = args.state
-        payload = json.loads(destination.read_text(encoding="utf-8"))
-        record_layout_reservation(
-            payload,
-            date_region=args.date_region,
-            skc_label=args.skc_label,
-            verified=args.verified,
-        )
-    else:
-        destination = args.state
-        payload = json.loads(destination.read_text(encoding="utf-8"))
-        gate = evaluate_review_gate(payload)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        lock_path = destination.with_name(f".{destination.name}.lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with lock_path.open("a+", encoding="utf-8") as state_lock:
+            fcntl.flock(state_lock.fileno(), fcntl.LOCK_EX)
+            try:
+                _write_json_atomic(destination, payload)
+            finally:
+                fcntl.flock(state_lock.fileno(), fcntl.LOCK_UN)
+        print(destination)
+        return 0
+
+    destination = args.state.expanduser().resolve()
+    lock_path = destination.with_name(f".{destination.name}.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    gate = None
+    with lock_path.open("a+", encoding="utf-8") as state_lock:
+        fcntl.flock(state_lock.fileno(), fcntl.LOCK_EX)
+        try:
+            payload = json.loads(destination.read_text(encoding="utf-8"))
+            release_after_persist = False
+            if args.command == "transition":
+                _SUBMISSION_COORDINATOR = _FileSubmissionCoordinator(
+                    _submission_registry_path(payload)
+                )
+                batch_context = _load_batch_context(
+                    args.batch_inventory,
+                    destination,
+                    payload,
+                    args.batch_state,
+                )
+                action = payload["views"][args.view]["actions"][args.action_id]
+                release_after_persist = (
+                    action.get("status") in GLOBAL_UNFINISHED_STATUSES
+                    and args.status not in GLOBAL_UNFINISHED_STATUSES
+                )
+                transition_action(
+                    payload,
+                    args.view,
+                    args.action_id,
+                    args.status,
+                    reason=args.reason,
+                    reason_code=args.reason_code,
+                    task_label=args.task_label,
+                    artifact_id=args.artifact_id,
+                    batch_context=batch_context,
+                )
+            elif args.command == "place":
+                place_attempt(
+                    payload,
+                    args.view,
+                    args.action_id,
+                    args.attempt,
+                    area=args.area,
+                    slot=args.slot,
+                    verified=args.verified,
+                )
+            elif args.command == "project":
+                context = json.loads(args.context.read_text(encoding="utf-8"))
+                record_project_verification(payload, context)
+            elif args.command == "feedback-sent":
+                mark_project_feedback_sent(payload)
+            elif args.command == "reserve-layout":
+                record_layout_reservation(
+                    payload,
+                    date_region=args.date_region,
+                    skc_label=args.skc_label,
+                    verified=args.verified,
+                )
+            else:
+                gate = evaluate_review_gate(payload)
+            _write_json_atomic(destination, payload)
+            if release_after_persist:
+                _release_submission_slot_locked(
+                    payload,
+                    args.view,
+                    args.action_id,
+                    destination,
+                )
+        finally:
+            fcntl.flock(state_lock.fileno(), fcntl.LOCK_UN)
     print(destination)
     if args.command == "review-gate" and not gate["review_allowed"]:
         print(json.dumps(gate, ensure_ascii=False))

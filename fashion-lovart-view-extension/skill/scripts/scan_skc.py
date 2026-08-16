@@ -9,6 +9,7 @@ import json
 import math
 import re
 from collections import defaultdict
+from copy import deepcopy
 from pathlib import Path
 
 
@@ -48,6 +49,7 @@ GARMENT_FIELDS = (
 )
 IDENTITY_STRING_FIELDS = ("head_visibility", *IDENTITY_TEXT_FIELDS)
 GARMENT_STRING_FIELDS = ("garment_type", "hem_position", "reason")
+BATCH_CONTRACT_SCHEMA_VERSION = 1
 
 
 def _normalized_required_string(data: dict, field: str, profile_name: str) -> str:
@@ -83,6 +85,48 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def build_batch_contract(skc_ids: list[str]) -> dict:
+    """Bind a deterministic scanner batch to its authoritative ordered SKC IDs."""
+    if (
+        type(skc_ids) is not list
+        or not skc_ids
+        or any(type(item) is not str or not item or item != item.strip() for item in skc_ids)
+        or len(set(skc_ids)) != len(skc_ids)
+    ):
+        raise ValueError("batch member SKC IDs must be unique canonical strings")
+    digest_payload = {
+        "schema_version": BATCH_CONTRACT_SCHEMA_VERSION,
+        "member_skc_ids": list(skc_ids),
+    }
+    digest = hashlib.sha256(
+        json.dumps(
+            digest_payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return {**digest_payload, "digest": digest}
+
+
+def build_batch_payload(
+    input_path: Path | str,
+    skc_paths: list[Path] | None = None,
+) -> dict:
+    path = Path(input_path).expanduser().resolve()
+    members = discover_skc_paths(path) if skc_paths is None else skc_paths
+    skcs = [build_inventory(skc_path) for skc_path in members]
+    contract = build_batch_contract([item["skc_id"] for item in skcs])
+    for inventory in skcs:
+        inventory["batch_contract"] = deepcopy(contract)
+    return {
+        "schema_version": 1,
+        "input_path": str(path),
+        "batch_contract": contract,
+        "skcs": skcs,
+    }
 
 
 def _canonical_identity_source(skc: Path, all_files: list[dict]) -> dict | None:
@@ -296,14 +340,16 @@ def main() -> int:
     parser.add_argument("--output", type=Path, help="Write one JSON batch inventory here")
     args = parser.parse_args()
     skc_paths = discover_skc_paths(args.input_path)
-    payload = {"schema_version": 1, "input_path": str(args.input_path.resolve()), "skcs": [build_inventory(p) for p in skc_paths]}
+    if not skc_paths:
+        return 2
+    payload = build_batch_payload(args.input_path, skc_paths)
     rendered = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(rendered, encoding="utf-8")
     else:
         print(rendered, end="")
-    return 0 if skc_paths else 2
+    return 0
 
 
 if __name__ == "__main__":

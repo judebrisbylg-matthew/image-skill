@@ -8,6 +8,7 @@ import importlib.util
 import json
 import math
 import re
+from datetime import datetime
 from pathlib import Path
 
 
@@ -107,6 +108,99 @@ FILE_ROLES = ROLE_KEYS | {"unclassified"}
 SOURCE_BINDING_KEYS = {"identity", "product", "scene", "pose_composition"}
 ACTION_DIRECTIVE_KEYS = {"action", "camera", "composition", "scene"}
 CORRECTION_KEYS = {"fix", "preserve"}
+ACTION_CODE_ORDER = (
+    "catalogue-neutral",
+    "weight-shift",
+    "controlled-step",
+    "detail-gesture",
+    "soft-turn",
+)
+ACTION_RENDER_MAP = {
+    "catalogue-neutral": (
+        "Hold a balanced catalogue stance with the torso aligned to the requested "
+        "view and both arms separated naturally from the garment"
+    ),
+    "weight-shift": (
+        "Shift weight onto one leg, relax the opposite knee, and keep both hands "
+        "clear of the product silhouette"
+    ),
+    "controlled-step": (
+        "Take one controlled half-step while keeping the torso orientation and "
+        "product structure readable"
+    ),
+    "detail-gesture": (
+        "Lift one hand near an upper-garment detail while the other arm stays "
+        "relaxed and clear of the garment"
+    ),
+    "soft-turn": (
+        "Turn the torso slightly off-axis while preserving the requested view and "
+        "unobstructed product structure"
+    ),
+}
+CAMERA_RENDER_MAP = {
+    "eye-level-standard": (
+        "Use an eye-level ecommerce camera with natural perspective and no "
+        "wide-angle distortion"
+    ),
+    "eye-level-close": (
+        "Use a slightly closer eye-level ecommerce camera while retaining every "
+        "active crop and garment-frame requirement"
+    ),
+    "slight-high-angle": (
+        "Use a mildly elevated ecommerce camera while retaining natural "
+        "proportions and every active framing requirement"
+    ),
+}
+COMPOSITION_RENDER_MAP = {
+    "product-balanced": (
+        "Center the model and keep the complete product silhouette legible with "
+        "clean edge separation"
+    ),
+    "asymmetrical-space": (
+        "Use controlled asymmetrical negative space while keeping the model and "
+        "product fully readable"
+    ),
+    "detail-priority": (
+        "Prioritize visible product construction details without violating the "
+        "active crop or garment-frame contract"
+    ),
+}
+SCENE_RENDER_MAP = {
+    "bound-scene-coherent": (
+        "Extend only the scanner-bound scene coherently, matching its lighting, "
+        "color temperature, shadows, and background geometry"
+    ),
+    "bound-scene-depth": (
+        "Preserve the scanner-bound scene identity while extending its depth, "
+        "lighting direction, shadows, and background geometry coherently"
+    ),
+}
+DIRECTIVE_RENDER_MAPS = {
+    "action": ACTION_RENDER_MAP,
+    "camera": CAMERA_RENDER_MAP,
+    "composition": COMPOSITION_RENDER_MAP,
+    "scene": SCENE_RENDER_MAP,
+}
+QUALITY_REASON_CODES = {
+    "identity-drift",
+    "head-crop-below-minimum",
+    "full-head-incomplete",
+    "long-dress-hem-cropped",
+}
+CORRECTION_FIX_RENDER_MAP = {
+    "identity-drift": "Restore the canonical identity evidence exactly",
+    "head-crop-below-minimum": "Restore the required half-head-or-more framing",
+    "full-head-incomplete": "Restore the complete reconstructed head within the frame",
+    "long-dress-hem-cropped": (
+        "Restore the complete below-knee dress hem and its lower safety margin"
+    ),
+}
+CORRECTION_PRESERVE_RENDER_MAP = {
+    "accepted-contracts": (
+        "Preserve the scanner-bound product, scene, pose/composition, action, "
+        "camera, and all accepted contract-compliant details"
+    )
+}
 
 
 def _is_canonical_nonblank_string(value: object) -> bool:
@@ -474,13 +568,11 @@ def _validate_action_metadata(
             "action_directives must contain exactly action, camera, composition, and scene"
         )
     else:
-        for field in ("action", "camera", "composition", "scene"):
+        for field, render_map in DIRECTIVE_RENDER_MAPS.items():
             value = directives[field]
-            if not _is_canonical_nonblank_string(value) or not any(
-                character.isascii() and character.isalpha() for character in value
-            ):
+            if type(value) is not str or value not in render_map:
                 errors.append(
-                    f"action_directives.{field} must be canonical nonblank English prose"
+                    f"action_directives.{field} must be a supported controlled code"
                 )
     correction = action.get("correction")
     if attempt == 1:
@@ -492,14 +584,18 @@ def _validate_action_metadata(
                 "retry correction must contain exactly fix and preserve"
             )
         else:
-            for field in ("fix", "preserve"):
-                value = correction[field]
-                if not _is_canonical_nonblank_string(value) or not any(
-                    character.isascii() and character.isalpha() for character in value
-                ):
-                    errors.append(
-                        f"correction.{field} must be canonical nonblank English prose"
-                    )
+            if (
+                type(correction["fix"]) is not str
+                or correction["fix"] not in CORRECTION_FIX_RENDER_MAP
+            ):
+                errors.append("correction.fix must be an exact quality rejection code")
+            if (
+                type(correction["preserve"]) is not str
+                or correction["preserve"] not in CORRECTION_PRESERVE_RENDER_MAP
+            ):
+                errors.append(
+                    "correction.preserve must be a supported controlled code"
+                )
     return errors
 
 
@@ -565,17 +661,23 @@ def render_positive_prompt(
         )
     parts.extend(
         (
-            f"ACTION: {directives['action']}.",
-            f"CAMERA: {directives['camera']}.",
-            f"COMPOSITION: {directives['composition']}.",
-            f"SCENE: {directives['scene']}.",
+            f"ACTION [{directives['action']}]: "
+            f"{ACTION_RENDER_MAP[directives['action']]}.",
+            f"CAMERA [{directives['camera']}]: "
+            f"{CAMERA_RENDER_MAP[directives['camera']]}.",
+            f"POSE/COMPOSITION [{directives['composition']}]: "
+            f"{COMPOSITION_RENDER_MAP[directives['composition']]}.",
+            f"SCENE EXTENSION [{directives['scene']}]: "
+            f"{SCENE_RENDER_MAP[directives['scene']]}.",
         )
     )
     correction = action.get("correction")
     if correction is not None:
         parts.append(
-            f"CORRECTION FOR ATTEMPT {action['attempt']}: "
-            f"Fix only: {correction['fix']}. Preserve: {correction['preserve']}."
+            f"CORRECTION FOR ATTEMPT {action['attempt']} [{correction['fix']}]: "
+            f"Fix only: {CORRECTION_FIX_RENDER_MAP[correction['fix']]}. "
+            "Preserve: "
+            f"{CORRECTION_PRESERVE_RENDER_MAP[correction['preserve']]}."
         )
     parts.extend(("Generate with Nano Banana Pro, 4K, 2:3.", suffix))
     return " ".join(parts)
@@ -606,16 +708,144 @@ def _retry_state_errors(
     attempt_history = run_action.get("attempt_history")
     if type(attempt_history) is not list:
         return ["active run-state attempt_history must be a list"]
+    if any(
+        type(item) is not dict or not _strict_positive_int(item.get("attempt"))
+        for item in attempt_history
+    ):
+        return [
+            "active run-state attempt_history must contain only strict positive "
+            "JSON-integer attempt records"
+        ]
+    predecessor_attempt = attempt - 1
+    history_attempts = [
+        item.get("attempt") if type(item) is dict else None
+        for item in attempt_history
+    ]
+    ready_sequence = list(range(1, attempt))
+    recorded_sequence = list(range(1, attempt + 1))
+    if history_attempts not in (ready_sequence, recorded_sequence):
+        return [
+            "active run-state attempt_history must be the strict canonical "
+            f"sequence 1 through {predecessor_attempt}, optionally followed by "
+            f"the current attempt {attempt}"
+        ]
+    predecessor_matches = [
+        (index, item)
+        for index, item in enumerate(attempt_history)
+        if type(item) is dict
+        and type(item.get("attempt")) is int
+        and item.get("attempt") == predecessor_attempt
+    ]
+    if len(predecessor_matches) != 1:
+        return [
+            f"retry requires exactly one immediately preceding attempt "
+            f"{predecessor_attempt} record"
+        ]
+    predecessor_index, predecessor = predecessor_matches[0]
+    predecessor_label = (
+        f"SKC {skc_id} | VIEW {view} | ACTION {action['action_id']} | "
+        f"ATTEMPT {predecessor_attempt}"
+    )
+    artifact_id = predecessor.get("artifact_id")
+    artifact_count = 0
+    run_views = active_run_state.get("views")
+    if type(run_views) is dict and _is_canonical_nonblank_string(artifact_id):
+        for candidate_view in run_views.values():
+            candidate_actions = (
+                candidate_view.get("actions")
+                if type(candidate_view) is dict
+                else None
+            )
+            if type(candidate_actions) is not dict:
+                continue
+            for candidate_action in candidate_actions.values():
+                candidate_history = (
+                    candidate_action.get("attempt_history")
+                    if type(candidate_action) is dict
+                    else None
+                )
+                if type(candidate_history) is not list:
+                    continue
+                artifact_count += sum(
+                    type(item) is dict and item.get("artifact_id") == artifact_id
+                    for item in candidate_history
+                )
+    try:
+        result_timestamp = datetime.fromisoformat(
+            predecessor.get("result_recorded_at", "")
+        )
+    except (TypeError, ValueError):
+        result_timestamp = None
+    canvas = run_action.get("canvas")
+    placements = canvas.get("placements") if type(canvas) is dict else None
+    primary_slot = (
+        int(action["action_id"][-2:])
+        if re.fullmatch(r"[A-Z]{2}[0-9]{2}", action.get("action_id", ""))
+        else None
+    )
+    verified_placement = type(placements) is list and any(
+        type(item) is dict
+        and type(item.get("attempt")) is int
+        and item.get("attempt") == predecessor_attempt
+        and item.get("area") == "primary"
+        and type(item.get("slot")) is int
+        and item.get("slot") == primary_slot
+        and type(item.get("row_slot")) is int
+        and item.get("row_slot") == primary_slot
+        and item.get("verified") is True
+        and item.get("placement_status") == "verified"
+        for item in placements
+    )
+    predecessor_errors = []
+    if predecessor.get("task_label") != predecessor_label:
+        predecessor_errors.append("canonical task label")
+    if not _is_canonical_nonblank_string(artifact_id):
+        predecessor_errors.append("nonblank artifact identity")
+    elif artifact_count != 1:
+        predecessor_errors.append("unique artifact identity")
+    if result_timestamp is None or result_timestamp.tzinfo is None:
+        predecessor_errors.append("returned result timestamp")
+    if not verified_placement:
+        predecessor_errors.append("verified primary placement")
+    if predecessor.get("result_status") != "rejected":
+        predecessor_errors.append("rejected result status")
+    rejection_code = predecessor.get("rejection_reason_code")
+    if type(rejection_code) is not str or rejection_code not in QUALITY_REASON_CODES:
+        predecessor_errors.append("exact quality rejection code")
+    if not _is_canonical_nonblank_string(predecessor.get("rejection_reason")):
+        predecessor_errors.append("nonblank rejection evidence")
+    correction = action.get("correction")
+    if type(correction) is dict and correction.get("fix") != rejection_code:
+        predecessor_errors.append("correction code matching the rejection")
+    if predecessor_errors:
+        return [
+            "retry immediately preceding rejected attempt is noncanonical: "
+            + ", ".join(predecessor_errors)
+        ]
     expected_label = (
         f"SKC {skc_id} | VIEW {view} | ACTION {action['action_id']} | "
         f"ATTEMPT {attempt}"
     )
-    ready_for_retry = attempts == attempt - 1 and run_action.get("status") == "rejected"
-    recorded_attempt = attempts == attempt and any(
-        type(item) is dict
+    ready_for_retry = (
+        attempts == predecessor_attempt
+        and run_action.get("status") == "rejected"
+        and predecessor_index == len(attempt_history) - 1
+        and history_attempts == ready_sequence
+    )
+    current_matches = [
+        (index, item)
+        for index, item in enumerate(attempt_history)
+        if type(item) is dict
+        and type(item.get("attempt")) is int
         and item.get("attempt") == attempt
         and item.get("task_label") == expected_label
-        for item in attempt_history
+    ]
+    recorded_attempt = (
+        attempts == attempt
+        and len(current_matches) == 1
+        and current_matches[0][0] == predecessor_index + 1
+        and current_matches[0][0] == len(attempt_history) - 1
+        and history_attempts == recorded_sequence
     )
     if not ready_for_retry and not recorded_attempt:
         return [
@@ -1063,12 +1293,10 @@ def validate_prompt_data(
         and type(action.get("action_directives")) is dict
         and type(action["action_directives"].get("action")) is str
     ]
-    normalized_actions = [
-        " ".join(value.split()).casefold() for value in directive_actions
-    ]
-    if len(normalized_actions) != 5 or len(set(normalized_actions)) != 5:
+    if directive_actions != list(ACTION_CODE_ORDER):
         errors.append(
-            "the five actions must have five distinct action_directives.action values"
+            "the five actions must use the canonical distinct action code sequence: "
+            + ", ".join(ACTION_CODE_ORDER)
         )
     return errors
 

@@ -681,8 +681,9 @@
           <h2>生成只是候选，核验通过才算完成</h2>
           <p class="section-intro">20 张基础图生成完后进行统一质检。每个视角最多生成10张：5张基础图加最多5张补图；达到5张合格图或10张总量时立即停止该视角。</p>
           <div class="safeguard-grid">
-            <article class="safeguard-card"><code>Typed Positive Prompt</code><strong>五个动作由类型化字段确定渲染</strong><p><code>source_bindings</code> 绑定 scanner 路径/哈希，<code>action_directives</code> 分别给出 action、camera、composition、scene；五个动作必须明显不同。<code>render_positive_prompt</code> 输出才可提交，重试 ATTEMPT 必须与 run-state 一致。</p></article>
-            <article class="safeguard-card"><code>Batch Context</code><strong>全批次共同执行 10 槽上限</strong><p>每次提交都带 batch inventory 和所有当前 SKC state；上下文缺失或不完整即失败关闭，绝不只数当前 state。</p></article>
+            <article class="safeguard-card"><code>Typed Positive Prompt</code><strong>五个动作由受控 code 确定渲染</strong><p><code>source_bindings</code> 绑定 scanner 路径/哈希；动作固定从 <code>catalogue-neutral</code> 到 <code>soft-turn</code>，camera、composition、scene 也只接受 render map code。<code>accepted-contracts</code> 是唯一 preserve code，不接收 free authority prose。</p></article>
+            <article class="safeguard-card"><code>Global Coordinator</code><strong>独立批次也共用 10 槽上限</strong><p>scanner 的 <code>batch_contract</code> 防止批内缩减；state API 与 CLI 从日期祖先定位 <code>_codex/lovart-submissions.json</code>，以 OS 文件锁原子预留 task label。同一 state 的所有 CLI 命令在一个持久锁内完成读取、变更、原子落盘、持久化比对与槽位释放；写入失败则保守占用。</p></article>
+            <article class="safeguard-card"><code>RETRY PREDECESSOR</code><strong>重试必须有完整前序拒绝证据</strong><p>立即前序 attempt 要有 canonical label、returned unique artifact、verified primary placement、精确 rejection code 与非空证据；prompt 与 state 在 mutation 前双重验证。</p></article>
             <article class="safeguard-card"><code>RESULT BEFORE PLACE</code><strong>结果先于归位</strong><p>先用 exact canonical task label 记录 nonblank unique artifact，再允许画布归位或质检；禁止预归位、重复 artifact 和槽位碰撞。</p></article>
             <article class="safeguard-card"><code>PHYSICAL SLOTS</code><strong>主槽 1–5 · 补图槽 6–10</strong><p>主槽必须匹配动作号；只有被后续已返回结果替换的 verified 主图才能移动到同视角补图槽 6–10。</p></article>
             <article class="safeguard-card"><code>CANONICAL IDENTITY</code><strong>身份只认正面/1.jpg</strong><p>它是唯一身份真源；侧面、背面和全身参考只控制姿势、身体方向、裁切与构图。身份漂移以 <code>identity-drift</code> 拒绝。</p></article>
@@ -787,9 +788,9 @@
 
   <script>
     const stages = [
-      {n:'01', name:'扫描目录', tag:'inventory', title:'发现 SKC 与四视角目录', text:'记录图片路径、哈希与重复组；所有语义角色先保持 unclassified。'},
+      {n:'01', name:'扫描目录', tag:'inventory', title:'发现 SKC 与四视角目录', text:'记录图片路径、哈希与重复组，并生成 authoritative batch_contract；所有语义角色先保持 unclassified。'},
       {n:'02', name:'视觉分类', tag:'manifest', title:'把每张图分配到唯一语义角色', text:'人物、产品、场景为必需角色；低于 0.7 的置信度或多候选会只阻塞当前视角。'},
-      {n:'03', name:'生成提示词', tag:'4 × 5', title:'按四套模板生成 20 个独立动作', text:'Typed Positive Prompt 由 scanner-backed source_bindings 与四项 action_directives 确定渲染；每个视角五条动作真实不同。Negative Prompt 由脚本生成且不可编辑。'},
+      {n:'03', name:'生成提示词', tag:'4 × 5', title:'按四套模板生成 20 个独立动作', text:'Typed Positive Prompt 由 scanner-backed source_bindings 与受控 action/camera/composition/scene code 确定渲染；每个视角五条动作真实不同。Negative Prompt 由脚本生成且不可编辑。'},
       {n:'04', name:'月份验证', tag:'hard gate', title:'路径月份必须等于 Lovart 项目', text:'不匹配时立即暂停并反馈；用户修正后重新读取项目名，通过验证才继续。'},
       {n:'05', name:'初始化状态', tag:'resume', title:'创建或读取 run-state.json', text:'保存月份验证、日期区、任务历史与排版位置；完成的视角不会重启。'},
       {n:'06', name:'准备参考图', tag:'ASCII', title:'建立去重的临时上传包', text:'按 identity_model_01（正面/1.jpg，第一位）→ pose_model_01（仅哈希不同时，可选第二位）→ product_01 → scene_01 → composition_01 → accessory_01 排序；使用 ASCII 路径，原始素材不移动。'},

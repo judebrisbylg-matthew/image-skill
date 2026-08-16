@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -15,12 +16,33 @@ def load_module():
     spec = importlib.util.spec_from_file_location("update_run_state", SCRIPT)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    module._SUBMISSION_COORDINATOR = module._InMemorySubmissionCoordinator()
     return module
+
+
+def batch_contract(*skc_ids):
+    digest_payload = {
+        "schema_version": 1,
+        "member_skc_ids": list(skc_ids),
+    }
+    digest = hashlib.sha256(
+        json.dumps(
+            digest_payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return {**digest_payload, "digest": digest}
 
 
 def ready_state(module):
     state = module.initialize_state(
-        {"skc_id": "ds-test", "views": {"front": {"status": "ready"}}},
+        {
+            "skc_id": "ds-test",
+            "batch_contract": batch_contract("ds-test"),
+            "views": {"front": {"status": "ready"}},
+        },
         verified_execution_context(),
     )
     module.record_layout_reservation(
@@ -128,6 +150,7 @@ def gated_state(module, views=("front",)):
     state = module.initialize_state(
         {
             "skc_id": "ds-test",
+            "batch_contract": batch_contract("ds-test"),
             "views": {view: {"status": "ready"} for view in views},
         },
         verified_execution_context(),
@@ -158,6 +181,7 @@ class RunStateTests(unittest.TestCase):
             manifest.write_text(
                 json.dumps({
                     "skc_id": "ds-test",
+                    "batch_contract": batch_contract("ds-test"),
                     "views": {
                         view: {"status": "ready"}
                         for view in ("front", "side", "back", "full")
@@ -196,7 +220,11 @@ class RunStateTests(unittest.TestCase):
     def test_submission_requires_verified_project_and_reserved_layout(self):
         module = load_module()
         state = module.initialize_state(
-            {"skc_id": "ds-test", "views": {"front": {"status": "ready"}}},
+            {
+                "skc_id": "ds-test",
+                "batch_contract": batch_contract("ds-test"),
+                "views": {"front": {"status": "ready"}},
+            },
             verified_execution_context(),
         )
 
@@ -402,6 +430,7 @@ class RunStateTests(unittest.TestCase):
         state = module.initialize_state(
             {
                 "skc_id": "ds-test",
+                "batch_contract": batch_contract("ds-test"),
                 "views": {
                     view: {"status": "ready"}
                     for view in ("front", "side", "back", "full")
@@ -526,7 +555,11 @@ class RunStateTests(unittest.TestCase):
     def test_initialization_without_execution_context_cannot_bypass_submission_gates(self):
         module = load_module()
         state = module.initialize_state(
-            {"skc_id": "ds-test", "views": {"front": {"status": "ready"}}}
+            {
+                "skc_id": "ds-test",
+                "batch_contract": batch_contract("ds-test"),
+                "views": {"front": {"status": "ready"}},
+            }
         )
         module.record_layout_reservation(
             state,
@@ -666,11 +699,15 @@ class RunStateTests(unittest.TestCase):
         }
 
         state = module.initialize_state(
-            {"skc_id": "ds-test", "views": {"front": {"status": "ready"}}},
+            {
+                "skc_id": "ds-test",
+                "batch_contract": batch_contract("ds-test"),
+                "views": {"front": {"status": "ready"}},
+            },
             context,
         )
 
-        self.assertEqual(state["schema_version"], 5)
+        self.assertEqual(state["schema_version"], 6)
         self.assertEqual(state["execution_context"]["expected_month_project"], "8月")
         self.assertEqual(state["execution_context"]["date_region"], "8月15日")
 
@@ -767,6 +804,7 @@ class RunStateTests(unittest.TestCase):
                 action_id,
                 "rejected",
                 reason=f"quality drift {index + 1}",
+                reason_code="identity-drift",
             )
 
         for index in range(5):
@@ -797,6 +835,7 @@ class RunStateTests(unittest.TestCase):
                 action_id,
                 "rejected",
                 reason=f"quality drift {index + 6}",
+                reason_code="identity-drift",
             )
 
         view = state["views"]["front"]

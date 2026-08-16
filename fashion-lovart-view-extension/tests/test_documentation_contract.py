@@ -196,12 +196,7 @@ def render_template_prompt(view, manifest):
             "attempt": 1,
             "title": f"Documented {view} action {index}",
             "source_bindings": final_contract.source_bindings(manifest, view),
-            "action_directives": {
-                "action": f"Execute documented {view} ecommerce action {index}",
-                "camera": f"Use documented camera setup {index} for {view}",
-                "composition": f"Use documented composition {index} with the product complete",
-                "scene": f"Extend the bound scene coherently for documented action {index}",
-            },
+            "action_directives": final_contract.action_directives(view, index),
             "correction": None,
             "negative_prompt": canonical_negative_prompt(view, manifest),
         }
@@ -274,6 +269,51 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn('"correction": null', schema)
         self.assertIn("active run-state", schema)
         self.assertIn("five distinct", schema)
+
+    def test_second_remediation_contracts_are_published_consistently(self):
+        for document in (SKILL, PROMPT_SCHEMA, *TEMPLATES.values()):
+            with self.subTest(contract="controlled renderer", document=document.name):
+                source = document.read_text(encoding="utf-8")
+                self.assertIn("catalogue-neutral", source)
+                self.assertIn("accepted-contracts", source)
+                self.assertIn("controlled code", source)
+                self.assertIn("no free authority prose", source)
+
+        for document in (SKILL, FOLDER, LOVART, README):
+            with self.subTest(contract="batch membership", document=document.name):
+                source = document.read_text(encoding="utf-8")
+                self.assertIn("batch_contract", source)
+                self.assertIn("member_skc_ids", source)
+                self.assertIn("digest", source)
+                self.assertIn("authoritative", source)
+
+        for document in (SKILL, LOVART, README):
+            with self.subTest(contract="global coordinator", document=document.name):
+                source = document.read_text(encoding="utf-8")
+                self.assertIn("lovart-submissions.json", source)
+                self.assertIn("exclusive OS file lock", source)
+                self.assertIn("independent scanner batches", source)
+
+        for document in (SKILL, FOLDER, LOVART):
+            with self.subTest(contract="state transaction lock", document=document.name):
+                source = document.read_text(encoding="utf-8")
+                self.assertIn("every state-file CLI command", source)
+                self.assertIn("read-mutate-atomic-write", source)
+
+        for document in (SKILL, PROMPT_SCHEMA, LOVART):
+            with self.subTest(contract="retry predecessor", document=document.name):
+                source = document.read_text(encoding="utf-8")
+                self.assertIn("immediately preceding", source)
+                self.assertIn("unique artifact", source)
+                self.assertIn("verified primary placement", source)
+                self.assertIn("rejection_reason_code", source)
+
+        for artifact in (HANDBOOK_TEMPLATE, HANDBOOK, SITE_INDEX):
+            with self.subTest(contract="handbook", artifact=artifact.name):
+                source = artifact.read_text(encoding="utf-8")
+                self.assertIn("batch_contract", source)
+                self.assertIn("catalogue-neutral", source)
+                self.assertIn("lovart-submissions.json", source)
 
     def test_final_review_batch_artifact_and_slot_interfaces_are_published(self):
         for document in (SKILL, LOVART, README):
@@ -542,7 +582,12 @@ class DocumentationContractTests(unittest.TestCase):
 
     def test_documented_batch_snippet_and_all_template_actions_execute(self):
         inventory = scanner_inventory()
-        batch_payload = {"skcs": [inventory]}
+        contract = final_contract.batch_contract("ds-doc-test")
+        inventory["batch_contract"] = copy.deepcopy(contract)
+        batch_payload = {
+            "batch_contract": contract,
+            "skcs": [inventory],
+        }
         long_manifest = representative_manifest("full", long_dress=True)
 
         with self.subTest(contract="scanner batch wrapper"):

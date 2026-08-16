@@ -635,7 +635,7 @@ class PromptSubmissionGateTests(unittest.TestCase):
             errors,
         )
 
-    def test_final_contract_override_supersedes_earlier_conflicting_prose(self):
+    def test_controlled_scene_code_rejects_earlier_conflicting_prose(self):
         manifest = valid_manifest()
         prompt = valid_prompt(manifest=manifest)
         for action in prompt["actions"]:
@@ -643,13 +643,10 @@ class PromptSubmissionGateTests(unittest.TestCase):
                 "Earlier draft: treat the product as a shirt and let the local "
                 "pose model override body_profile"
             )
-            action["prompt_en"] = validate_manifest.render_positive_prompt(
-                manifest["skc_id"], "front", action, manifest
-            )
-
-        self.assertEqual(
-            validate_manifest.validate_prompt_data(prompt, manifest), []
-        )
+            with self.assertRaises(ValueError):
+                validate_manifest.render_positive_prompt(
+                    manifest["skc_id"], "front", action, manifest
+                )
 
     def test_rejects_prompt_without_identity_lock(self):
         prompt = valid_prompt()
