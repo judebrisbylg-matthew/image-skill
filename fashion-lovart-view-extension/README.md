@@ -26,12 +26,13 @@ tools/build_handbook.mjs      文档构建器：从 skill/ 重新生成 HTML
 - 支持单个 SKC 和批次根目录。
 - 除唯一身份例外 `正面/1.jpg` 外，不按 `1/2/3/4` 猜图片作用，而是根据画面分配人物、产品、场景、构图和配饰角色；`正面/1.jpg` 必须先目视检查并作为所有视角的 canonical identity source。
 - 正面、侧面、背面、全身各生成 5 个独立动作。
-- 每条动作使用 scanner-backed `source_bindings`、受控 code 枚举和确定性 `render_positive_prompt`；动作固定采用 `catalogue-neutral`、`weight-shift`、`controlled-step`、`detail-gesture`、`soft-turn` 五种独立语义，不接受 free authority prose。重试仅接受四种拒绝码和 `accepted-contracts` 保留码，并与 run-state 的完整前序拒绝证据严格绑定。
+- 每条动作使用 scanner-backed `source_bindings`、受控 code 枚举和确定性 `render_positive_prompt`；动作固定采用 `catalogue-neutral`、`weight-shift`、`controlled-step`、`detail-gesture`、`soft-turn` 五种独立语义，不接受 free authority prose。自由身份字段、SKC ID 与非 canonical 路径只以 reversible `utf8hex` inert evidence data 出现；只有显式 `footwear_contract` 才能生成鞋履正向权威。重试仅接受四种拒绝码和 `accepted-contracts` 保留码，并与 run-state 的完整前序拒绝证据及 exact eight-field current attempt record 严格绑定；recorded 分支状态只能是 `submitted` or `queued`，all five result fields are `null`，action-level `submitted_at` exactly equals 当前 record 的值，并且该时间 strictly later than the predecessor `result_recorded_at`。
 - Nano Banana Pro、4K、2:3。
 - Lovart 最多同时保留 10 个未完成任务，不提交第 11 个。
 - scanner 会把同一个 authoritative `batch_contract` 写入批次 wrapper 和每个 SKC manifest，其中包含有序 `member_skc_ids` 与确定性 SHA-256 `digest`。run-state schema 6 原样绑定该合同。
 - 提交时必须提供原始 `--batch-inventory`，并为合同内其他 SKC 重复提供 `--batch-state`；缩减、缺失、重排、digest 不一致或缺少合同的 legacy state 都会关闭提交闸门，10 个未完成任务按所有 authoritative member state 合计。
-- state API 与 CLI 还会从已验证源路径的日期祖先确定性定位 `<month-root>/_codex/lovart-submissions.json`，在每次提交前用 exclusive OS file lock 原子预留 canonical task label；同一 state 的所有 state-file CLI 命令共用一个持久锁，并在锁内完成 read-mutate-atomic-write、落盘内容比对与 registry release。state 原子落盘并 `fsync` 后才释放已完成槽位，写入失败或崩溃则保守保留预留。直接调用 file-coordinator API 时也必须先持久化 state，再调用 `release_submission_slot(state, view, action_id, persisted_state_path)`；该 API 会取得同一个 state lock 后严格比对落盘内容。因此 independent scanner batches（包括各自扫描的 singleton）和并发进程共用同一个月度 10 槽上限，不能各自重置计数。
+- state API 与 CLI 以已验证月项目和本机 OS user 形成唯一 authority，存放在 fixed local-user coordination root，也就是 passwd-derived persistent per-user state directory `~/Library/Application Support/fashion-lovart-view-extension/submission-registries`；它不位于可被重启或临时清理删除的 `/tmp`。source roots never select or partition 该位置，因此不同源树的 independent scanner batches 仍共享同一 10 槽。每个 registry 使用 stable sibling lock file，并以 `O_NOFOLLOW` 逐层打开路径，同时 fsync every parent directory entry；已有 zero-byte、损坏或 symlink 状态一律 fail-closed。锁内先写同目录独占临时文件并 file-`fsync`，再 atomic replace 和 directory fsync，绝不截断 live registry。同一 state 的所有 state-file CLI 命令仍共用持久锁，在锁内完成 read-mutate-atomic-write、落盘内容比对与 registry release。state 原子落盘并 `fsync` 后才释放槽位，写入失败或崩溃则保守保留预留。直接调用 file-coordinator API 时也必须先持久化 state，再调用 `release_submission_slot(state, view, action_id, persisted_state_path)`。
+- Registry JSON 出现 duplicate JSON object keys 时属于 malformed/corrupted 状态，任何 reservation mutation 前一律 fail-closed。
 - 每张图完成后立即放入对应视角行，不等最后再批量整理。
 - 月度画布使用 `date-skc-four-row-v3`：确认截图按 `date -> SKC -> front/side/back/full -> primary/supplemental` 映射，日期从左到右，同一天的不同 SKC 从上到下，绝不左右并排。
 - 每个 SKC 固定四行；每行预留 5 个主图槽和 5 个补图槽，日期分区按完整 10 槽宽度预留。

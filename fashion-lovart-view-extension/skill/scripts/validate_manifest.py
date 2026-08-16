@@ -41,6 +41,7 @@ HEM_POSITIONS = {"above_knee", "at_knee", "below_knee", "not_applicable"}
 IDENTITY_MARKER = "IDENTITY LOCK:"
 HEAD_CROP_MARKER = "HEAD CROP FLOOR:"
 FULL_HEAD_MARKER = "FULL-BODY HEAD COMPLETION:"
+FULL_BODY_FRAME_MARKER = "FULL-BODY FRAME:"
 GARMENT_FRAME_MARKER = "GARMENT FRAME LOCK:"
 FINAL_CONTRACT_OVERRIDE = (
     "FINAL CONTRACT OVERRIDE: In any conflict, the following identity, head-crop, "
@@ -87,6 +88,33 @@ FULL_HEAD_REQUIREMENTS = (
     ),
     "Do not change the model's visible identity characteristics",
 )
+FULL_BODY_FRAME_REQUIREMENTS = (
+    (
+        "Keep the complete model continuously visible from the highest point of "
+        "the hair and top of the head through the entire body to the lowest point "
+        "of both feet"
+    ),
+    (
+        "Keep the complete hair crown, full head, full face, chin, neck, entire "
+        "body, garment hem, ankles, both feet, and toes fully inside the frame"
+    ),
+    "Leave clear visible safety margin above the hair and below both feet",
+    "No body part may touch, cross, or be cropped by an image edge",
+    (
+        "Move the camera farther away whenever the pose or camera distance would "
+        "violate this frame"
+    ),
+)
+FULL_BODY_FRAME_TEXT = (
+    f"{FULL_BODY_FRAME_MARKER} {FULL_BODY_FRAME_REQUIREMENTS[0]}. "
+    f"{FULL_BODY_FRAME_REQUIREMENTS[1]}. {FULL_BODY_FRAME_REQUIREMENTS[2]}. "
+    f"{FULL_BODY_FRAME_REQUIREMENTS[3]}. {FULL_BODY_FRAME_REQUIREMENTS[4]}."
+)
+FOOTWEAR_FRAME_TEXT = (
+    "EXPLICIT FOOTWEAR FRAME: Because an explicit scanner-validated "
+    "footwear_contract is active, keep both validated shoes and their shoe soles "
+    "fully visible inside the lower safety margin."
+)
 GARMENT_FRAME_REQUIREMENTS = (
     "Activate only for a visually confirmed below-knee dress",
     (
@@ -102,12 +130,23 @@ PROMPT_MARKERS = (
     IDENTITY_MARKER,
     HEAD_CROP_MARKER,
     FULL_HEAD_MARKER,
+    FULL_BODY_FRAME_MARKER,
     GARMENT_FRAME_MARKER,
 )
 FILE_ROLES = ROLE_KEYS | {"unclassified"}
 SOURCE_BINDING_KEYS = {"identity", "product", "scene", "pose_composition"}
 ACTION_DIRECTIVE_KEYS = {"action", "camera", "composition", "scene"}
 CORRECTION_KEYS = {"fix", "preserve"}
+CURRENT_ATTEMPT_RECORD_KEYS = {
+    "attempt",
+    "submitted_at",
+    "task_label",
+    "artifact_id",
+    "rejection_reason",
+    "rejection_reason_code",
+    "result_recorded_at",
+    "result_status",
+}
 ACTION_CODE_ORDER = (
     "catalogue-neutral",
     "weight-shift",
@@ -205,6 +244,13 @@ CORRECTION_PRESERVE_RENDER_MAP = {
 
 def _is_canonical_nonblank_string(value: object) -> bool:
     return type(value) is str and bool(value) and value == value.strip()
+
+
+def _inert_utf8(value: str) -> str:
+    """Encode evidence as a reversible data token, never executable prompt prose."""
+    if type(value) is not str:
+        raise ValueError("inert evidence must be a string")
+    return "utf8hex:" + value.encode("utf-8").hex()
 
 
 def _validate_canonical_source(source: object, field: str) -> list[str]:
@@ -340,9 +386,13 @@ def _validate_identity_lock(prompt: str, profile: object, action_index: int) -> 
     section = _marker_section(prompt, IDENTITY_MARKER) or ""
     if not isinstance(profile, dict):
         return [f"action {action_index}: active identity_profile is unavailable"]
-    expected = {"canonical_source": CANONICAL_IDENTITY_PATH}
-    for field in IDENTITY_PROMPT_FIELDS:
-        expected[field] = profile.get(field)
+    expected = {
+        "canonical_source": CANONICAL_IDENTITY_PATH,
+        "head_visibility": profile.get("head_visibility"),
+    }
+    for field in IDENTITY_PROMPT_FIELDS[1:]:
+        value = profile.get(field)
+        expected[field] = _inert_utf8(value) if type(value) is str else None
     assignments, parse_error = _parse_identity_assignments(section)
     mismatched = [
         field for field, expected_value in expected.items()
@@ -369,8 +419,14 @@ def _expected_identity_lock(profile: object) -> str | None:
     if any(type(value) is not str for value in values):
         return None
     assignments = "; ".join(
-        [f"canonical_source={CANONICAL_IDENTITY_PATH}"]
-        + [f"{field}={profile[field]}" for field in IDENTITY_PROMPT_FIELDS]
+        [
+            f"canonical_source={CANONICAL_IDENTITY_PATH}",
+            f"head_visibility={profile['head_visibility']}",
+        ]
+        + [
+            f"{field}={_inert_utf8(profile[field])}"
+            for field in IDENTITY_PROMPT_FIELDS[1:]
+        ]
     )
     return (
         f"{IDENTITY_MARKER} {assignments}; "
@@ -393,6 +449,7 @@ def _expected_final_contract_suffix(
             "impression, neck/shoulder evidence, and body profile. Do not change "
             "the model's visible identity characteristics."
         )
+        full_body_frame = FULL_BODY_FRAME_TEXT
     else:
         framing_lock = (
             f"{HEAD_CROP_MARKER} The final image must retain at least half of the "
@@ -400,6 +457,12 @@ def _expected_final_contract_suffix(
             "half-head boundary."
         )
     contracts = [FINAL_CONTRACT_OVERRIDE, identity_lock, framing_lock]
+    if view == "full":
+        contracts.append(full_body_frame)
+        views = active_manifest.get("views")
+        active_view = views.get(view) if type(views) is dict else None
+        if type(active_view) is dict and "footwear_contract" in active_view:
+            contracts.append(FOOTWEAR_FRAME_TEXT)
     garment_profile = active_manifest.get("garment_profile")
     if (
         isinstance(garment_profile, dict)
@@ -534,6 +597,16 @@ def _expected_source_bindings(active_manifest: dict, view_key: str) -> dict:
     return bindings
 
 
+def _render_bound_source(binding: dict, *, canonical_identity: bool = False) -> str:
+    path = binding["relative_path"]
+    rendered_path = (
+        f"path={CANONICAL_IDENTITY_PATH}"
+        if canonical_identity
+        else f"path_utf8hex={_inert_utf8(path)}"
+    )
+    return f"{rendered_path}; sha256={binding['sha256']}"
+
+
 def _validate_action_metadata(
     skc_id: object,
     view: object,
@@ -546,6 +619,10 @@ def _validate_action_metadata(
     action_id = action.get("action_id")
     if not _is_canonical_nonblank_string(action_id):
         errors.append("action_id must be a canonical nonblank string")
+    elif view in ACTION_PREFIXES and action_id not in {
+        f"{ACTION_PREFIXES[view]}{index:02d}" for index in range(1, 6)
+    }:
+        errors.append("action_id must be a controlled ID for the active view")
     attempt = action.get("attempt")
     if not _strict_positive_int(attempt):
         errors.append("attempt must be a strict positive JSON integer")
@@ -625,33 +702,29 @@ def render_positive_prompt(
     directives = action["action_directives"]
     parts = [
         (
-            f"SKC {skc_id} | VIEW {view} | ACTION {action['action_id']} | "
+            f"SKC {_inert_utf8(skc_id)} | VIEW {view} | ACTION {action['action_id']} | "
             f"ATTEMPT {action['attempt']}."
         ),
         (
             "IDENTITY MODEL SOURCE: "
-            f"path={bindings['identity']['relative_path']}; "
-            f"sha256={bindings['identity']['sha256']}."
+            f"{_render_bound_source(bindings['identity'], canonical_identity=True)}."
         ),
         (
             "PRODUCT SOURCE: "
-            f"path={bindings['product']['relative_path']}; "
-            f"sha256={bindings['product']['sha256']}."
+            f"{_render_bound_source(bindings['product'])}."
         ),
         (
             "SCENE SOURCE: "
-            f"path={bindings['scene']['relative_path']}; "
-            f"sha256={bindings['scene']['sha256']}."
+            f"{_render_bound_source(bindings['scene'])}."
         ),
         (
             "POSE/COMPOSITION SOURCE: "
-            f"path={bindings['pose_composition']['relative_path']}; "
-            f"sha256={bindings['pose_composition']['sha256']}."
+            f"{_render_bound_source(bindings['pose_composition'])}."
         ),
     ]
     if "footwear" in bindings:
         rendered_sources = ", ".join(
-            f"path={item['relative_path']}; sha256={item['sha256']}"
+            _render_bound_source(item)
             for item in bindings["footwear"]
         )
         parts.append(
@@ -832,20 +905,49 @@ def _retry_state_errors(
         and predecessor_index == len(attempt_history) - 1
         and history_attempts == ready_sequence
     )
-    current_matches = [
-        (index, item)
-        for index, item in enumerate(attempt_history)
-        if type(item) is dict
-        and type(item.get("attempt")) is int
-        and item.get("attempt") == attempt
-        and item.get("task_label") == expected_label
-    ]
+    current = attempt_history[-1] if history_attempts == recorded_sequence else None
+    try:
+        submitted_timestamp = datetime.fromisoformat(
+            current.get("submitted_at", "") if type(current) is dict else ""
+        )
+    except (TypeError, ValueError):
+        submitted_timestamp = None
+    try:
+        action_submitted_timestamp = datetime.fromisoformat(
+            run_action.get("submitted_at", "")
+        )
+    except (TypeError, ValueError):
+        action_submitted_timestamp = None
+    canonical_current = (
+        type(current) is dict
+        and set(current) == CURRENT_ATTEMPT_RECORD_KEYS
+        and type(current.get("attempt")) is int
+        and current.get("attempt") == attempt
+        and current.get("task_label") == expected_label
+        and submitted_timestamp is not None
+        and submitted_timestamp.tzinfo is not None
+        and action_submitted_timestamp is not None
+        and action_submitted_timestamp.tzinfo is not None
+        and run_action.get("submitted_at") == current.get("submitted_at")
+        and submitted_timestamp > result_timestamp
+        and all(
+            current.get(field) is None
+            for field in (
+                "artifact_id",
+                "rejection_reason",
+                "rejection_reason_code",
+                "result_recorded_at",
+                "result_status",
+            )
+        )
+    )
     recorded_attempt = (
         attempts == attempt
-        and len(current_matches) == 1
-        and current_matches[0][0] == predecessor_index + 1
-        and current_matches[0][0] == len(attempt_history) - 1
+        and run_action.get("status") in {"submitted", "queued"}
+        and run_action.get("lovart_task_label") == expected_label
+        and predecessor_index == len(attempt_history) - 2
         and history_attempts == recorded_sequence
+        and canonical_current
     )
     if not ready_for_retry and not recorded_attempt:
         return [
@@ -1254,6 +1356,14 @@ def validate_prompt_data(
                     prompt,
                     FULL_HEAD_MARKER,
                     FULL_HEAD_REQUIREMENTS,
+                    index,
+                )
+            )
+            errors.extend(
+                _validate_actionable_marker(
+                    prompt,
+                    FULL_BODY_FRAME_MARKER,
+                    FULL_BODY_FRAME_REQUIREMENTS,
                     index,
                 )
             )

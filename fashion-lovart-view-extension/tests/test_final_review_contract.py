@@ -255,17 +255,30 @@ def source_bindings(manifest, view):
     return bindings
 
 
+def inert_utf8(value):
+    return "utf8hex:" + value.encode("utf-8").hex()
+
+
+def rendered_binding(binding, canonical_identity=False):
+    rendered_path = (
+        "path=正面/1.jpg"
+        if canonical_identity
+        else f"path_utf8hex={inert_utf8(binding['relative_path'])}"
+    )
+    return f"{rendered_path}; sha256={binding['sha256']}"
+
+
 def terminal_suffix(manifest, view):
     profile = manifest["identity_profile"]
     identity_lock = (
         "IDENTITY LOCK: canonical_source=正面/1.jpg; "
         f"head_visibility={profile['head_visibility']}; "
         "skin_tone_and_visible_ancestry_cues="
-        f"{profile['skin_tone_and_visible_ancestry_cues']}; "
-        f"visible_face_features={profile['visible_face_features']}; "
-        f"hair_evidence={profile['hair_evidence']}; "
-        f"age_impression={profile['age_impression']}; "
-        f"body_profile={profile['body_profile']}; "
+        f"{inert_utf8(profile['skin_tone_and_visible_ancestry_cues'])}; "
+        f"visible_face_features={inert_utf8(profile['visible_face_features'])}; "
+        f"hair_evidence={inert_utf8(profile['hair_evidence'])}; "
+        f"age_impression={inert_utf8(profile['age_impression'])}; "
+        f"body_profile={inert_utf8(profile['body_profile'])}; "
         "Noncanonical local pose/composition sources must not control or override "
         "body_profile."
     )
@@ -292,6 +305,23 @@ def terminal_suffix(manifest, view):
         identity_lock,
         framing,
     ]
+    if view == "full":
+        blocks.append(
+            "FULL-BODY FRAME: Keep the complete model continuously visible from "
+            "the highest point of the hair and top of the head through the entire "
+            "body to the lowest point of both feet. Keep the complete hair crown, "
+            "full head, full face, chin, neck, entire body, garment hem, ankles, "
+            "both feet, and toes fully inside the frame. Leave clear visible safety "
+            "margin above the hair and below both feet. No body part may touch, "
+            "cross, or be cropped by an image edge. Move the camera farther away "
+            "whenever the pose or camera distance would violate this frame."
+        )
+        if "footwear_contract" in manifest["views"][view]:
+            blocks.append(
+                "EXPLICIT FOOTWEAR FRAME: Because an explicit scanner-validated "
+                "footwear_contract is active, keep both validated shoes and their "
+                "shoe soles fully visible inside the lower safety margin."
+            )
     if manifest["garment_profile"]["requires_full_garment_frame"]:
         blocks.append(
             "GARMENT FRAME LOCK: Activate only for a visually confirmed below-knee "
@@ -353,33 +383,29 @@ def expected_positive_prompt(manifest, view, action):
     directives = action["action_directives"]
     parts = [
         (
-            f"SKC {manifest['skc_id']} | VIEW {view} | ACTION "
+            f"SKC {inert_utf8(manifest['skc_id'])} | VIEW {view} | ACTION "
             f"{action['action_id']} | ATTEMPT {action['attempt']}."
         ),
         (
             "IDENTITY MODEL SOURCE: "
-            f"path={bindings['identity']['relative_path']}; "
-            f"sha256={bindings['identity']['sha256']}."
+            f"{rendered_binding(bindings['identity'], canonical_identity=True)}."
         ),
         (
             "PRODUCT SOURCE: "
-            f"path={bindings['product']['relative_path']}; "
-            f"sha256={bindings['product']['sha256']}."
+            f"{rendered_binding(bindings['product'])}."
         ),
         (
             "SCENE SOURCE: "
-            f"path={bindings['scene']['relative_path']}; "
-            f"sha256={bindings['scene']['sha256']}."
+            f"{rendered_binding(bindings['scene'])}."
         ),
         (
             "POSE/COMPOSITION SOURCE: "
-            f"path={bindings['pose_composition']['relative_path']}; "
-            f"sha256={bindings['pose_composition']['sha256']}."
+            f"{rendered_binding(bindings['pose_composition'])}."
         ),
     ]
     if "footwear" in bindings:
         rendered_sources = ", ".join(
-            f"path={item['relative_path']}; sha256={item['sha256']}"
+            rendered_binding(item)
             for item in bindings["footwear"]
         )
         parts.append(

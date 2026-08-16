@@ -16,12 +16,45 @@ SCANNER_PATH = ROOT / "skill" / "scripts" / "scan_skc.py"
 STATE_PATH = ROOT / "skill" / "scripts" / "update_run_state.py"
 FIXTURES = runpy.run_path(str(Path(__file__).with_name("test_final_review_contract.py")))
 
+STATE_CLI_WRAPPER = """
+import importlib.util
+import sys
+from pathlib import Path
+
+state_path = Path(sys.argv[1]).resolve()
+coordination_root = Path(sys.argv[2]).resolve()
+arguments = sys.argv[3:]
+spec = importlib.util.spec_from_file_location("update_run_state_cli", state_path)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+module._SUBMISSION_COORDINATION_ROOT = coordination_root
+sys.argv = [str(state_path), *arguments]
+raise SystemExit(module.main())
+"""
+
 load_module = FIXTURES["load_module"]
 state_with_views = FIXTURES["state_with_views"]
 task_label = FIXTURES["task_label"]
 valid_manifest = FIXTURES["valid_manifest"]
 valid_prompt = FIXTURES["valid_prompt"]
 validate_manifest = FIXTURES["validate_manifest"]
+
+
+def configure_submission_coordination(module, temp_root):
+    coordination_root = (Path(temp_root).resolve() / "submission-coordination").resolve()
+    module._SUBMISSION_COORDINATION_ROOT = coordination_root
+    return coordination_root
+
+
+def state_cli_command(coordination_root, *arguments):
+    return [
+        "python3",
+        "-c",
+        STATE_CLI_WRAPPER,
+        str(STATE_PATH),
+        str(Path(coordination_root).resolve()),
+        *(str(argument) for argument in arguments),
+    ]
 
 
 def batch_contract(*skc_ids):
@@ -135,7 +168,7 @@ class ControlledPositiveRendererRegressionTests(unittest.TestCase):
 class ScannerBatchContractRegressionTests(unittest.TestCase):
     def test_scanner_binds_every_member_to_one_deterministic_batch_contract(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
+            root = Path(temp_dir).resolve()
             for skc_id, payload in (("alpha", b"alpha"), ("beta", b"beta")):
                 view = root / skc_id / "正面"
                 view.mkdir(parents=True)
@@ -248,8 +281,10 @@ class ScannerBatchContractRegressionTests(unittest.TestCase):
         state = state_with_views(module, "atomic-registry")
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            registry_path = Path(temp_dir) / "lovart-submissions.json"
+            temp_root = Path(temp_dir).resolve()
+            coordination_root = configure_submission_coordination(module, temp_root)
             scope = module._submission_scope(state)
+            registry_path = coordination_root / f"{scope['digest']}.json"
             worker = """
 import importlib.util
 import json
@@ -259,10 +294,13 @@ from pathlib import Path
 spec = importlib.util.spec_from_file_location("registry_worker", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+module._SUBMISSION_COORDINATION_ROOT = Path(sys.argv[2]).resolve()
 scope = json.loads(sys.argv[3])
 reservation = json.loads(sys.argv[4])
 try:
-    module._FileSubmissionCoordinator(Path(sys.argv[2])).reserve(
+    module._FileSubmissionCoordinator(
+        module._SUBMISSION_COORDINATION_ROOT / f"{scope['digest']}.json"
+    ).reserve(
         scope, reservation
     )
 except ValueError as exc:
@@ -288,7 +326,7 @@ else:
                         "-c",
                         worker,
                         str(STATE_PATH),
-                        str(registry_path),
+                        str(coordination_root),
                         json.dumps(scope, ensure_ascii=False),
                         json.dumps(reservation, ensure_ascii=False),
                     ],
@@ -327,14 +365,19 @@ else:
             "/Users/chenyiming/Desktop/8月/8月14日/nested-scope/正面"
         )
 
-        self.assertEqual(
-            module._submission_scope(nested),
-            module._submission_scope(daily),
-        )
-        self.assertEqual(
-            module._submission_registry_path(nested),
-            Path("/Users/chenyiming/Desktop/8月/_codex/lovart-submissions.json"),
-        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordination_root = configure_submission_coordination(module, temp_dir)
+            nested_scope = module._submission_scope(nested)
+            self.assertEqual(nested_scope, module._submission_scope(daily))
+            registry_path = module._submission_registry_path(nested)
+            self.assertEqual(
+                registry_path,
+                coordination_root / f"{nested_scope['digest']}.json",
+            )
+            self.assertNotIn(
+                "/Users/chenyiming/Desktop/8月",
+                str(registry_path),
+            )
 
     def test_imported_state_api_defaults_to_the_shared_file_registry(self):
         spec = importlib.util.spec_from_file_location(
@@ -344,13 +387,20 @@ else:
         spec.loader.exec_module(module)
         state = state_with_views(module, "production-default")
 
-        coordinator = module._coordinator_for_state(state)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordination_root = configure_submission_coordination(module, temp_dir)
+            scope = module._submission_scope(state)
+            coordinator = module._coordinator_for_state(state)
 
-        self.assertIsInstance(coordinator, module._FileSubmissionCoordinator)
-        self.assertEqual(
-            coordinator.path,
-            Path("/Users/chenyiming/Desktop/8月/_codex/lovart-submissions.json"),
-        )
+            self.assertIsInstance(coordinator, module._FileSubmissionCoordinator)
+            self.assertEqual(
+                coordinator.path,
+                coordination_root / f"{scope['digest']}.json",
+            )
+            self.assertNotIn(
+                "/Users/chenyiming/Desktop/8月",
+                str(coordinator.path),
+            )
 
     def test_file_registry_release_waits_for_durable_state_acknowledgement(self):
         spec = importlib.util.spec_from_file_location(
@@ -360,7 +410,9 @@ else:
         spec.loader.exec_module(module)
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            date_root = Path(temp_dir) / "8月" / "8月14日"
+            temp_root = Path(temp_dir).resolve()
+            configure_submission_coordination(module, temp_root)
+            date_root = (temp_root / "8月" / "8月14日").resolve()
             date_root.mkdir(parents=True)
             state = state_with_views(module, "durable-release")
             state["execution_context"]["source_path"] = str(
@@ -421,7 +473,9 @@ else:
         spec.loader.exec_module(module)
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            date_root = Path(temp_dir) / "8月" / "8月14日"
+            temp_root = Path(temp_dir).resolve()
+            coordination_root = configure_submission_coordination(module, temp_root)
+            date_root = (temp_root / "8月" / "8月14日").resolve()
             state = state_with_views(module, "failed-write")
             state["execution_context"]["source_path"] = str(
                 date_root / "failed-write"
@@ -444,11 +498,10 @@ else:
             os.chmod(state_path.parent, 0o500)
             try:
                 completed = subprocess.run(
-                    [
-                        "python3",
-                        str(STATE_PATH),
+                    state_cli_command(
+                        coordination_root,
                         "transition",
-                        str(state_path),
+                        state_path,
                         "front",
                         "FR01",
                         "generated",
@@ -456,7 +509,7 @@ else:
                         label,
                         "--artifact-id",
                         "failed-write-artifact",
-                    ],
+                    ),
                     capture_output=True,
                     text=True,
                 )
@@ -476,7 +529,9 @@ else:
     def test_concurrent_cli_transitions_serialize_one_state_and_registry(self):
         module = load_module("second_remediation_same_state_setup", STATE_PATH)
         with tempfile.TemporaryDirectory() as temp_dir:
-            date_root = Path(temp_dir) / "8月" / "8月14日"
+            temp_root = Path(temp_dir).resolve()
+            coordination_root = configure_submission_coordination(module, temp_root)
+            date_root = (temp_root / "8月" / "8月14日").resolve()
             state = state_with_views(module, "same-state")
             state["execution_context"]["source_path"] = str(
                 date_root / "same-state"
@@ -485,7 +540,7 @@ else:
             state_path.parent.mkdir(parents=True)
             state_path.write_text(json.dumps(state), encoding="utf-8")
             contract = state["batch_contract"]
-            inventory_path = Path(temp_dir) / "batch.json"
+            inventory_path = (temp_root / "batch.json").resolve()
             inventory_path.write_text(
                 json.dumps(
                     {
@@ -503,19 +558,18 @@ else:
 
             def submit(action_id):
                 return subprocess.run(
-                    [
-                        "python3",
-                        str(STATE_PATH),
+                    state_cli_command(
+                        coordination_root,
                         "transition",
-                        str(state_path),
+                        state_path,
                         "front",
                         action_id,
                         "submitted",
                         "--task-label",
                         task_label(state, "front", action_id, 1),
                         "--batch-inventory",
-                        str(inventory_path),
-                    ],
+                        inventory_path,
+                    ),
                     capture_output=True,
                     text=True,
                 )
@@ -540,7 +594,9 @@ else:
         spec.loader.exec_module(module)
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            date_root = Path(temp_dir) / "8月" / "8月14日"
+            temp_root = Path(temp_dir).resolve()
+            coordination_root = configure_submission_coordination(module, temp_root)
+            date_root = (temp_root / "8月" / "8月14日").resolve()
             state = state_with_views(module, "cross-command")
             state["execution_context"]["source_path"] = str(
                 date_root / "cross-command"
@@ -558,28 +614,26 @@ else:
             state_path.parent.mkdir(parents=True)
             state_path.write_text(json.dumps(state), encoding="utf-8")
             registry_path = module._submission_registry_path(state)
-            context_pipe = Path(temp_dir) / "project-context.fifo"
+            context_pipe = (temp_root / "project-context.fifo").resolve()
             os.mkfifo(context_pipe)
 
             project_process = subprocess.Popen(
-                [
-                    "python3",
-                    str(STATE_PATH),
+                state_cli_command(
+                    coordination_root,
                     "project",
-                    str(state_path),
-                    str(context_pipe),
-                ],
+                    state_path,
+                    context_pipe,
+                ),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
             )
             pipe_descriptor = os.open(context_pipe, os.O_WRONLY)
             transition_process = subprocess.Popen(
-                [
-                    "python3",
-                    str(STATE_PATH),
+                state_cli_command(
+                    coordination_root,
                     "transition",
-                    str(state_path),
+                    state_path,
                     "front",
                     "FR01",
                     "generated",
@@ -587,7 +641,7 @@ else:
                     label,
                     "--artifact-id",
                     "cross-command-artifact",
-                ],
+                ),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,

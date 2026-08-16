@@ -118,16 +118,21 @@ def valid_manifest():
     return manifest
 
 
+def inert_utf8(value):
+    return "utf8hex:" + value.encode("utf-8").hex()
+
+
 def identity_lock_text(manifest):
     profile = manifest["identity_profile"]
     return (
         "IDENTITY LOCK: canonical_source=正面/1.jpg; "
         f"head_visibility={profile['head_visibility']}; "
-        f"skin_tone_and_visible_ancestry_cues={profile['skin_tone_and_visible_ancestry_cues']}; "
-        f"visible_face_features={profile['visible_face_features']}; "
-        f"hair_evidence={profile['hair_evidence']}; "
-        f"age_impression={profile['age_impression']}; "
-        f"body_profile={profile['body_profile']}; "
+        "skin_tone_and_visible_ancestry_cues="
+        f"{inert_utf8(profile['skin_tone_and_visible_ancestry_cues'])}; "
+        f"visible_face_features={inert_utf8(profile['visible_face_features'])}; "
+        f"hair_evidence={inert_utf8(profile['hair_evidence'])}; "
+        f"age_impression={inert_utf8(profile['age_impression'])}; "
+        f"body_profile={inert_utf8(profile['body_profile'])}; "
         "Noncanonical local pose/composition sources must not control or override "
         "body_profile."
     )
@@ -868,6 +873,8 @@ class PromptSubmissionGateTests(unittest.TestCase):
             with self.subTest(field=field):
                 prompt = valid_prompt(manifest=manifest)
                 value = str(manifest["identity_profile"][field])
+                if field != "head_visibility":
+                    value = inert_utf8(value)
                 prompt["actions"][0]["prompt_en"] = prompt["actions"][0][
                     "prompt_en"
                 ].replace(value, "[omitted]", 1)
@@ -878,12 +885,12 @@ class PromptSubmissionGateTests(unittest.TestCase):
 
     def test_rejects_prefixed_or_duplicate_identity_assignment_values(self):
         manifest = valid_manifest()
-        active = "body_profile=slim adult build;"
+        active = f"body_profile={inert_utf8('slim adult build')};"
         mutations = (
-            "body_profile=slim adult buildx;",
+            f"body_profile={inert_utf8('slim adult buildx')};",
             (
-                "body_profile=slim adult build; "
-                "body_profile=different adult build;"
+                f"body_profile={inert_utf8('slim adult build')}; "
+                f"body_profile={inert_utf8('different adult build')};"
             ),
         )
         for replacement in mutations:

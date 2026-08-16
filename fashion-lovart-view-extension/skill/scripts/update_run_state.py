@@ -8,7 +8,10 @@ import fcntl
 import hashlib
 import json
 import os
+import pwd
 import re
+import secrets
+import stat
 import tempfile
 import threading
 from copy import deepcopy
@@ -32,8 +35,15 @@ SUPPLEMENTAL_ROW_SLOTS = tuple(range(6, 11))
 BATCH_CONTEXT_SCHEMA_VERSION = 1
 BATCH_CONTRACT_SCHEMA_VERSION = 1
 SUBMISSION_REGISTRY_SCHEMA_VERSION = 1
-SUBMISSION_SCOPE_SCHEMA_VERSION = 1
+SUBMISSION_SCOPE_SCHEMA_VERSION = 2
 RUN_STATE_SCHEMA_VERSION = 6
+_SUBMISSION_COORDINATION_ROOT = (
+    Path(pwd.getpwuid(os.getuid()).pw_dir)
+    / "Library"
+    / "Application Support"
+    / "fashion-lovart-view-extension"
+    / "submission-registries"
+)
 QUALITY_REASON_CODES = {
     "identity-drift",
     "head-crop-below-minimum",
@@ -320,11 +330,10 @@ def _submission_scope(state: dict) -> dict:
         raise ValueError(
             "source_path must bind the verified date region and month project"
         )
-    month_root = daily_path.parent
     digest_payload = {
         "schema_version": SUBMISSION_SCOPE_SCHEMA_VERSION,
-        "expected_month_project": expected_project,
-        "source_month_root": str(month_root),
+        "account_scope": f"local-user-{os.getuid()}",
+        "verified_month_project": verified_project,
     }
     digest = hashlib.sha256(
         json.dumps(
@@ -340,8 +349,8 @@ def _submission_scope(state: dict) -> dict:
 def _submission_scope_errors(scope: object) -> list[str]:
     if type(scope) is not dict or set(scope) != {
         "schema_version",
-        "expected_month_project",
-        "source_month_root",
+        "account_scope",
+        "verified_month_project",
         "digest",
     }:
         return ["submission scope has an invalid shape"]
@@ -350,16 +359,18 @@ def _submission_scope_errors(scope: object) -> list[str]:
         type(scope.get("schema_version")) is not int
         or scope["schema_version"] != SUBMISSION_SCOPE_SCHEMA_VERSION
     ):
-        errors.append("submission scope schema_version must be strict integer 1")
-    for field in ("expected_month_project", "source_month_root"):
+        errors.append("submission scope schema_version must be strict integer 2")
+    for field in ("account_scope", "verified_month_project"):
         if not _canonical_nonblank_string(scope.get(field)):
             errors.append(f"submission scope {field} must be canonical")
+    if scope.get("account_scope") != f"local-user-{os.getuid()}":
+        errors.append("submission scope account_scope must match the local OS user")
     if errors:
         return errors
     digest_payload = {
         "schema_version": SUBMISSION_SCOPE_SCHEMA_VERSION,
-        "expected_month_project": scope["expected_month_project"],
-        "source_month_root": scope["source_month_root"],
+        "account_scope": scope["account_scope"],
+        "verified_month_project": scope["verified_month_project"],
     }
     expected_digest = hashlib.sha256(
         json.dumps(
@@ -400,6 +411,15 @@ def _empty_submission_registry(scope: dict) -> dict:
         "scope": deepcopy(scope),
         "reservations": {},
     }
+
+
+def _registry_json_object(pairs: list[tuple[str, object]]) -> dict:
+    payload = {}
+    for key, value in pairs:
+        if key in payload:
+            raise ValueError(f"duplicate JSON object key in registry: {key}")
+        payload[key] = value
+    return payload
 
 
 def _submission_registry_errors(payload: object, scope: dict) -> list[str]:
@@ -514,37 +534,205 @@ class _InMemorySubmissionCoordinator:
 
 
 class _FileSubmissionCoordinator:
-    """Cross-process coordinator serialized by an exclusive OS file lock."""
+    """Cross-process coordinator using a stable lock and atomic registry replace."""
 
     requires_durable_ack = True
 
     def __init__(self, path: Path) -> None:
-        self.path = Path(path).expanduser().resolve()
+        candidate = Path(path).expanduser()
+        if not candidate.is_absolute() or ".." in candidate.parts:
+            raise ValueError("global submission registry path must be absolute and lexical")
+        if candidate.name in {"", ".", ".."}:
+            raise ValueError("global submission registry path must name a file")
+        self.path = candidate
+        self.lock_name = f".{candidate.name}.lock"
+
+    def _open_parent_directory(self, *, create: bool) -> int:
+        """Walk the authority directory without following any path component."""
+        flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0)
+        directory_fd = os.open("/", flags)
+        try:
+            for component in self.path.parent.parts[1:]:
+                try:
+                    child_fd = os.open(component, flags, dir_fd=directory_fd)
+                except FileNotFoundError:
+                    if not create:
+                        raise ValueError(
+                            "global submission registry directory is missing"
+                        ) from None
+                    try:
+                        os.mkdir(component, mode=0o700, dir_fd=directory_fd)
+                    except FileExistsError:
+                        pass
+                    try:
+                        child_fd = os.open(component, flags, dir_fd=directory_fd)
+                    except OSError as exc:
+                        raise ValueError(
+                            "global submission registry path contains an unsafe component"
+                        ) from exc
+                except OSError as exc:
+                    raise ValueError(
+                        "global submission registry path contains a symlink or unsafe component"
+                    ) from exc
+                child_stat = os.fstat(child_fd)
+                if not stat.S_ISDIR(child_stat.st_mode):
+                    os.close(child_fd)
+                    raise ValueError(
+                        "global submission registry path component is not a directory"
+                    )
+                if create:
+                    os.fsync(directory_fd)
+                os.close(directory_fd)
+                directory_fd = child_fd
+            return directory_fd
+        except Exception:
+            os.close(directory_fd)
+            raise
 
     @staticmethod
-    def _read_locked(handle, scope: dict, *, allow_empty: bool) -> dict:
-        handle.seek(0)
-        serialized = handle.read()
-        if not serialized:
-            if allow_empty:
-                return _empty_submission_registry(scope)
-            raise ValueError("global submission registry is missing")
+    def _open_regular_at(
+        directory_fd: int,
+        name: str,
+        flags: int,
+        *,
+        mode: int = 0o600,
+    ) -> int:
+        nofollow_flags = flags | getattr(os, "O_NOFOLLOW", 0)
         try:
-            payload = json.loads(serialized)
-        except json.JSONDecodeError as exc:
+            descriptor = os.open(
+                name,
+                nofollow_flags,
+                mode,
+                dir_fd=directory_fd,
+            )
+        except FileNotFoundError:
+            raise
+        except FileExistsError:
+            raise
+        except OSError as exc:
+            raise ValueError(
+                "global submission registry path contains a symlink or unsafe file"
+            ) from exc
+        file_stat = os.fstat(descriptor)
+        if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1:
+            os.close(descriptor)
+            raise ValueError(
+                "global submission registry and lock must be unlinked regular files"
+            )
+        return descriptor
+
+    def _acquire_lock(self, *, exclusive: bool, create_parent: bool) -> tuple[int, int]:
+        directory_fd = self._open_parent_directory(create=create_parent)
+        try:
+            lock_fd = self._open_regular_at(
+                directory_fd,
+                self.lock_name,
+                os.O_RDWR | os.O_CREAT,
+            )
+        except Exception:
+            os.close(directory_fd)
+            raise
+        fcntl.flock(
+            lock_fd,
+            fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH,
+        )
+        return directory_fd, lock_fd
+
+    @staticmethod
+    def _release_lock(directory_fd: int, lock_fd: int) -> None:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        finally:
+            os.close(lock_fd)
+            os.close(directory_fd)
+
+    def _read_locked(
+        self,
+        directory_fd: int,
+        scope: dict,
+        *,
+        allow_missing: bool,
+    ) -> dict:
+        try:
+            registry_fd = self._open_regular_at(
+                directory_fd,
+                self.path.name,
+                os.O_RDONLY,
+            )
+        except FileNotFoundError:
+            if allow_missing:
+                return _empty_submission_registry(scope)
+            raise ValueError("global submission registry is missing") from None
+        with os.fdopen(registry_fd, "r", encoding="utf-8") as handle:
+            serialized = handle.read()
+        if not serialized:
+            raise ValueError("global submission registry is empty or corrupted")
+        try:
+            payload = json.loads(
+                serialized,
+                object_pairs_hook=_registry_json_object,
+            )
+        except (json.JSONDecodeError, ValueError) as exc:
             raise ValueError("global submission registry is malformed") from exc
         errors = _submission_registry_errors(payload, scope)
         if errors:
             raise ValueError("invalid global submission registry: " + "; ".join(errors))
         return payload
 
-    @staticmethod
-    def _write_locked(handle, payload: dict) -> None:
-        handle.seek(0)
-        handle.truncate()
-        handle.write(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
-        handle.flush()
-        os.fsync(handle.fileno())
+    def _write_locked(self, directory_fd: int, payload: dict) -> None:
+        serialized = (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode(
+            "utf-8"
+        )
+        temporary_name = None
+        temporary_fd = None
+        for _ in range(10):
+            candidate = f".{self.path.name}.{secrets.token_hex(12)}.tmp"
+            try:
+                temporary_fd = self._open_regular_at(
+                    directory_fd,
+                    candidate,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                )
+            except FileExistsError:
+                continue
+            temporary_name = candidate
+            break
+        if temporary_name is None or temporary_fd is None:
+            raise OSError("could not allocate an atomic registry temporary file")
+        try:
+            with os.fdopen(temporary_fd, "wb") as handle:
+                handle.write(serialized)
+                handle.flush()
+                os.fsync(handle.fileno())
+            try:
+                destination_stat = os.stat(
+                    self.path.name,
+                    dir_fd=directory_fd,
+                    follow_symlinks=False,
+                )
+            except FileNotFoundError:
+                destination_stat = None
+            if destination_stat is not None and (
+                not stat.S_ISREG(destination_stat.st_mode)
+                or destination_stat.st_nlink != 1
+            ):
+                raise ValueError(
+                    "global submission registry path is a symlink or unsafe file"
+                )
+            os.replace(
+                temporary_name,
+                self.path.name,
+                src_dir_fd=directory_fd,
+                dst_dir_fd=directory_fd,
+            )
+            temporary_name = None
+            os.fsync(directory_fd)
+        finally:
+            if temporary_name is not None:
+                try:
+                    os.unlink(temporary_name, dir_fd=directory_fd)
+                except FileNotFoundError:
+                    pass
 
     def reserve(self, scope: dict, reservation: dict) -> None:
         scope_errors = _submission_scope_errors(scope)
@@ -554,23 +742,28 @@ class _FileSubmissionCoordinator:
                 "invalid global submission reservation: "
                 + "; ".join(scope_errors + reservation_errors)
             )
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a+", encoding="utf-8") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            try:
-                registry = self._read_locked(handle, scope, allow_empty=True)
-                reservations = registry["reservations"]
-                task_label = reservation["task_label"]
-                if task_label in reservations:
-                    raise ValueError(
-                        "canonical task label already has a global reservation"
-                    )
-                if len(reservations) >= GLOBAL_UNFINISHED_LIMIT:
-                    raise ValueError("global unfinished limit reached")
-                reservations[task_label] = deepcopy(reservation)
-                self._write_locked(handle, registry)
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        directory_fd, lock_fd = self._acquire_lock(
+            exclusive=True,
+            create_parent=True,
+        )
+        try:
+            registry = self._read_locked(
+                directory_fd,
+                scope,
+                allow_missing=True,
+            )
+            reservations = registry["reservations"]
+            task_label = reservation["task_label"]
+            if task_label in reservations:
+                raise ValueError(
+                    "canonical task label already has a global reservation"
+                )
+            if len(reservations) >= GLOBAL_UNFINISHED_LIMIT:
+                raise ValueError("global unfinished limit reached")
+            reservations[task_label] = deepcopy(reservation)
+            self._write_locked(directory_fd, registry)
+        finally:
+            self._release_lock(directory_fd, lock_fd)
 
     def release(
         self,
@@ -579,26 +772,30 @@ class _FileSubmissionCoordinator:
         skc_id: str,
         batch_digest: str,
     ) -> None:
-        if not self.path.is_file():
-            raise ValueError("global submission registry is missing")
-        with self.path.open("r+", encoding="utf-8") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            try:
-                registry = self._read_locked(handle, scope, allow_empty=False)
-                if task_label not in registry["reservations"]:
-                    raise ValueError("global submission reservation is missing")
-                reservation = registry["reservations"][task_label]
-                if (
-                    reservation.get("skc_id") != skc_id
-                    or reservation.get("batch_digest") != batch_digest
-                ):
-                    raise ValueError(
-                        "global submission reservation owner does not match"
-                    )
-                del registry["reservations"][task_label]
-                self._write_locked(handle, registry)
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        directory_fd, lock_fd = self._acquire_lock(
+            exclusive=True,
+            create_parent=False,
+        )
+        try:
+            registry = self._read_locked(
+                directory_fd,
+                scope,
+                allow_missing=False,
+            )
+            if task_label not in registry["reservations"]:
+                raise ValueError("global submission reservation is missing")
+            reservation = registry["reservations"][task_label]
+            if (
+                reservation.get("skc_id") != skc_id
+                or reservation.get("batch_digest") != batch_digest
+            ):
+                raise ValueError(
+                    "global submission reservation owner does not match"
+                )
+            del registry["reservations"][task_label]
+            self._write_locked(directory_fd, registry)
+        finally:
+            self._release_lock(directory_fd, lock_fd)
 
     def validate_release(
         self,
@@ -607,24 +804,28 @@ class _FileSubmissionCoordinator:
         skc_id: str,
         batch_digest: str,
     ) -> None:
-        if not self.path.is_file():
-            raise ValueError("global submission registry is missing")
-        with self.path.open("r", encoding="utf-8") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
-            try:
-                registry = self._read_locked(handle, scope, allow_empty=False)
-                if task_label not in registry["reservations"]:
-                    raise ValueError("global submission reservation is missing")
-                reservation = registry["reservations"][task_label]
-                if (
-                    reservation.get("skc_id") != skc_id
-                    or reservation.get("batch_digest") != batch_digest
-                ):
-                    raise ValueError(
-                        "global submission reservation owner does not match"
-                    )
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        directory_fd, lock_fd = self._acquire_lock(
+            exclusive=False,
+            create_parent=False,
+        )
+        try:
+            registry = self._read_locked(
+                directory_fd,
+                scope,
+                allow_missing=False,
+            )
+            if task_label not in registry["reservations"]:
+                raise ValueError("global submission reservation is missing")
+            reservation = registry["reservations"][task_label]
+            if (
+                reservation.get("skc_id") != skc_id
+                or reservation.get("batch_digest") != batch_digest
+            ):
+                raise ValueError(
+                    "global submission reservation owner does not match"
+                )
+        finally:
+            self._release_lock(directory_fd, lock_fd)
 
 
 _SUBMISSION_COORDINATOR = None
@@ -632,7 +833,7 @@ _SUBMISSION_COORDINATOR = None
 
 def _submission_registry_path(state: dict) -> Path:
     scope = _submission_scope(state)
-    return Path(scope["source_month_root"]) / "_codex" / "lovart-submissions.json"
+    return _SUBMISSION_COORDINATION_ROOT / f"{scope['digest']}.json"
 
 
 def _coordinator_for_state(state: dict):

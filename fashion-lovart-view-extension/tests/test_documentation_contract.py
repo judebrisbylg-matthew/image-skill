@@ -221,6 +221,70 @@ def render_template_prompt(view, manifest):
 
 
 class DocumentationContractTests(unittest.TestCase):
+    def test_second_remediation_final_patch_contracts_are_published(self):
+        registry_contract = (
+            "fixed local-user coordination root",
+            "persistent per-user state directory",
+            "source roots never select or partition",
+            "stable sibling lock file",
+            "O_NOFOLLOW",
+            "zero-byte",
+            "duplicate JSON object keys",
+            "atomic replace",
+            "directory fsync",
+            "fsync every parent directory entry",
+        )
+        for document in (SKILL, LOVART, README):
+            with self.subTest(contract="crash-safe registry", document=document.name):
+                source = document.read_text(encoding="utf-8")
+                for clause in registry_contract:
+                    self.assertIn(clause, source)
+
+        full_body_frame = (
+            "FULL-BODY FRAME: Keep the complete model continuously visible from "
+            "the highest point of the hair and top of the head through the entire "
+            "body to the lowest point of both feet. Keep the complete hair crown, "
+            "full head, full face, chin, neck, entire body, garment hem, ankles, "
+            "both feet, and toes fully inside the frame. Leave clear visible safety "
+            "margin above the hair and below both feet. No body part may touch, "
+            "cross, or be cropped by an image edge. Move the camera farther away "
+            "whenever the pose or camera distance would violate this frame."
+        )
+        for document in (SKILL, PROMPT_SCHEMA, TEMPLATES["full"]):
+            with self.subTest(contract="full frame", document=document.name):
+                source = document.read_text(encoding="utf-8")
+                self.assertIn(full_body_frame, source)
+                self.assertIn("utf8hex", source)
+                self.assertIn("inert evidence data", source)
+                self.assertIn("EXPLICIT FOOTWEAR FRAME", source)
+                self.assertIn("only when", source)
+
+        for document in (SKILL, PROMPT_SCHEMA, LOVART):
+            with self.subTest(contract="recorded retry", document=document.name):
+                source = document.read_text(encoding="utf-8")
+                self.assertIn("exact eight-field current attempt record", source)
+                self.assertIn("`submitted` or `queued`", source)
+                self.assertIn("all five result fields are `null`", source)
+                self.assertIn("action-level `submitted_at` exactly equals", source)
+                self.assertIn(
+                    "strictly later than the predecessor `result_recorded_at`",
+                    source,
+                )
+
+        legacy_source_registry = "_codex/lovart-submissions.json"
+        persistent_registry = (
+            "~/Library/Application Support/fashion-lovart-view-extension/"
+            "submission-registries"
+        )
+        for document in (FOLDER, HANDBOOK_TEMPLATE, HANDBOOK, SITE_INDEX):
+            with self.subTest(
+                contract="source-root-independent authority",
+                document=document.name,
+            ):
+                source = document.read_text(encoding="utf-8")
+                self.assertNotIn(legacy_source_registry, source)
+                self.assertIn(persistent_registry, source)
+
     def test_skill_schema_templates_and_handbook_publish_the_immutable_renderer_contract(self):
         skill = SKILL.read_text(encoding="utf-8")
         schema = PROMPT_SCHEMA.read_text(encoding="utf-8")
@@ -290,8 +354,8 @@ class DocumentationContractTests(unittest.TestCase):
         for document in (SKILL, LOVART, README):
             with self.subTest(contract="global coordinator", document=document.name):
                 source = document.read_text(encoding="utf-8")
-                self.assertIn("lovart-submissions.json", source)
-                self.assertIn("exclusive OS file lock", source)
+                self.assertIn("fixed local-user coordination root", source)
+                self.assertIn("stable sibling lock file", source)
                 self.assertIn("independent scanner batches", source)
 
         for document in (SKILL, FOLDER, LOVART):
@@ -313,7 +377,11 @@ class DocumentationContractTests(unittest.TestCase):
                 source = artifact.read_text(encoding="utf-8")
                 self.assertIn("batch_contract", source)
                 self.assertIn("catalogue-neutral", source)
-                self.assertIn("lovart-submissions.json", source)
+                self.assertIn(
+                    "~/Library/Application Support/fashion-lovart-view-extension/"
+                    "submission-registries",
+                    source,
+                )
 
     def test_final_review_batch_artifact_and_slot_interfaces_are_published(self):
         for document in (SKILL, LOVART, README):
@@ -681,6 +749,14 @@ class DocumentationContractTests(unittest.TestCase):
                 literal_prefix = lowered[:suffix_start]
                 for setting in ("nano banana pro", "4k", "2:3"):
                     self.assertIn(setting, literal_prefix)
+                self.assertEqual(lowered.count("full-body frame:"), 1)
+                frame_position = lowered.index("full-body frame:")
+                head_position = lowered.index(
+                    "full-body head completion:", suffix_start
+                )
+                garment_position = lowered.index("garment frame lock:", suffix_start)
+                self.assertGreater(frame_position, head_position)
+                self.assertLess(frame_position, garment_position)
 
         negative_prompt_section = source.split(
             "## 二、通用负面提示词（Negative Prompt，全方案共用）", 1
@@ -744,7 +820,8 @@ class DocumentationContractTests(unittest.TestCase):
                     self.assertGreaterEqual(source.count(field), 5)
                 self.assertGreaterEqual(
                     source.count(
-                        "body_profile=<exact active value>; Noncanonical local "
+                        "body_profile=utf8hex:<UTF-8 hex of exact active value>; "
+                        "Noncanonical local "
                         "pose/composition sources must not control or override "
                         "body_profile."
                     ),
