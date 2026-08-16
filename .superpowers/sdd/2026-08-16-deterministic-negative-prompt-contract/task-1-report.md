@@ -695,3 +695,235 @@ Exit summary: both exited `0`; no diagnostics.
 ## Concerns
 
 A process crash after a reservation is created but before its state update is durably written, or after a finished state is persisted but before registry release completes, intentionally leaves a conservative stale reservation. This cannot free capacity early or exceed the global cap, but it requires audited reconciliation before that slot can be reused. Malformed/corrupted registry data likewise fails closed for availability. The pre-existing untracked `docs/superpowers/plans/` directory remains untouched.
+
+# Second Remediation Final Patch Wave
+
+## Scope and architecture decisions
+
+- Addressed every C1/I1-I5 finding in `second-remediation-final-review.md`, followed by all Critical/Important findings from two subsequent independent review passes. No previously passing identity, provenance, framing, negative-prompt, project/task-label, artifact/placement, slot, review, rejection-code, generation-cap, or layout-v3 contract was weakened.
+- The global unfinished-work authority is now keyed only by strict scope schema `2`, the local OS user, and the verified month project. Source roots are validated evidence but do not enter the scope digest or registry location. The default authority is the passwd-derived persistent per-user state directory `~/Library/Application Support/fashion-lovart-view-extension/submission-registries`, so separate source trees share one 10-slot window and temporary-directory cleanup cannot reset it.
+- Registry access uses a stable sibling lock and descriptor-relative `O_NOFOLLOW` traversal. The create-capable walk `fsync`s every parent directory entry. Only an actually missing registry initializes empty; zero-byte, malformed, duplicate-JSON-key, scope-mismatched, hard-linked, symlinked, or otherwise unsafe state fails closed before mutation. Updates write an exclusive same-directory temporary regular file, file-`fsync`, atomic replace, and directory `fsync` without truncating the live registry.
+- Full-view positive prompts contain one exact deterministic `FULL-BODY FRAME` block inside the immutable terminal suffix after `FULL-BODY HEAD COMPLETION`: complete hair crown/head/face/body/hem/ankles/both feet/toes, top and bottom safety margins, no edge contact/crop, and mandatory camera pullback. Shoes/soles remain a separate block emitted only for a validated explicit `footwear_contract`.
+- Free identity evidence, the scanner-derived SKC ID, and noncanonical source paths render only as reversible `utf8hex` inert data. Action IDs and action/camera/composition/scene directives are closed controlled values. This leaves no free-text path for product, scene, identity, or footwear authority.
+- The recorded retry branch requires exact attempt sequence, unfinished `submitted`/`queued` status, exact current label, and the exact eight-field null-result current record. Its action-level and record-level `submitted_at` strings must be identical, timezone-aware, and strictly later than the canonical rejected predecessor's `result_recorded_at`.
+- Documentation truth sources and generated artifacts now agree with the persistent coordinator. The obsolete date-ancestor `_codex/lovart-submissions.json` instruction was removed from `folder-contract.md` and the handbook card. All five full-template literal examples now place the exact full-body block inside the terminal suffix in production renderer order.
+
+## RED evidence
+
+Initial final-review regression file:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-patch-red \
+python3 -m unittest \
+  fashion-lovart-view-extension/tests/test_second_remediation_final_patch.py -v
+```
+
+Exit summary: nonzero; `Ran 6 tests in 0.041s`; `FAILED (failures=18)`. The failures reproduced empty/live-registry reset and replace durability, cross-root cap partitioning, registry symlink following, missing exact full-body positive framing, free evidence footwear injection, and forged recorded retry state.
+
+Initial final-patch documentation contract:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-patch-docs-red \
+python3 -m unittest \
+  fashion-lovart-view-extension.tests.test_documentation_contract.DocumentationContractTests.test_second_remediation_final_patch_contracts_are_published -v
+```
+
+Exit summary: nonzero; `Ran 1 test`; `FAILED (failures=9)`.
+
+Persistent authority, parent-directory durability, and retry timestamp binding found by the first follow-up review were captured together:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-review-red-2 \
+python3 -m unittest \
+  fashion-lovart-view-extension.tests.test_second_remediation_final_patch.RegistryFinalPatchRegressionTests.test_default_registry_authority_is_persistent_user_state \
+  fashion-lovart-view-extension.tests.test_second_remediation_final_patch.RegistryFinalPatchRegressionTests.test_each_created_registry_directory_entry_is_fsynced \
+  fashion-lovart-view-extension.tests.test_second_remediation_final_patch.PromptFinalPatchRegressionTests.test_recorded_retry_requires_canonical_inflight_current_attempt -v
+```
+
+Exit summary: nonzero; `Ran 3 tests in 0.039s`; `FAILED (failures=5)`. The default still resolved below `/private/tmp`, no traversed parent directory was `fsync`ed, and all three forged timestamp forms were accepted.
+
+The corresponding documentation additions were captured RED:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-review-docs-red-2 \
+python3 -m unittest \
+  fashion-lovart-view-extension.tests.test_documentation_contract.DocumentationContractTests.test_second_remediation_final_patch_contracts_are_published -v
+```
+
+Exit summary: nonzero; `Ran 1 test`; `FAILED (failures=6)`.
+
+The second follow-up review's duplicate-key capacity reset was reproduced exactly:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-review-duplicate-json-red \
+python3 -m unittest \
+  fashion-lovart-view-extension.tests.test_second_remediation_final_patch.RegistryFinalPatchRegressionTests.test_existing_empty_registry_and_failed_replace_never_reset_capacity -v
+```
+
+Exit summary: nonzero; `Ran 1 test in 0.030s`; `FAILED (failures=1)`. A registry with ten reservations followed by a duplicate empty `reservations` key admitted reservation eleven.
+
+Duplicate-key documentation was also captured RED:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-review-duplicate-doc-red \
+python3 -m unittest \
+  fashion-lovart-view-extension.tests.test_documentation_contract.DocumentationContractTests.test_second_remediation_final_patch_contracts_are_published -v
+```
+
+Exit summary: nonzero; `Ran 1 test`; `FAILED (failures=3)`.
+
+The obsolete source-root registry instructions were captured across every source/generated artifact:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-review-doc-authority-red \
+python3 -m unittest \
+  fashion-lovart-view-extension.tests.test_documentation_contract.DocumentationContractTests.test_second_remediation_final_patch_contracts_are_published -v
+```
+
+Exit summary: nonzero; `Ran 1 test`; `FAILED (failures=4)`.
+
+All five out-of-order full-template suffix examples were captured RED:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-review-full-template-red \
+python3 -m unittest \
+  fashion-lovart-view-extension.tests.test_documentation_contract.DocumentationContractTests.test_full_literal_actions_place_generation_settings_before_terminal_suffix -v
+```
+
+Exit summary: nonzero; `Ran 1 test in 0.005s`; `FAILED (failures=5)`.
+
+## GREEN evidence
+
+Persistent authority, directory durability, and retry time binding:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-review-green-2 \
+python3 -m unittest \
+  fashion-lovart-view-extension.tests.test_second_remediation_final_patch.RegistryFinalPatchRegressionTests.test_default_registry_authority_is_persistent_user_state \
+  fashion-lovart-view-extension.tests.test_second_remediation_final_patch.RegistryFinalPatchRegressionTests.test_each_created_registry_directory_entry_is_fsynced \
+  fashion-lovart-view-extension.tests.test_second_remediation_final_patch.PromptFinalPatchRegressionTests.test_recorded_retry_requires_canonical_inflight_current_attempt -v
+```
+
+Exit summary: exit `0`; `Ran 3 tests in 0.037s`; `OK`.
+
+Strict duplicate-key parsing:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-review-duplicate-json-green \
+python3 -m unittest \
+  fashion-lovart-view-extension.tests.test_second_remediation_final_patch.RegistryFinalPatchRegressionTests.test_existing_empty_registry_and_failed_replace_never_reset_capacity -v
+```
+
+Exit summary: exit `0`; `Ran 1 test in 0.028s`; `OK`.
+
+Final-patch documentation, persistent-authority artifacts, and literal full suffix order:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-review-doc-oracle-green \
+python3 -m unittest \
+  fashion-lovart-view-extension.tests.test_documentation_contract.DocumentationContractTests.test_second_remediation_contracts_are_published_consistently \
+  fashion-lovart-view-extension.tests.test_documentation_contract.DocumentationContractTests.test_second_remediation_final_patch_contracts_are_published \
+  fashion-lovart-view-extension.tests.test_documentation_contract.DocumentationContractTests.test_full_literal_actions_place_generation_settings_before_terminal_suffix -v
+```
+
+Exit summary: exit `0`; `Ran 3 tests in 0.008s`; `OK`.
+
+Final focused final-patch suite:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-patch-focused-release \
+python3 -m unittest \
+  fashion-lovart-view-extension/tests/test_second_remediation_final_patch.py -v
+```
+
+Exit summary: exit `0`; `Ran 8 tests in 0.094s`; `OK`.
+
+Final documentation suite:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-patch-docs-release \
+python3 -m unittest \
+  fashion-lovart-view-extension/tests/test_documentation_contract.py -v
+```
+
+Exit summary: exit `0`; `Ran 38 tests in 0.041s`; `OK`.
+
+Final full repository suite:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-patch-full-release \
+python3 -m unittest discover \
+  -s fashion-lovart-view-extension/tests -p 'test_*.py' -v
+```
+
+Exit summary: exit `0`; `Ran 177 tests in 2.522s`; `OK`.
+
+Python compilation:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-patch-pycompile-release \
+python3 -m py_compile \
+  fashion-lovart-view-extension/skill/scripts/scan_skc.py \
+  fashion-lovart-view-extension/skill/scripts/validate_manifest.py \
+  fashion-lovart-view-extension/skill/scripts/negative_prompt.py \
+  fashion-lovart-view-extension/skill/scripts/resolve_lovart_context.py \
+  fashion-lovart-view-extension/skill/scripts/update_run_state.py
+```
+
+Exit summary: exit `0`; no stdout/stderr.
+
+Skill Creator quick validation:
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/second-final-patch-quick-validate-release \
+python3 /Users/chenyiming/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
+  fashion-lovart-view-extension/skill
+```
+
+Exit summary: exit `0`; `Skill is valid!`.
+
+Handbook deterministic rebuild and byte comparison:
+
+```bash
+cp fashion-lovart-view-extension/docs/handbook.html \
+  /private/tmp/second-final-patch-handbook-release-before.html
+node fashion-lovart-view-extension/tools/build_handbook.mjs
+cmp /private/tmp/second-final-patch-handbook-release-before.html \
+  fashion-lovart-view-extension/docs/handbook.html
+cmp fashion-lovart-view-extension/docs/handbook.html docs/index.html
+```
+
+Exit summary: all commands exited `0`; the builder emitted both expected paths, the rebuild was byte-identical, and handbook/site bytes match.
+
+Whitespace and staged integrity:
+
+```bash
+git diff --check
+git diff --cached --check
+```
+
+Exit summary: both exited `0`; no diagnostics.
+
+## Files
+
+- Runtime: `fashion-lovart-view-extension/skill/scripts/update_run_state.py`, `validate_manifest.py`.
+- Focused/migrated tests: `tests/test_second_remediation_final_patch.py`, `test_second_remediation_contract.py`, `test_final_review_contract.py`, `test_validate_manifest.py`, `test_documentation_contract.py`.
+- Skill contracts and templates: `skill/SKILL.md`, `references/folder-contract.md`, `lovart-execution.md`, `prompt-output-schema.md`, and all four view templates.
+- Published documentation: `README.md`, `tools/handbook-template.html`, generated `docs/handbook.html`, and repository `docs/index.html`.
+
+## Commit
+
+- `ce7eaed fix: close final remediation review gaps`
+
+## Independent review and self-review
+
+- The first follow-up review found the temporary default authority and missing parent-directory durability plus recorded-retry timestamp gaps. Each was reproduced RED and fixed before the next review.
+- The final reviewer then found duplicate JSON keys could reset capacity, the folder/handbook still taught the obsolete source-root registry, and full-template examples placed `FULL-BODY FRAME` outside the terminal suffix. Each finding received a minimal RED regression and a focused GREEN. The same reviewer re-probed the complete current diff and returned `CLEAN`.
+- Registry reads now fail before mutation on every corruption shape covered by the review. Stable-inode locking is preserved while atomic replacement occurs under a separate sibling lock. Cross-root and concurrent reservations share a single project/user registry and reserve at most ten.
+- The positive renderer is closed over controlled metadata and scanner evidence; no-footwear prompts have no structural route to a positive shoes/soles sentence. Full framing and retry canonicality are exact deterministic contracts rather than keyword heuristics.
+- All 177 tests, documentation checks, compilation, Skill validation, deterministic handbook build, byte comparisons, and whitespace checks passed after the final reviewer finding was fixed.
+- The pre-existing untracked `docs/superpowers/plans/` directory remained untouched and was excluded from both commits.
+
+## Concerns
+
+No unresolved implementation concern. Deployment must occur with older source-root or temporary-coordinator work drained, or with its live reservations explicitly reconciled into the new persistent authority; otherwise two different software versions cannot share one registry. Crashes after reservation but before durable state completion intentionally leave a conservative stale slot that requires audited reconciliation. Corrupted registry state remains deliberately fail-closed for availability.
