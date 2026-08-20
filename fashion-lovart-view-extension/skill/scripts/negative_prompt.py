@@ -27,8 +27,6 @@ SHARED_DEFECTS = (
     "wrong scene",
     "wrong product identity",
     "wrong garment color/neckline/sleeves/length/material",
-    "styling drift from 正面/1.jpg: wrong lower-body garment, lost/added waist exposure, changed shoes/bag/accessories/carry method",
-    "scene-contract drift: indoor/outdoor mismatch, weather/daylight mismatch, warm/cool color-temperature mismatch, wrong key-light direction or core environment",
     "identity drift",
     "ethnicity/visible-ancestry drift",
     "skin-tone drift",
@@ -44,10 +42,6 @@ FULL_VIEW_DEFECTS = (
     "any crop of hair crown/head/face/chin/neck/body/garment hem/ankles/feet/toes/shoes/soles",
     "missing safety margin above hair or below footwear",
     "wrong requested full view",
-)
-SIDE_VIEW_DEFECTS = (
-    "pure 90-degree side profile",
-    "side body rotation below 15 degrees or above 45 degrees",
 )
 LONG_DRESS_DEFECTS = (
     "cropped/obscured hem",
@@ -225,8 +219,6 @@ def render_negative_prompt(
     _validate_garment_contract(garment_contract)
 
     defects = list(SHARED_DEFECTS)
-    if view_name == "side":
-        defects.extend(SIDE_VIEW_DEFECTS)
     if view_name == "full":
         defects.extend(FULL_VIEW_DEFECTS)
     else:

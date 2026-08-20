@@ -392,7 +392,14 @@ class DocumentationContractTests(unittest.TestCase):
                 self.assertIn("exact canonical task label", source)
                 self.assertIn("unique artifact", source)
                 self.assertIn("supplemental slots `6`–`10`", source)
-                self.assertIn("20 verified primary base results", source)
+                if document == README:
+                    self.assertIn("当前视角只在它的五张基础图", source)
+                else:
+                    self.assertIn("five identified and verified base results", source)
+                if document == README:
+                    self.assertIn("每个视角采用闭环", source)
+                else:
+                    self.assertIn("per-view closed loop", source)
 
     def test_positive_footwear_source_is_conditional_in_full_template(self):
         template = TEMPLATES["full"].read_text(encoding="utf-8")
@@ -607,7 +614,11 @@ class DocumentationContractTests(unittest.TestCase):
         for view, path in TEMPLATES.items():
             with self.subTest(view=view):
                 template = path.read_text(encoding="utf-8")
-                self.assertGreaterEqual(template.count(source_rule), 2)
+                if view == "side":
+                    self.assertIn("整套穿搭最高权威", template)
+                    self.assertIn("POSE/COMPOSITION SOURCE 仅控制姿势、裁切、身体方向和构图", template)
+                else:
+                    self.assertGreaterEqual(template.count(source_rule), 2)
                 self.assertNotIn("图1（模特人物图）", template)
                 self.assertNotIn("人物身份、体态、肤色、发型、气质和可复用配饰取自图1", template)
 

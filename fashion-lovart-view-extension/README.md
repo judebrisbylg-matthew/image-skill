@@ -119,7 +119,7 @@ python3 skill/scripts/update_run_state.py transition <state> <view> <action-id> 
   --batch-state <other-current-skc-state.json>
 ```
 
-Lovart 返回图片后，先用同一标签和 nonblank unique artifact 记录 `generated`，再归位；不允许预归位或复用 artifact。主槽只能使用 `1`–`5` 且对应动作号，补图使用 supplemental slots `6`–`10`，任何物理槽位冲突都失败关闭。统一质检和最终完成都要求 review gate 已持久化证明 20 verified primary base results（四视角各 5 张且 artifact 全部唯一）。
+Lovart 返回图片后，先用同一标签和 nonblank unique artifact 记录 `generated`，再归位；不允许预归位或复用 artifact。主槽只能使用 `1`–`5` 且对应动作号，补图使用 supplemental slots `6`–`10`，任何物理槽位冲突都失败关闭。当前视角只在它的五张基础图均已识别、归位并验证后进入审核；完成这个视角的审核/补图闭环后才开始下一视角。
 
 推荐直接提供当天目录。路径与 Lovart 位置采用确定映射：
 

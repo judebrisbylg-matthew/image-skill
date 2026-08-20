@@ -43,20 +43,6 @@ HEAD_CROP_MARKER = "HEAD CROP FLOOR:"
 FULL_HEAD_MARKER = "FULL-BODY HEAD COMPLETION:"
 FULL_BODY_FRAME_MARKER = "FULL-BODY FRAME:"
 GARMENT_FRAME_MARKER = "GARMENT FRAME LOCK:"
-STYLING_AUTHORITY_TEXT = (
-    "STYLING AUTHORITY: 正面/1.jpg is the highest whole-outfit authority. Preserve "
-    "the exact exposed-or-covered waist relationship, lower-body garment, shoes, bag, "
-    "accessories, and carry method. PRODUCT SOURCE controls only target-product construction."
-)
-SCENE_AUTHORITY_TEXT = (
-    "SCENE AUTHORITY: Preserve one SCENE SOURCE setting type, weather/daylight, color "
-    "temperature, key-light direction, shadow softness, and core environment. Never mix "
-    "indoor/outdoor, sunny/overcast, warm/cool, or unrelated settings."
-)
-SIDE_ANGLE_TEXT = (
-    "SIDE ANGLE LOCK: Keep body rotation between 15 and 45 degrees; reject a pure "
-    "90-degree profile, any angle above 45 degrees, or near-front below 15 degrees."
-)
 FINAL_CONTRACT_OVERRIDE = (
     "FINAL CONTRACT OVERRIDE: In any conflict, the following identity, head-crop, "
     "full-body, and garment contracts override every earlier sentence in this prompt."
@@ -735,8 +721,6 @@ def render_positive_prompt(
             "POSE/COMPOSITION SOURCE: "
             f"{_render_bound_source(bindings['pose_composition'])}."
         ),
-        STYLING_AUTHORITY_TEXT,
-        SCENE_AUTHORITY_TEXT,
     ]
     if "footwear" in bindings:
         rendered_sources = ", ".join(
@@ -760,8 +744,6 @@ def render_positive_prompt(
             f"{SCENE_RENDER_MAP[directives['scene']]}.",
         )
     )
-    if view == "side":
-        parts.append(SIDE_ANGLE_TEXT)
     correction = action.get("correction")
     if correction is not None:
         parts.append(
