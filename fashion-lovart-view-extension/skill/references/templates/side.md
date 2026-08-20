@@ -6,12 +6,12 @@
 
 > The Feishu 图1/图2/图3 labels below are logical role labels, not Lovart upload index values. In every ASCII package, `identity_model_01` (`正面/1.jpg`) is physically first; a separate local side pose/composition source follows only when its hash differs.
 
-- `IDENTITY MODEL SOURCE = 正面/1.jpg`：唯一身份依据，只提取 `identity_profile`。
+- `IDENTITY MODEL SOURCE = 正面/1.jpg`：唯一身份依据，也是整套穿搭最高权威；提取 `identity_profile` 以及下装、露腰关系、鞋、包、饰品与携带方式。
 - 图1：本视角侧面人物参考，作为 `POSE/COMPOSITION SOURCE`，仅提供姿势、裁切、身体方向和构图。
-- 图2：产品侧面款式图，是侧面版型唯一标准。
+- 图2：产品侧面款式图，只核对目标产品侧面结构；整套穿搭仍以正面/1.jpg为最高权威。
 - 图3：场景参考图。
 
-IDENTITY MODEL SOURCE = 正面/1.jpg，仅控制身份；本视角 POSE/COMPOSITION SOURCE 仅控制姿势、裁切、身体方向和构图，不得覆盖身份。
+IDENTITY MODEL SOURCE = 正面/1.jpg 是整套穿搭最高权威；本视角 POSE/COMPOSITION SOURCE 仅控制姿势、裁切、身体方向和构图，不得覆盖身份或穿搭。
 
 Noncanonical local pose/composition sources must not control or override `body_profile`; copy that value only from the active canonical identity profile.
 
@@ -21,9 +21,9 @@ Noncanonical local pose/composition sources must not control or override `body_p
 
 填写 canonical identity、产品侧面、场景、构图和光影。侧面产品分析必须覆盖侧面廓形厚度、袖管侧面形态、裙摆侧面垂坠和面料。本视角 POSE/COMPOSITION SOURCE 控制构图，必须明确半身或全身以及截头边界。
 
-每个动作的中文融合说明必须明确：IDENTITY MODEL SOURCE = 正面/1.jpg，仅控制身份；本视角 POSE/COMPOSITION SOURCE 仅控制姿势、裁切、身体方向和构图，不得覆盖身份。图2继续作为侧面服装唯一标准，图3继续控制场景与光影。
+每个动作的中文融合说明必须明确：IDENTITY MODEL SOURCE = 正面/1.jpg 是整套穿搭最高权威；图2只核对目标产品侧面结构；图3锁定室内/室外、天气/日照、色温、主光和核心背景。本视角 POSE/COMPOSITION SOURCE 仅控制姿势、裁切、身体方向和构图。
 
-五张图保持同一背景核心要素，仅根据左右侧、机位远近与前后偏移调整透视。所有人物侧转角度不超过30度。
+五张图保持同一背景核心要素，仅根据左右侧、机位远近与前后偏移调整透视。所有人物侧转必须为15–45度；纯90度侧面、超过45度或低于15度均为不合格并补图。
 
 ## 五个动作
 
@@ -37,11 +37,10 @@ Noncanonical local pose/composition sources must not control or override `body_p
 
 ## 英文提示词必含
 
-- The canonical IDENTITY MODEL SOURCE controls identity only.
+- 正面/1.jpg is the highest styling authority: preserve its exact lower-body garment, waist exposure, shoes, bag, accessories and carry method.
 - The local POSE/COMPOSITION SOURCE controls crop and subject scale in the frame without overriding identity; it must not control or override `body_profile`.
-- The PRODUCT SOURCE is the sole side-garment authority.
-- The SCENE SOURCE controls scene and lighting evidence.
-- `body turned no more than 30 degrees to the left/right`。
+- The PRODUCT SOURCE verifies only target-product construction. The SCENE SOURCE locks setting type, weather/daylight, color temperature, key-light direction and core environment.
+- `body turned 15 to 45 degrees to the left/right; reject a pure 90-degree profile`。
 - 人物光向、环境反射与地面投影匹配背景；不得出现贴图、白边或轮廓光晕。
 
 ## 通用负面提示词

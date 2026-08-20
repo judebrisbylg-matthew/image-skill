@@ -24,7 +24,7 @@ tools/build_handbook.mjs      文档构建器：从 skill/ 重新生成 HTML
 ## 核心能力
 
 - 支持单个 SKC 和批次根目录。
-- 除唯一身份例外 `正面/1.jpg` 外，不按 `1/2/3/4` 猜图片作用，而是根据画面分配人物、产品、场景、构图和配饰角色；`正面/1.jpg` 必须先目视检查并作为所有视角的 canonical identity source。
+- 除唯一身份例外 `正面/1.jpg` 外，不按 `1/2/3/4` 猜图片作用，而是根据画面分配人物、产品、场景、构图和配饰角色；`正面/1.jpg` 必须先目视检查，并作为所有视角的 canonical identity source 与**整套穿搭最高权威**。下装、露腰关系、鞋、包、饰品和携带方式必须以它为准；产品图只核对目标产品本身。
 - 正面、侧面、背面、全身各生成 5 个独立动作。
 - 每条动作使用 scanner-backed `source_bindings`、受控 code 枚举和确定性 `render_positive_prompt`；动作固定采用 `catalogue-neutral`、`weight-shift`、`controlled-step`、`detail-gesture`、`soft-turn` 五种独立语义，不接受 free authority prose。自由身份字段、SKC ID 与非 canonical 路径只以 reversible `utf8hex` inert evidence data 出现；只有显式 `footwear_contract` 才能生成鞋履正向权威。重试仅接受四种拒绝码和 `accepted-contracts` 保留码，并与 run-state 的完整前序拒绝证据及 exact eight-field current attempt record 严格绑定；recorded 分支状态只能是 `submitted` or `queued`，all five result fields are `null`，action-level `submitted_at` exactly equals 当前 record 的值，并且该时间 strictly later than the predecessor `result_recorded_at`。
 - Nano Banana Pro、4K、2:3。
@@ -33,12 +33,12 @@ tools/build_handbook.mjs      文档构建器：从 skill/ 重新生成 HTML
 - 提交时必须提供原始 `--batch-inventory`，并为合同内其他 SKC 重复提供 `--batch-state`；缩减、缺失、重排、digest 不一致或缺少合同的 legacy state 都会关闭提交闸门，10 个未完成任务按所有 authoritative member state 合计。
 - state API 与 CLI 以已验证月项目和本机 OS user 形成唯一 authority，存放在 fixed local-user coordination root，也就是 passwd-derived persistent per-user state directory `~/Library/Application Support/fashion-lovart-view-extension/submission-registries`；它不位于可被重启或临时清理删除的 `/tmp`。source roots never select or partition 该位置，因此不同源树的 independent scanner batches 仍共享同一 10 槽。每个 registry 使用 stable sibling lock file，并以 `O_NOFOLLOW` 逐层打开路径，同时 fsync every parent directory entry；已有 zero-byte、损坏或 symlink 状态一律 fail-closed。锁内先写同目录独占临时文件并 file-`fsync`，再 atomic replace 和 directory fsync，绝不截断 live registry。同一 state 的所有 state-file CLI 命令仍共用持久锁，在锁内完成 read-mutate-atomic-write、落盘内容比对与 registry release。state 原子落盘并 `fsync` 后才释放槽位，写入失败或崩溃则保守保留预留。直接调用 file-coordinator API 时也必须先持久化 state，再调用 `release_submission_slot(state, view, action_id, persisted_state_path)`。
 - Registry JSON 出现 duplicate JSON object keys 时属于 malformed/corrupted 状态，任何 reservation mutation 前一律 fail-closed。
-- 每张图完成后立即放入对应视角行，不等最后再批量整理。
+- 每个视角采用闭环：5 张基础图 → 即时审核和补图 → 5 张合格或该视角达到 10 张 → 下一视角。每张图完成后立即放入对应视角行，不等最后再批量整理。
 - 月度画布使用 `date-skc-four-row-v3`：确认截图按 `date -> SKC -> front/side/back/full -> primary/supplemental` 映射，日期从左到右，同一天的不同 SKC 从上到下，绝不左右并排。
 - 每个 SKC 固定四行；每行预留 5 个主图槽和 5 个补图槽，日期分区按完整 10 槽宽度预留。
-- 单个 SKC 使用紧凑等距矩阵：行内约为图片宽度的 8%，视角行间约为图片高度的 8%，SKC 区块间约为图片高度的 25%，即 `8% / 8% / 25%`。
+- 单个 SKC 使用紧凑等距矩阵：先预留独立文字安全栏，日期、SKC 和四行标题绝不与图片重叠；再以 `8% / 8% / 25%` 的图片间距排布图格。
 - 每次根据日期路径强制进入对应月份项目；项目不匹配时立即暂停并反馈，不上传参考图、不提交任务。
-- 全部 20 张基础结果完成后统一质检；每个视角最多生成10张，包括5张基础图和最多5张补图。
+- 场景必须锁定场景图的室内/室外、天气/日照、色温、主光方向和核心背景；暖冷、晴阴、室内外混用均不合格。侧面仅接受 15–45 度微侧，90 度纯侧面直接不合格并补图。每个视角最多生成10张，包括5张基础图和最多5张补图。
 - 单个 SKC 理论最多生成40张候选图，但最终目标仍是四个视角各5张、共20张合格图。
 - 正面、侧面、背面图至少保留半个头部，允许完整头部和完整脸部；全身图即使身份源只显示部分头部，也必须依据可见身份线索自然补全头部，并从头顶到鞋底完整入镜。
 - 产品经目视确认是过膝长裙时，所有视角必须保留完整领口至裙摆；裙摆被裁切时使用 `long-dress-hem-cropped` 拒绝原因。
@@ -161,7 +161,7 @@ node fashion-lovart-view-extension/tools/build_handbook.mjs
 单个 SKC 只有在以下条件同时成立时才算完成：
 
 - 正面、侧面、背面、全身各有 5 张合格图。
-- 进入质检前，四个视角必须分别具备 5 张已确认动作身份并完成主槽位归位的基础图；不足时标记 `blocked:base-count-incomplete`。
+- 当前视角进入质检前，必须具备 5 张已确认动作身份并完成主槽位归位的基础图；不足时标记 `blocked:base-count-incomplete`。不要等待其余三个视角：当前视角闭环完成后才进入下一视角。
 - 提交第一张图前已经预留完整日期/SKC 区块；任何生成结果未归位时，排版积压必须先清零，禁止继续补充并发任务。
 - 每张结果都能通过 Lovart 任务标签和图片身份精确对应动作；身份不明时标记 `blocked:result-identity`，不得根据完成顺序猜测。
 - 每张结果先检查身份，再检查头部/裁切和条件式长裙完整度，最后才检查普通造型、场景与光影质量；对应拒绝码包括 `identity-drift`、`head-crop-below-minimum`、`full-head-incomplete` 和 `long-dress-hem-cropped`。
